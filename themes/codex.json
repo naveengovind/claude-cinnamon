@@ -1,0 +1,21 @@
+{
+  "name": "Codex",
+  "description": "Neutral near-black, sampled from the Codex desktop app",
+  "dark": {
+    "background": "#111111",
+    "sidebar": "#151515",
+    "raised": "#1d1d1d",
+    "panel": "#1d1d1d",
+    "popover": "#2f2f2f",
+    "text": "#fcfcfc",
+    "text-sidebar": "#dcdcdc",
+    "text-secondary": "#9e9e9e",
+    "text-muted": "#6b6b6b",
+    "placeholder": "#626262",
+    "border": "#ffffff1f",
+    "hover": "#ffffff0b",
+    "selected": "#ffffff12",
+    "accent": "#2c67c5",
+    "code-background": "#111111"
+  }
+}

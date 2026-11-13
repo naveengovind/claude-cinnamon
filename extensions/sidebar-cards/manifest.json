@@ -1,0 +1,8 @@
+{
+  "name": "Sidebar cards",
+  "description": "t3-style session cards: folder, branch, model and age, a Working timer, status chips and your own labels",
+  "version": "1.0.0",
+  "page": ["page.js"],
+  "css": ["cards.css"],
+  "main": "main.cjs"
+}

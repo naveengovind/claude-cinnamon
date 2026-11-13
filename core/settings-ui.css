@@ -1,0 +1,73 @@
+/* Cinnamon — "Color scheme" row in Settings → Appearance (sidebar/theme-picker.renderer.js). */
+.cm-badge {
+  display: inline-flex;
+  align-items: center;
+  height: 16px;
+  margin-inline-start: 6px;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 16px;
+  vertical-align: middle;
+  color: var(--cds-text-secondary, rgb(255 255 255 / 0.6));
+  background: var(--cds-fill-secondary-layer, rgb(255 255 255 / 0.07));
+}
+:is([data-cm-theme-row], [data-cm-ext-row]) [data-settings-control] {
+  position: relative;
+}
+.cm-menu.cm-menu-anchored {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  left: auto;
+  z-index: 50;
+  min-width: 190px;
+  white-space: nowrap;
+}
+.cm-menu-item[role="menuitemradio"] {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.cm-menu-check {
+  width: 14px;
+  flex: none;
+  text-align: center;
+}
+.cm-menu-item[aria-disabled="true"] {
+  opacity: 0.45;
+  cursor: default;
+}
+.cm-menu-item[data-action] {
+  padding-inline-start: 28px;
+}
+.cm-menu-sep {
+  height: 1px;
+  margin: 4px 2px;
+  background: var(--cds-border-line, rgb(255 255 255 / 0.12));
+}
+/* Plain row, used only when there is no app dropdown row to copy */
+.cm-settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-block: 12px;
+}
+.cm-settings-combo {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--cds-text-primary, #fff);
+  font: inherit;
+  cursor: pointer;
+}
+.cm-settings-combo:hover {
+  background: var(--cds-fill-ghost-hover, rgb(255 255 255 / 0.07));
+}

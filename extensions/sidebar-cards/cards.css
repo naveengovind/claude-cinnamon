@@ -1,0 +1,197 @@
+/* Sidebar session cards (t3-style). Scoped to rows the card script marks with [data-cm-card]. */
+
+[data-testid="sidebar-recents"] [data-row-key^="code:local_"] {
+  margin-block: 2px;
+}
+
+[data-cm-card] {
+  border-radius: 10px !important;
+}
+
+[data-cm-card] > [data-row-main-button] {
+  height: auto !important;
+  min-height: 0 !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  justify-content: flex-start !important;
+  gap: 3px !important;
+  /* keep the app's own nesting indent (--df-row-indent is 0 for top-level rows, 20px per fork level) */
+  padding: 9px 10px 9px calc(10px + var(--df-row-indent, 0px)) !important;
+  border-radius: 10px !important;
+}
+
+/* Nested (fork) cards. The app draws one elbow per family sized for 32px rows; on cards it cuts through the text,
+   so it is replaced by one elbow per nested card that ends at the middle of that card's title. */
+.df-session-list .df-family:has([data-cm-card])::after {
+  content: none !important;
+}
+.df-family > [data-row-key]:has([data-cm-card])::before,
+.df-family > [data-row-key]:has([data-cm-card]):has(~ [data-row-key])::after {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  pointer-events: none;
+  inset-inline-start: calc(var(--df-row-indent, 20px) - 6px);
+  border-inline-start: 1px solid var(--cds-border-strong);
+}
+.df-family > [data-row-key]:has([data-cm-card])::before {
+  top: -6px;
+  /* 6px gap above + 9px padding + 16px top line + 3px gap + half of the 19px title */
+  height: 43.5px;
+  width: 10px;
+  border-bottom: 1px solid var(--cds-border-strong);
+  border-end-start-radius: 6px;
+}
+.df-family > [data-row-key]:has([data-cm-card]):not(:has(.cm-top))::before {
+  height: 24.5px;
+}
+/* a sibling below continues the line through this card */
+.df-family > [data-row-key]:has([data-cm-card]):has(~ [data-row-key])::after {
+  top: 0;
+  bottom: -6px;
+}
+
+/* Title */
+[data-cm-card] > [data-row-main-button] > [data-row-label] {
+  flex: none !important;
+  padding-inline-start: 0 !important;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 19px;
+}
+/* Single-line cards (no meta) stay compact */
+[data-cm-card]:not(:has(.cm-top, .cm-bottom)) > [data-row-main-button] {
+  padding-block: 6px !important;
+}
+
+/* Meta lines */
+.cm-top,
+.cm-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 400;
+  color: var(--muted-as-secondary, var(--cds-text-muted));
+}
+.cm-left {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  overflow: hidden;
+}
+.cm-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cm-right {
+  flex: none;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+/* Status area at the top-right: chip + age, or chip + Working timer */
+.cm-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+.cm-chip {
+  display: inline-flex;
+  align-items: center;
+  height: 16px;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 16px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.cm-chip:hover { filter: brightness(1.2); }
+.cm-chip[data-kind="todo"] { color: #a1a1aa; background: rgb(161 161 170 / 0.16); }
+.cm-chip[data-kind="doing"] { color: #60a5fa; background: rgb(96 165 250 / 0.16); }
+.cm-chip[data-kind="done"] { color: #4ade80; background: rgb(74 222 128 / 0.14); }
+.cm-chip[data-kind="needs"] { color: #fbbf24; background: rgb(251 191 36 / 0.16); }
+.cm-chip[data-kind="blocked"],
+.cm-chip[data-kind="failed"] { color: #f87171; background: rgb(248 113 113 / 0.16); }
+.cm-chip[data-kind="review"] { color: #c084fc; background: rgb(192 132 252 / 0.16); }
+/* "+" to set a label: only visible while hovering the card */
+.cm-chip[data-kind="add"] {
+  padding: 0 5px;
+  border: 1px dashed currentColor;
+  background: transparent;
+  opacity: 0;
+}
+[data-cm-card]:hover .cm-chip[data-kind="add"],
+.cm-chip[data-kind="add"]:focus-visible { opacity: 0.7; }
+
+.cm-working {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #60a5fa;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.cm-spin {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1.5px dashed currentColor;
+  animation: cm-spin 1.6s linear infinite;
+}
+@keyframes cm-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .cm-spin { animation: none; } }
+
+/* Label menu */
+.cm-menu {
+  position: fixed;
+  z-index: 2147483647;
+  min-width: 132px;
+  padding: 4px;
+  border-radius: 8px;
+  background: var(--cds-surface-popover, #2f2f2f);
+  color: var(--cds-text-primary, #e8e8e8);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.35), 0 0 0 1px var(--cds-border-strong, rgb(255 255 255 / 0.12));
+  font-size: 13px;
+  line-height: 18px;
+}
+.cm-menu-item {
+  padding: 5px 8px;
+  border-radius: 5px;
+  cursor: pointer;
+  user-select: none;
+}
+.cm-menu-item:hover { background: var(--df-hover, rgb(255 255 255 / 0.07)); }
+.cm-menu-item[data-label="clear"] {
+  margin-top: 3px;
+  color: var(--muted-as-secondary, var(--cds-text-muted));
+}
+
+.cm-branch {
+  display: inline-flex;
+  flex: none;
+  opacity: 0.85;
+}
+
+/* Row icons (SSH glyph, unread dot, ⋯ menu) sit at the bottom-right, beside the model, like t3's status icons */
+[data-cm-card]:has(.cm-bottom) > :is([data-row-decoration], [data-row-controls]) {
+  top: auto !important;
+  bottom: 4px !important;
+  translate: none !important;
+  transform: none !important;
+}
+[data-cm-card]:has(> [data-row-decoration], > [data-row-controls]) .cm-bottom {
+  padding-inline-end: 24px;
+}
+/* Cards without a bottom line keep the icons at the app's own spot: keep the title and top line clear of them */
+[data-cm-card]:not(:has(.cm-bottom)):has(> [data-row-decoration], > [data-row-controls]) .cm-top,
+[data-cm-card]:not(:has(.cm-bottom)):has(> [data-row-decoration], > [data-row-controls]) > [data-row-main-button] > [data-row-label] {
+  padding-inline-end: 24px !important;
+}

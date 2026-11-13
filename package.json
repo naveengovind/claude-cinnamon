@@ -1,0 +1,1 @@
+{"name":"claude-cinnamon","private":true,"scripts":{"test":"node --test test/*.test.cjs"},"devDependencies":{"jsdom":"^26.1.0"},"version":"0.1.0","description":"Themes and extensions for the Claude desktop app (macOS)","bin":{"cinnamon":"bin/cinnamon"}}

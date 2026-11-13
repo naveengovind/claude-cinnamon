@@ -1,0 +1,23 @@
+/* Full width — applies only while "Full" is chosen (the page is marked data-cinnamon-width="full").
+   The app caps the chat column with --transcript-measure (768 / 960 / 1280px for Narrow / Medium / Wide) and
+   --transcript-width. Lifting both lets the column fill the pane. */
+html[data-cinnamon-width="full"],
+html[data-cinnamon-width="full"] [data-transcript-width] {
+  --transcript-measure: 100vw !important;
+  --transcript-width: 100vw !important;
+}
+
+/* With the measure lifted, the app's "bleed" gutter maths collapses the side gaps to 4px / 12px. Pin both to the
+   app's own default chat gutter so messages and the message box keep the same margins, sidebar open or closed. */
+html[data-cinnamon-width="full"] [class*="--chat-column-gutter-start"] {
+  --chat-column-gutter-start: var(--chat-gutter, 32px) !important;
+}
+html[data-cinnamon-width="full"] [class*="--chat-column-gutter-end"] {
+  --chat-column-gutter-end: var(--chat-gutter, 32px) !important;
+}
+
+/* The "Full" option added to the Transcript width list */
+[data-cinnamon-option] { cursor: pointer; }
+[data-cinnamon-option]:hover { background: var(--cds-fill-ghost-hover, rgb(255 255 255 / 0.07)); }
+.cinnamon-check { flex: none; margin-inline-start: auto; color: var(--cds-text-accent, currentColor); }
+[role="listbox"][data-cinnamon-full] [role="option"]:not([data-cinnamon-option]) [data-selected][aria-hidden="true"] { visibility: hidden; }
