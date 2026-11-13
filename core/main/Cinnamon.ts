@@ -30,6 +30,8 @@ export interface ApplyResult {
   themeErrors: string[];
   extensions: string[];
   mains: string[];
+  /** Every web contents the main process sees: [id, URL scheme and host], for diagnosing an empty `views`. */
+  seen: [number, string][];
 }
 
 export class Cinnamon {
@@ -139,6 +141,7 @@ export class Cinnamon {
       themeErrors: state.theme!.errors,
       extensions: [...state.extLoaded!.keys()],
       mains: [...state.mains.keys()],
+      seen: this.viewsMgr.all().map((w): [number, string] => [w.id, w.isDestroyed() ? 'destroyed' : (w.getURL().match(/^[a-z]+:\/\/[^/]*/)?.[0] ?? w.getURL().slice(0, 20))]),
     };
   }
 

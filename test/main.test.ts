@@ -554,5 +554,6 @@ test('the apply result lists the claude.ai views it could see, for diagnosing an
     const r = await h.run();
     assert.deepStrictEqual([...r.views], [1]); // copied: the result comes from the vm's own realm
     assert.deepStrictEqual([...r.applied], [1]);
+    assert.deepStrictEqual(JSON.parse(JSON.stringify(r.seen)), [[1, 'https://claude.ai']]);
   } finally { h.stop(); }
 });
