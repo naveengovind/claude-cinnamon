@@ -12,6 +12,7 @@ import { HelperClient, sh } from './HelperClient';
 import { Output } from './Output';
 import { Paths } from './Paths';
 import { ThemeCommands } from './ThemeCommands';
+import { Updater } from './Updater';
 
 export class Cli {
   private readonly out = new Output();
@@ -35,7 +36,8 @@ usage:
   cinnamon status                  what is installed and applied
   cinnamon doctor                  check the setup and explain any problem
   cinnamon logs                    the helper's recent log
-  cinnamon update                  upgrade Cinnamon (brew upgrade) and refresh the setup
+  cinnamon update                  upgrade Cinnamon and refresh the setup
+  cinnamon version                 Cinnamon's version
 
   cinnamon theme [list]            themes (* = current)
   cinnamon theme <id>              use a theme ("default" = Claude's own colours)
@@ -66,6 +68,11 @@ Your settings, themes and extensions: ${this.paths.user}`;
       case 'doctor': return new Doctor(this.paths, out, this.helper).run();
       case 'logs': return this.logs();
       case 'update': return this.update();
+      case 'version':
+      case '--version':
+      case '-v':
+        out.say(this.paths.version);
+        return 0;
       case 'theme':
       case 'themes':
         if (!sub || sub === 'list') return this.themes.list();
@@ -112,7 +119,11 @@ Your settings, themes and extensions: ${this.paths.user}`;
   }
 
   private installer(): Installer {
-    return new Installer({ root: this.paths.root, userDir: this.paths.user, home: os.homedir(), pathEnv: process.env.PATH || '', bun: process.execPath, uid: process.getuid!() });
+    const { paths } = this;
+    return new Installer({
+      root: paths.root, userDir: paths.user, home: os.homedir(), pathEnv: process.env.PATH || '', bun: process.execPath, uid: process.getuid!(),
+      ...(paths.binary ? { binary: paths.binary, prebuiltHelper: path.join(paths.root, 'prebuilt', 'Cinnamon Helper.app') } : {}),
+    });
   }
 
   private status(): number {
@@ -140,9 +151,13 @@ Your settings, themes and extensions: ${this.paths.user}`;
     catch { return this.out.fail(`no log yet (${this.paths.logs})`); }
   }
 
-  /** Homebrew installs: brew upgrade, then refresh the login item and re-apply. A development checkout: git pull. */
+  /** The standalone binary: the latest release. Homebrew installs: brew upgrade. A development checkout: git pull.
+   *  Then the new version's install refreshes the login item and re-applies. */
   private update(): number {
     const { out, paths } = this;
+    if (paths.binary) {
+      return new Updater({ binary: paths.binary, version: paths.version, arch: process.arch === 'arm64' ? 'arm64' : 'x64', repo: Paths.REPO, log: (l) => out.say(l) }).run();
+    }
     if (fs.existsSync(path.join(paths.root, '.git'))) {
       if (sh('git', ['-C', paths.root, 'pull', '--ff-only'], { stdio: 'inherit' }).status !== 0) return out.fail('git pull failed');
       return this.install();

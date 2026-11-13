@@ -16,8 +16,13 @@ export interface RenderOptions {
   userDir?: string;
   themeDirs?: string[] | null;
   extRoots?: ExtensionRoots | null;
-  /** argv prefix that compiles extension TypeScript inside Claude; default: this Bun's `build`. */
+  /** argv prefix that compiles extension TypeScript inside Claude; default: see defaultCompiler. */
   compiler?: string[] | null;
+}
+
+/** The standalone binary compiles with its built-in Bun (`cinnamon __compile`); otherwise this Bun's `build`. */
+export function defaultCompiler(env = process.env): string[] {
+  return env.CINNAMON_BIN ? [env.CINNAMON_BIN, '__compile'] : [process.execPath, 'build'];
 }
 
 async function bundle(entry: string, target: 'node' | 'browser', format: 'cjs' | 'iife'): Promise<string> {
@@ -35,7 +40,7 @@ export async function renderMain({ root, userDir = USER_DIR, themeDirs = null, e
   ].join('\n;\n');
   const config: MainConfig = {
     root, userDir, themeDirs, extRoots,
-    compiler: compiler === undefined ? [process.execPath, 'build'] : compiler,
+    compiler: compiler === undefined ? defaultCompiler() : compiler,
     page: { js: pageJs, css: fs.readFileSync(path.join(core, 'page', 'settings-ui.css'), 'utf8') },
   };
   return `(() => {

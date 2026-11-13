@@ -14,23 +14,26 @@ Not affiliated with or endorsed by Anthropic.
 
 ## Requirements
 
-- macOS and the Claude desktop app in `/Applications`
-- [Bun](https://bun.sh) (Homebrew installs it with Cinnamon) and git
-- Xcode Command Line Tools, to build the helper (`xcode-select --install`)
+- macOS 13 or later, and the Claude desktop app in `/Applications`
 - Developer Mode in Claude: *Help → Troubleshooting → Enable Developer Mode*
+- git, to install themes and extensions from GitHub
+
+That is all: Cinnamon is a single standalone command with [Bun](https://bun.sh) and its prebuilt helper inside.
 
 ## Install
 
-With [Homebrew](https://brew.sh):
-
 ```sh
-brew install naveengovind/tap/cinnamon
-cinnamon install
+gh api -H 'Accept: application/vnd.github.raw' repos/naveengovind/claude-cinnamon/contents/install.sh | sh
 ```
 
-The repos are private, so Homebrew fetches them with your normal git credentials for GitHub.
+While the repository is private this needs the [GitHub CLI](https://cli.github.com), signed in (`gh auth login`).
+Once it is public: `curl -fsSL https://raw.githubusercontent.com/naveengovind/claude-cinnamon/main/install.sh | sh`.
 
-`cinnamon install` builds **Cinnamon Helper**, adds it as a login item, links the `cinnamon` command into your PATH and
+The script downloads the build for your Mac (Apple silicon or Intel) from the latest release, checks it against the
+release's `SHA256SUMS`, puts the `cinnamon` command in `~/.local/bin` (`CINNAMON_BIN_DIR` picks another folder) and
+runs `cinnamon install`. Later: `cinnamon update`.
+
+`cinnamon install` sets up **Cinnamon Helper**, adds it as a login item, links the `cinnamon` command into your PATH and
 applies Cinnamon if Claude is running. macOS will ask you to allow two things for Cinnamon Helper:
 
 - **Accessibility** (*System Settings → Privacy & Security → Accessibility*), so it can click Claude's
@@ -53,8 +56,9 @@ From the terminal:
 | `cinnamon ext install <source>` / `cinnamon ext remove <id>` | add / remove an extension |
 | `cinnamon apply` | apply now (Cinnamon Helper does it, so your terminal needs no extra permission) |
 | `cinnamon doctor` / `cinnamon logs` | check the setup / the helper's log |
-| `cinnamon update` | upgrade Cinnamon (`brew upgrade`) and refresh the setup |
-| `cinnamon uninstall` | remove the login item (Claude is back to normal at its next launch); then `brew uninstall cinnamon` |
+| `cinnamon update` | upgrade to the latest release and refresh the setup |
+| `cinnamon uninstall` | remove the login item (Claude is back to normal at its next launch); then delete the `cinnamon` command (it says where) |
+| `cinnamon version` | Cinnamon's version |
 
 `<source>` is `owner/repo`, `https://github.com/owner/repo[/tree/<branch>/<folder>]`, any git URL or a local folder,
 optionally followed by `#<folder>`. Private repos work with your normal git credentials.
@@ -146,8 +150,15 @@ git clone https://github.com/naveengovind/claude-cinnamon && cd claude-cinnamon
 bun install
 bun test               # bun:test + jsdom
 bun run typecheck      # strict tsc: main-process/CLI code and page code
-bin/cinnamon install   # points the login item at this checkout (run `cinnamon install` again to go back to Homebrew's)
+bin/cinnamon install   # points the login item at this checkout (the standalone's `cinnamon install` points it back)
+bun scripts/build.ts   # the standalone builds: dist/cinnamon-darwin-{arm64,x64}.tar.gz + SHA256SUMS (--arch=arm64: one)
+bun scripts/release.ts # checks, builds, tags v<package.json version> and creates the GitHub release
 ```
+
+The standalone binary (`bun build --compile`) carries Bun, the files below and a universal, signed Cinnamon Helper.
+Each version unpacks them into `~/.config/claude-cinnamon/app/<version>` on first run and runs from there, using
+itself wherever Cinnamon would run Bun (`cinnamon __compile` compiles extension TypeScript for Claude). A checkout
+run with `bin/cinnamon` needs Bun and the Xcode Command Line Tools (to build the helper) instead.
 
 | Folder | |
 | --- | --- |
@@ -155,8 +166,10 @@ bin/cinnamon install   # points the login item at this checkout (run `cinnamon i
 | `core/page/` | runs in Claude's window: `CinnamonRuntime` (the `cinnamon` API), `SettingsRows` / `RowMenu` (Settings → Appearance rows) |
 | `core/lib/` | shared: `ThemeEngine`, `ThemeStore`, `Config`, `ExtensionCatalog` |
 | `core/apply/` | applying: `Applier`, `AutoApplier` (what the helper runs at each launch), `LockFile`, `System`, the Chrome-tab script |
-| `core/cli/` | the `cinnamon` command: `Cli`, `ThemeCommands`, `ExtensionCommands`, `SourceFetcher`, `HelperClient`, `Doctor` |
-| `core/install/` | `Installer` (helper build, login item, PATH link) |
+| `core/cli/` | the `cinnamon` command: `Cli`, `ThemeCommands`, `ExtensionCommands`, `SourceFetcher`, `HelperClient`, `Doctor`, `Updater` (standalone updates), `Compile` (`cinnamon __compile`) |
+| `core/install/` | `Installer` (helper build or prebuilt copy, login item, PATH link) |
+| `core/standalone/` | the standalone binary: `runStandalone` (entry), `Payload` (unpacks its files per version) |
+| `scripts/`, `install.sh` | standalone build and release; the install script |
 | `core/render.ts`, `core/InspectorClient.ts` | bundles the main-process code; talks to Claude's debugger |
 | `core/helper/` | Cinnamon Helper (Swift) |
 | `extensions/`, `themes/` | built-in extensions and themes |

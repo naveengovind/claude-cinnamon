@@ -20,11 +20,12 @@ export class Doctor {
   run(): number {
     const { out, paths } = this;
     this.problems = 0;
-    this.check(!!process.versions.bun, `Bun ${process.versions.bun || '(not running under Bun)'}`, 'brew install oven-sh/bun/bun');
+    out.say(out.dim(`  Cinnamon ${paths.version}${paths.binary ? ` (standalone: ${paths.binary})` : ''}`));
+    this.check(!!process.versions.bun, `Bun ${process.versions.bun || '(not running under Bun)'}${paths.binary ? ' (built in)' : ''}`, 'brew install oven-sh/bun/bun');
     this.check(fs.existsSync('/Applications/Claude.app'), 'Claude.app is in /Applications');
     const ver = sh('defaults', ['read', '/Applications/Claude.app/Contents/Info.plist', 'CFBundleShortVersionString']).stdout?.trim();
     if (ver) out.say(out.dim(`  Claude ${ver}`));
-    this.check(sh('which', ['swiftc']).status === 0, 'Swift compiler (to build the helper)', 'xcode-select --install');
+    if (!paths.binary) this.check(sh('which', ['swiftc']).status === 0, 'Swift compiler (to build the helper)', 'xcode-select --install'); // the standalone helper comes prebuilt
     this.check(this.helper.loaded(), 'login item running', 'cinnamon install');
     this.check(fs.existsSync(paths.helperApp), 'helper app built', 'cinnamon install');
     let log = '';

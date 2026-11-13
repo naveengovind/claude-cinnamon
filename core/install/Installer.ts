@@ -2,6 +2,9 @@
 // (`cinnamon install` / `cinnamon install --rebuild` / `cinnamon uninstall`; log: <your folder>/logs/helper.log)
 // The helper is built into your folder, not the install: an upgrade replaces the install, and a rebuilt helper makes
 // macOS ask for Accessibility again — so it is only rebuilt when its source changes.
+// The standalone binary (`binary`) brings its helper prebuilt (`prebuiltHelper`, universal and signed) and needs no
+// Swift compiler; its login item runs a small script in your folder that hands over to the binary, so replacing the
+// binary (an update) never leaves the login item pointing at files that are gone.
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
@@ -26,9 +29,21 @@ export interface InstallerOptions {
   run?: Runner;
   log?: (line: string) => void;
   sleep?: (ms: number) => void;
+  /** The standalone binary: linked as the cinnamon command and run by the login item. */
+  binary?: string;
+  /** The helper app built with the release; `.built-from` beside it holds the hash of the source it was built from. */
+  prebuiltHelper?: string;
+}
+
+/** Hash of the helper's source (core/helper): what `.built-from` beside a built helper records. */
+export function helperSourceHash(root: string): string {
+  const h = createHash('sha256');
+  for (const f of ['main.swift', 'Info.plist']) h.update(fs.readFileSync(path.join(root, 'core', 'helper', f)));
+  return h.digest('hex');
 }
 
 const xml = (s: string): string => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const shQuote = (s: string): string => `'${s.replace(/'/g, `'\\''`)}'`;
 const pause = (ms: number): void => { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms); };
 
 export class Installer {
@@ -48,15 +63,13 @@ export class Installer {
   get exe(): string { return path.join(this.app, 'Contents', 'MacOS', 'cinnamon-helper'); }
   get plist(): string { return path.join(this.o.home, 'Library', 'LaunchAgents', `${Installer.LABEL}.plist`); }
   private get domain(): string { return `gui/${this.o.uid}`; }
-  private get launcher(): string { return path.join(this.o.root, 'bin', 'cinnamon'); }
+  /** What the login item runs when Claude starts: the install's script, or (standalone) the one in your folder. */
+  get launchScript(): string { return this.o.binary ? path.join(this.o.userDir, 'helper', 'autoapply.sh') : path.join(this.o.root, 'core', 'autoapply.sh'); }
+  private get launcher(): string { return this.o.binary || path.join(this.o.root, 'bin', 'cinnamon'); }
   private get linkCandidates(): string[] { return ['/opt/homebrew/bin', '/usr/local/bin', path.join(this.o.home, '.local', 'bin'), path.join(this.o.home, 'bin')]; }
 
   /** Hash of the helper's source: a rebuild only happens when it changes. */
-  sourceHash(): string {
-    const h = createHash('sha256');
-    for (const f of ['main.swift', 'Info.plist']) h.update(fs.readFileSync(path.join(this.o.root, 'core', 'helper', f)));
-    return h.digest('hex');
-  }
+  sourceHash(): string { return helperSourceHash(this.o.root); }
 
   private stop(label: string): void {
     this.run('launchctl', ['bootout', `${this.domain}/${label}`]);
@@ -65,6 +78,35 @@ export class Installer {
 
   private isExecutable(f: string): boolean { try { fs.accessSync(f, fs.constants.X_OK); return true; } catch { return false; } }
   private readText(f: string): string { try { return fs.readFileSync(f, 'utf8').trim(); } catch { return ''; } }
+  private same(a: string, b: string): boolean { try { return fs.realpathSync(a) === fs.realpathSync(b); } catch { return false; } }
+
+  /** Standalone: copies the release's helper into place, if it was built from this source. */
+  private copyPrebuilt(hash: string, builtFrom: string): boolean {
+    const pre = this.o.prebuiltHelper;
+    if (!pre || this.readText(path.join(path.dirname(pre), '.built-from')) !== hash) return false;
+    if (!this.isExecutable(path.join(pre, 'Contents', 'MacOS', 'cinnamon-helper'))) return false;
+    fs.rmSync(this.app, { recursive: true, force: true });
+    fs.mkdirSync(path.dirname(this.app), { recursive: true });
+    fs.cpSync(pre, this.app, { recursive: true, verbatimSymlinks: true });
+    this.run('xattr', ['-dr', 'com.apple.quarantine', this.app]); // best effort: nothing to remove when not downloaded by a browser
+    fs.writeFileSync(builtFrom, `${hash}\n`);
+    this.log('Installed Cinnamon Helper.');
+    return true;
+  }
+
+  /** Standalone: the script the login item runs, handing over to the binary. */
+  writeLaunchScript(): void {
+    const bin = this.o.binary;
+    if (!bin) return;
+    fs.mkdirSync(path.dirname(this.launchScript), { recursive: true });
+    fs.writeFileSync(this.launchScript, `#!/bin/bash
+# Run by Cinnamon Helper each time Claude starts (written by \`cinnamon install\`): hands over to the cinnamon binary.
+installed=${shQuote(bin)}
+bin="\${CINNAMON_BIN:-$installed}"
+[ -x "$bin" ] || { echo "Cinnamon: $bin is missing. Reinstall Cinnamon, then run: cinnamon install"; exit 1; }
+exec "$bin" __autoapply "$@"
+`, { mode: 0o755 });
+  }
 
   /** Builds (or moves into place) the helper; returns false with a message if it can't. */
   buildHelper(rebuild = false): boolean {
@@ -78,6 +120,7 @@ export class Installer {
       fs.writeFileSync(builtFrom, `${hash}\n`);
     }
     if (this.isExecutable(this.exe) && this.readText(builtFrom) === hash && !rebuild) return true;
+    if (this.copyPrebuilt(hash, builtFrom)) return true;
     if (this.run('which', ['swiftc']).status !== 0) { this.log('Cinnamon needs the Swift compiler to build its helper: xcode-select --install'); return false; }
     this.log('Building Cinnamon Helper…');
     fs.mkdirSync(path.dirname(this.exe), { recursive: true });
@@ -103,13 +146,13 @@ export class Installer {
     <string>${xml(this.exe)}</string>
     <string>watch</string>
     <string>--bundle-id</string><string>com.anthropic.claudefordesktop</string>
-    <string>--run</string><string>${xml(path.join(o.root, 'core', 'autoapply.sh'))}</string>
+    <string>--run</string><string>${xml(this.launchScript)}</string>
   </array>
   <key>EnvironmentVariables</key>
   <dict>
     <key>PATH</key><string>${xml(path.dirname(o.bun))}:/opt/homebrew/bin:/usr/local/bin:${xml(o.home)}/.bun/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
     <key>CINNAMON_HOME</key><string>${xml(o.userDir)}</string>
-    <key>CINNAMON_ROOT</key><string>${xml(o.root)}</string>
+${o.binary ? `    <key>CINNAMON_BIN</key><string>${xml(o.binary)}</string>` : `    <key>CINNAMON_ROOT</key><string>${xml(o.root)}</string>`}
   </dict>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
@@ -121,25 +164,24 @@ export class Installer {
 `;
   }
 
-  /** The `cinnamon` command on PATH that isn't this install's own link, if any. */
-  private otherCinnamon(): string | null {
+  /** The first `cinnamon` command on PATH, if any. */
+  private onPath(): string | null {
     for (const d of this.o.pathEnv.split(':').filter(Boolean)) {
       const f = path.join(d, 'cinnamon');
-      if (!this.isExecutable(f)) continue;
-      let target = '';
-      try { target = fs.readlinkSync(f); } catch {}
-      return target === this.launcher ? null : f;
+      if (this.isExecutable(f)) return f;
     }
     return null;
   }
 
-  private linkCommand(): void {
-    const other = this.otherCinnamon();
-    if (other) { this.log(`The cinnamon command is already on your PATH (${other}).`); return; }
+  linkCommand(): void {
+    const found = this.onPath();
+    if (found && this.same(found, this.launcher)) return; // this install's command already
+    if (found) { this.log(`The cinnamon command is already on your PATH (${found}).`); return; }
     const onPath = new Set(this.o.pathEnv.split(':'));
     const dir = this.linkCandidates.find((d) => { if (!onPath.has(d)) return false; try { fs.accessSync(d, fs.constants.W_OK); return fs.statSync(d).isDirectory(); } catch { return false; } });
     if (!dir) { this.log(`Add Cinnamon to your PATH to use the cinnamon command:  export PATH="${path.join(this.o.root, 'bin')}:$PATH"`); return; }
     const link = path.join(dir, 'cinnamon');
+    if (path.resolve(link) === path.resolve(this.launcher)) return; // never replace the binary with a link to itself
     fs.rmSync(link, { force: true });
     fs.symlinkSync(this.launcher, link);
     this.log(`Linked the cinnamon command into ${dir}.`);
@@ -149,6 +191,7 @@ export class Installer {
     const { o } = this;
     if (!this.buildHelper(rebuild)) return 1;
     for (const d of [path.join(o.userDir, 'logs'), path.join(o.userDir, 'themes'), path.join(o.userDir, 'extensions'), path.dirname(this.plist)]) fs.mkdirSync(d, { recursive: true });
+    this.writeLaunchScript();
     fs.writeFileSync(this.plist, this.plistText());
     if (this.run('plutil', ['-lint', this.plist]).status !== 0) { fs.rmSync(this.plist, { force: true }); this.log(`Could not write a valid login item (${this.plist}).`); return 1; }
     // The helper from before Cinnamon (if any) goes; this one replaces it.
@@ -174,7 +217,9 @@ export class Installer {
       const link = path.join(d, 'cinnamon');
       try { if (fs.readlinkSync(link) === this.launcher) fs.rmSync(link); } catch {}
     }
-    this.log('Removed the login item and the cinnamon command. Claude goes back to normal at its next launch.');
+    if (this.o.binary) fs.rmSync(this.launchScript, { force: true });
+    this.log(`Removed the login item${this.o.binary ? '' : ' and the cinnamon command'}. Claude goes back to normal at its next launch.`);
+    if (this.o.binary) this.log(`To remove the cinnamon command too: rm ${shQuote(this.o.binary)}`);
     this.log(`Your settings stay in ${this.o.userDir}. You can also remove Cinnamon Helper from`);
     this.log('System Settings > Privacy & Security > Accessibility.');
     return 0;
