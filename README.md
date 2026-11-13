@@ -54,7 +54,6 @@ From the terminal:
 | `cinnamon apply` | apply now (Cinnamon Helper does it, so your terminal needs no extra permission) |
 | `cinnamon doctor` / `cinnamon logs` | check the setup / the helper's log |
 | `cinnamon update` | upgrade Cinnamon (`brew upgrade`) and refresh the setup |
-| `cinnamon runtime [node\|bun\|auto]` | which JavaScript runtime Cinnamon's own scripts use (default: Node if installed, else Bun) |
 | `cinnamon uninstall` | remove the login item (Claude is back to normal at its next launch); then `brew uninstall cinnamon` |
 
 `<source>` is `owner/repo`, `https://github.com/owner/repo[/tree/<branch>/<folder>]`, any git URL or a local folder,
@@ -131,7 +130,7 @@ Claude.app is signed and its code archive is integrity-checked, so Cinnamon neve
 
 It is built to survive app updates: it hooks onto the app's CSS variables, ARIA roles and visible labels, never
 generated class names, and every hook is optional, so if a future version moves something, that one feature quietly
-switches off instead of breaking Claude. `cinnamon doctor` checks the setup (Node, the helper, its permission,
+switches off instead of breaking Claude. `cinnamon doctor` checks the setup (Bun, the helper, its permission,
 Developer Mode at the last launch, the last apply, broken themes or extensions).
 
 ## Development
