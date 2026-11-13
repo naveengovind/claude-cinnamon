@@ -109,7 +109,10 @@ stop "$LABEL"
 launchctl bootstrap "$DOMAIN" "$PLIST"
 
 LINK_DIR="$(link_dir || true)"
-if [ -n "$LINK_DIR" ]; then
+EXISTING="$(command -v cinnamon || true)"
+if [ -n "$EXISTING" ] && [ "$(readlink "$EXISTING" 2>/dev/null || true)" != "$DIR/bin/cinnamon" ]; then
+  echo "The cinnamon command is already on your PATH ($EXISTING)."
+elif [ -n "$LINK_DIR" ]; then
   ln -sf "$DIR/bin/cinnamon" "$LINK_DIR/cinnamon"
   echo "Linked the cinnamon command into $LINK_DIR."
 else

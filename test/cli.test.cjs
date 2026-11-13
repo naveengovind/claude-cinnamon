@@ -212,3 +212,11 @@ test('the cinnamon launcher works through a link, as when it is linked into PATH
   assert.strictEqual(r.status, 0, r.stdout + r.stderr);
   assert.match(r.stdout, /codex/);
 });
+
+test('update in an install that is not a git checkout (Homebrew) points to brew upgrade', () => {
+  const copy = fs.mkdtempSync(path.join(os.tmpdir(), 'cm-brew-'));
+  spawnSync('sh', ['-c', `cd "${ROOT}" && tar -c --exclude .git --exclude node_modules . | tar -x -C "${copy}"`]);
+  const r = spawnSync(path.join(copy, 'bin', 'cinnamon'), ['update'], { encoding: 'utf8', env: { ...process.env, PATH: `${path.dirname(process.execPath)}:${process.env.PATH}`, CINNAMON_HOME: home(), CINNAMON_ROOT: copy, NO_COLOR: '1' } });
+  assert.notStrictEqual(r.status, 0);
+  assert.match(r.stdout + r.stderr, /brew upgrade cinnamon/);
+});

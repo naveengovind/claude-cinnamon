@@ -327,6 +327,7 @@ function logs() {
 }
 
 function update() {
+  if (!fs.existsSync(path.join(ROOT, '.git'))) return fail('this install is managed by Homebrew (not a git checkout): brew upgrade cinnamon && cinnamon install');
   const r = sh('git', ['-C', ROOT, 'pull', '--ff-only'], { stdio: 'inherit' });
   if (r.status !== 0) return fail('git pull failed');
   return install();
