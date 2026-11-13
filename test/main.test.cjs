@@ -547,3 +547,12 @@ test('quick theme switches end with exactly the last theme in place', async () =
     assert.match(h.wc.css[Number(live[0].split('-')[1]) - 1], /#222222/);
   } finally { h.stop(); }
 });
+
+test('the apply result lists the claude.ai views it could see, for diagnosing an empty apply', async () => {
+  const h = harness();
+  try {
+    const r = await h.run();
+    assert.deepStrictEqual([...r.views], [1]); // copied: the result comes from the vm's own realm
+    assert.deepStrictEqual([...r.applied], [1]);
+  } finally { h.stop(); }
+});

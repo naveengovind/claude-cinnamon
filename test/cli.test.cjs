@@ -14,7 +14,7 @@ function home() {
   return dir;
 }
 function run(h, ...args) {
-  const r = spawnSync(process.execPath, [BIN, ...args], { encoding: 'utf8', env: { ...process.env, CINNAMON_HOME: h, CINNAMON_NO_APPLY: '1', NO_COLOR: '1' } });
+  const r = spawnSync(BIN, args, { encoding: 'utf8', env: { ...process.env, PATH: `${path.dirname(process.execPath)}:${process.env.PATH}`, CINNAMON_HOME: h, CINNAMON_NO_APPLY: '1', NO_COLOR: '1' } });
   return { code: r.status, out: r.stdout + r.stderr };
 }
 const config = (h) => JSON.parse(fs.readFileSync(path.join(h, 'config.json'), 'utf8'));
@@ -176,8 +176,39 @@ test('cinnamon apply asks the login helper to apply, and reports its result', ()
   sh('launchctl', `case "$1" in print) exit 0 ;; kickstart) mkdir -p "${h}/logs"; echo "2026-01-01 00:00:00 apply finished with status 0" >> "${h}/logs/helper.log" ;; esac`);
   fs.mkdirSync(path.join(h, 'state'), { recursive: true });
   fs.writeFileSync(path.join(h, 'state', 'applied'), '123 x');
-  const r = spawnSync(process.execPath, [BIN, 'apply'], { encoding: 'utf8', env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, CINNAMON_HOME: h, NO_COLOR: '1' } });
+  const r = spawnSync(BIN, ['apply'], { encoding: 'utf8', env: { ...process.env, PATH: `${bin}:${path.dirname(process.execPath)}:${process.env.PATH}`, CINNAMON_HOME: h, NO_COLOR: '1' } });
   assert.strictEqual(r.status, 0, r.stdout + r.stderr);
   assert.match(r.stdout + r.stderr, /apply finished with status 0/);
   assert.strictEqual(fs.existsSync(path.join(h, 'state', 'applied')), false, 'the "already applied" marker is cleared so the helper re-applies');
+});
+
+test('doctor counts Accessibility as allowed once the helper logs that it was granted', () => {
+  const h = home();
+  fs.mkdirSync(path.join(h, 'logs'), { recursive: true });
+  fs.writeFileSync(path.join(h, 'logs', 'helper.log'), [
+    '2026-01-01 00:00:00 watching com.anthropic.claudefordesktop; Accessibility NOT allowed yet: …',
+    '2026-01-01 00:00:09 Accessibility allowed',
+    '2026-01-01 00:00:09 apply finished with status 0',
+  ].join('\n'));
+  const r = run(h, 'doctor');
+  assert.match(r.out, /✓ helper may use Accessibility/);
+});
+
+test('cinnamon runtime chooses Node or Bun and remembers it in the config', () => {
+  const h = home();
+  assert.strictEqual(run(h, 'runtime', 'bun').code, 0);
+  assert.strictEqual(config(h).runtime, 'bun');
+  assert.match(run(h, 'runtime').out, /bun/);
+  assert.strictEqual(run(h, 'runtime', 'auto').code, 0);
+  assert.strictEqual(config(h).runtime, undefined);
+  assert.notStrictEqual(run(h, 'runtime', 'deno').code, 0);
+});
+
+test('the cinnamon launcher works through a link, as when it is linked into PATH', () => {
+  const h = home();
+  const linkDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cm-link-'));
+  fs.symlinkSync(BIN, path.join(linkDir, 'cinnamon'));
+  const r = spawnSync(path.join(linkDir, 'cinnamon'), ['theme'], { encoding: 'utf8', env: { ...process.env, PATH: `${path.dirname(process.execPath)}:${process.env.PATH}`, CINNAMON_HOME: h, NO_COLOR: '1' } });
+  assert.strictEqual(r.status, 0, r.stdout + r.stderr);
+  assert.match(r.stdout, /codex/);
 });

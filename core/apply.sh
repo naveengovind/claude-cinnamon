@@ -9,8 +9,11 @@ set -euo pipefail
 DIR="${CM_DIR:-$(cd "$(dirname "$0")/.." && pwd)}"            # the Cinnamon checkout
 USER_DIR="${CINNAMON_HOME:-$HOME/.config/claude-cinnamon}"    # your config, themes, extensions, data
 STATE="${CM_STATE:-$USER_DIR/state}"
-HELPER="${CM_HELPER:-$DIR/build/Cinnamon Helper.app/Contents/MacOS/cinnamon-helper}"
+HELPER="${CM_HELPER:-$USER_DIR/helper/Cinnamon Helper.app/Contents/MacOS/cinnamon-helper}"
 PRESS_TIMEOUT="${CM_PRESS_TIMEOUT:-60}"
+. "$DIR/core/runtime.sh"
+JS=$(cinnamon_js "$USER_DIR" || true)
+if [ -z "$JS" ]; then echo "Cinnamon needs Node.js 22+ or Bun"; exit 1; fi
 PORT=9229
 KEEP=0; [ "${1:-}" = "--keep" ] && KEEP=1
 script=""; chrome=""; front=""; closer=""; locked=0; claude=""
@@ -52,7 +55,7 @@ try {
 } catch {}
 'closed'
 JS
-    node "$DIR/core/cdp.mjs" "$close" >/dev/null 2>&1 || true
+    "$JS" "$DIR/core/cdp.mjs" "$close" >/dev/null 2>&1 || true
     rm -f "$close"
   fi
   [ -n "$closer" ] && wait "$closer" 2>/dev/null
@@ -87,8 +90,8 @@ if [ -z "$owner" ]; then
 fi
 
 script=$(mktemp -t claude-mod).js
-node "$DIR/core/render.cjs" "$DIR" > "$script"
-node "$DIR/core/cdp.mjs" "$script"
+"$JS" "$DIR/core/render.cjs" "$DIR" > "$script"
+"$JS" "$DIR/core/cdp.mjs" "$script"
 
 mkdir -p "$STATE"
 printf '%s %s\n' "$claude" "$(ps -o lstart= -p "$claude" | sed 's/^ *//')" > "$STATE/applied"

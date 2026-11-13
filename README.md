@@ -15,18 +15,29 @@ Not affiliated with or endorsed by Anthropic.
 ## Requirements
 
 - macOS and the Claude desktop app in `/Applications`
-- Node.js 22 or newer (`brew install node`) and git
+- Node.js 22 or newer, or Bun (`brew install node` / `brew install oven-sh/bun/bun`), and git
 - Xcode Command Line Tools, to build the helper (`xcode-select --install`)
 - Developer Mode in Claude: *Help → Troubleshooting → Enable Developer Mode*
 
 ## Install
+
+With Homebrew:
+
+```sh
+brew install naveengovind/tap/cinnamon
+cinnamon install
+```
+
+Or from a clone:
 
 ```sh
 git clone https://github.com/naveengovind/claude-cinnamon ~/.claude-cinnamon
 ~/.claude-cinnamon/install.sh
 ```
 
-The installer builds **Cinnamon Helper**, adds it as a login item, links the `cinnamon` command into your PATH and
+(The repos are private: both ways use your normal git credentials for GitHub.)
+
+`cinnamon install` builds **Cinnamon Helper**, adds it as a login item, links the `cinnamon` command into your PATH and
 applies Cinnamon if Claude is running. macOS will ask you to allow two things for Cinnamon Helper:
 
 - **Accessibility** (*System Settings → Privacy & Security → Accessibility*), so it can click Claude's
@@ -49,13 +60,15 @@ From the terminal:
 | `cinnamon ext install <source>` / `cinnamon ext remove <id>` | add / remove an extension |
 | `cinnamon apply` | apply now (Cinnamon Helper does it, so your terminal needs no extra permission) |
 | `cinnamon doctor` / `cinnamon logs` | check the setup / the helper's log |
-| `cinnamon update` | pull the latest Cinnamon and re-install |
+| `cinnamon update` | get the latest Cinnamon and re-install (Homebrew installs: `brew upgrade cinnamon`) |
+| `cinnamon runtime [node\|bun\|auto]` | which JavaScript runtime Cinnamon's own scripts use (default: Node if installed, else Bun) |
 | `cinnamon uninstall` | remove the login item (Claude is back to normal at its next launch) |
 
 `<source>` is `owner/repo`, `https://github.com/owner/repo[/tree/<branch>/<folder>]`, any git URL or a local folder,
 optionally followed by `#<folder>`. Private repos work with your normal git credentials.
 
-Your settings live in `~/.config/claude-cinnamon/`: `config.json`, `themes/`, `extensions/`, `data/`, `logs/`.
+Your settings live in `~/.config/claude-cinnamon/`: `config.json`, `themes/`, `extensions/`, `data/`, `logs/`, and
+the built helper (`helper/`, kept here so upgrades don't make macOS ask for its permission again).
 Changes to any of them apply to a running Claude within a second. (Turning off an extension that has page code
 reloads Claude's window, since page code can't be taken out of a running page.)
 

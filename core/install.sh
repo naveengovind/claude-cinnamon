@@ -6,9 +6,11 @@
 #   core/install.sh --uninstall  stop the helper, remove the login item and the `cinnamon` link
 # Log: ~/.config/claude-cinnamon/logs/helper.log
 set -euo pipefail
-DIR="$(cd "$(dirname "$0")/.." && pwd)"                       # the Cinnamon checkout
+DIR="${CINNAMON_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"       # the Cinnamon install (a stable path)
 USER_DIR="${CINNAMON_HOME:-$HOME/.config/claude-cinnamon}"
-APP="$DIR/build/Cinnamon Helper.app"
+# Built into your data folder, not the install: an upgrade replaces the install, and a rebuilt helper would
+# make macOS ask for Accessibility again.
+APP="$USER_DIR/helper/Cinnamon Helper.app"
 EXE="$APP/Contents/MacOS/cinnamon-helper"
 LABEL=local.claude-cinnamon.helper
 PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
@@ -39,24 +41,33 @@ if [ "${1:-}" = "--uninstall" ]; then
   exit 0
 fi
 
-command -v node >/dev/null || { echo "Cinnamon needs Node.js 22 or newer (brew install node)"; exit 1; }
+. "$DIR/core/runtime.sh"
+JS=$(cinnamon_js "$USER_DIR" || true)
+[ -n "$JS" ] || { echo "Cinnamon needs Node.js 22 or newer, or Bun (brew install node)"; exit 1; }
 command -v swiftc >/dev/null || { echo "Cinnamon needs the Swift compiler to build its helper: xcode-select --install"; exit 1; }
 
 # Build only when the helper's source changed (not just its date): a rebuilt helper has a new signature,
 # and macOS then asks for Accessibility again.
 SRC_HASH=$(cat "$DIR/core/helper/main.swift" "$DIR/core/helper/Info.plist" | shasum -a 256 | cut -d' ' -f1)
-BUILT_HASH=$(cat "$DIR/build/.built-from" 2>/dev/null || true)
+BUILT_HASH=$(cat "$USER_DIR/helper/.built-from" 2>/dev/null || true)
+# a helper built by an earlier version inside the install: move it (same build, so the permission still holds)
+if [ ! -x "$EXE" ] && [ -x "$DIR/build/Cinnamon Helper.app/Contents/MacOS/cinnamon-helper" ] && [ "$(cat "$DIR/build/.built-from" 2>/dev/null)" = "$SRC_HASH" ]; then
+  mkdir -p "$USER_DIR/helper"
+  mv "$DIR/build/Cinnamon Helper.app" "$APP"
+  cp "$DIR/build/.built-from" "$USER_DIR/helper/.built-from"
+  BUILT_HASH=$SRC_HASH
+fi
 if [ ! -x "$EXE" ] || [ "$SRC_HASH" != "$BUILT_HASH" ] || [ "${1:-}" = "--rebuild" ]; then
   echo "Building Cinnamon Helper…"
   mkdir -p "$APP/Contents/MacOS"
   cp "$DIR/core/helper/Info.plist" "$APP/Contents/Info.plist"
   swiftc -O -o "$EXE" "$DIR/core/helper/main.swift"
   codesign --force --sign - --identifier "$LABEL" "$APP"
-  echo "$SRC_HASH" > "$DIR/build/.built-from"
+  echo "$SRC_HASH" > "$USER_DIR/helper/.built-from"
 fi
 
 mkdir -p "$USER_DIR/logs" "$USER_DIR/themes" "$USER_DIR/extensions" "$HOME/Library/LaunchAgents"
-NODE_DIR="$(dirname "$(command -v node)")"
+JS_DIR="$(dirname "$JS")"
 xml() { printf '%s' "$1" | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g'; }
 cat > "$PLIST" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
@@ -73,8 +84,9 @@ cat > "$PLIST" <<EOF
   </array>
   <key>EnvironmentVariables</key>
   <dict>
-    <key>PATH</key><string>$(xml "$NODE_DIR"):/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>PATH</key><string>$(xml "$JS_DIR"):/opt/homebrew/bin:/usr/local/bin:$(xml "$HOME")/.bun/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
     <key>CINNAMON_HOME</key><string>$(xml "$USER_DIR")</string>
+    <key>CINNAMON_ROOT</key><string>$(xml "$DIR")</string>
   </dict>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>

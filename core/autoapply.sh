@@ -3,7 +3,7 @@
 # Applies Cinnamon once per Claude process: takes the apply lock (waiting for an apply already running), then skips a
 # process apply.sh already recorded, else runs apply.sh with the lock held.
 set -uo pipefail
-DIR="${CM_DIR:-$(cd "$(dirname "$0")/.." && pwd)}"
+DIR="${CM_DIR:-${CINNAMON_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}}"
 STATE="${CM_STATE:-${CINNAMON_HOME:-$HOME/.config/claude-cinnamon}/state}"
 APPLY="${CM_APPLY:-$DIR/core/apply.sh}"
 pid="${1:?usage: autoapply.sh <claude pid>}"

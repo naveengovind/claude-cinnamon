@@ -1,3 +1,16 @@
-#!/usr/bin/env node
-// cinnamon — see core/cli.cjs
-require("../core/cli.cjs").main(process.argv.slice(2)).then((code) => process.exit(code ?? 0), (e) => { console.error(e); process.exit(1); });
+#!/bin/sh
+# cinnamon — Cinnamon's command. Finds its checkout (also through links), picks Node or Bun (core/runtime.sh) and
+# runs core/cli.cjs.
+src=$0
+while [ -L "$src" ]; do
+  t=$(readlink "$src")
+  case "$t" in /*) src=$t ;; *) src=$(dirname "$src")/$t ;; esac
+done
+root=${CINNAMON_ROOT:-$(cd "$(dirname "$src")/.." && pwd)}
+. "$root/core/runtime.sh"
+js=$(cinnamon_js "${CINNAMON_HOME:-$HOME/.config/claude-cinnamon}")
+if [ -z "$js" ]; then
+  echo "cinnamon needs Node.js 22+ or Bun (brew install node, or brew install oven-sh/bun/bun)" >&2
+  exit 1
+fi
+CINNAMON_ROOT=$root exec "$js" "$root/core/cli.cjs" "$@"

@@ -420,5 +420,7 @@ ${code}
       applied.push(wc.id);
     }
   });
-  return { applied, theme: state.theme.current, themeErrors: state.theme.errors, extensions: [...state.extLoaded.keys()], mains: [...state.mains.keys()] };
+  // views: the claude.ai views visible now. An empty `applied` is normal when Claude's window hasn't loaded yet:
+  // every view is hooked and gets everything on its next load.
+  return { applied, views: views().map((w) => w.id), theme: state.theme.current, themeErrors: state.theme.errors, extensions: [...state.extLoaded.keys()], mains: [...state.mains.keys()] };
 })()

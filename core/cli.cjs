@@ -8,7 +8,8 @@ const readline = require('node:readline');
 const themes = require('./theme.cjs');
 const exts = require('./extensions.cjs');
 
-const ROOT = path.join(__dirname, '..');
+// CINNAMON_ROOT: a stable path to this install (Homebrew's opt/ link), so the login item survives upgrades.
+const ROOT = process.env.CINNAMON_ROOT || path.join(__dirname, '..');
 const USER = process.env.CINNAMON_HOME || path.join(os.homedir(), '.config', 'claude-cinnamon');
 const P = {
   config: path.join(USER, 'config.json'),
@@ -303,13 +304,14 @@ function doctor() {
   if (ver) say(dim(`  Claude ${ver}`));
   check(sh('which', ['swiftc']).status === 0, 'Swift compiler (to build the helper)', 'xcode-select --install');
   check(loginItemLoaded(), 'login item running', 'cinnamon install');
-  const helper = path.join(ROOT, 'build', 'Cinnamon Helper.app');
+  const helper = path.join(USER, 'helper', 'Cinnamon Helper.app');
   check(fs.existsSync(helper), 'helper app built', 'cinnamon install');
   let log = '';
   try { log = fs.readFileSync(P.logs, 'utf8'); } catch {}
   const lastStart = log.lastIndexOf('watching ');
   const recent = lastStart === -1 ? '' : log.slice(lastStart);
-  check(!/NOT allowed/.test(recent.split('\n')[0] || ''), 'helper may use Accessibility', 'System Settings → Privacy & Security → Accessibility → turn on the helper');
+  const allowed = !/NOT allowed/.test(recent.split('\n')[0] || '') || /Accessibility allowed/.test(recent);
+  check(allowed, 'helper may use Accessibility', 'System Settings → Privacy & Security → Accessibility → turn on Cinnamon Helper');
   check(!/never appeared/.test(recent), 'Developer menu found at the last launch', 'in Claude: Help → Troubleshooting → Enable Developer Mode');
   const finished = [...recent.matchAll(/apply finished with status (\d+)/g)].pop();
   if (finished) check(finished[1] === '0', `last automatic apply ${finished[1] === '0' ? 'succeeded' : 'failed'}`, 'cinnamon logs');
@@ -339,7 +341,8 @@ usage:
   cinnamon status                  what is installed and applied
   cinnamon doctor                  check the setup and explain any problem
   cinnamon logs                    the helper's recent log
-  cinnamon update                  pull the latest Cinnamon and re-install
+  cinnamon update                  get the latest Cinnamon and re-install
+  cinnamon runtime [node|bun|auto] which JavaScript runtime Cinnamon's own scripts use
 
   cinnamon theme [list]            themes (* = current)
   cinnamon theme <id>              use a theme ("default" = Claude's own colours)
@@ -367,6 +370,7 @@ async function main(argv) {
     case 'status': return status();
     case 'doctor': return doctor();
     case 'logs': return logs();
+    case 'runtime': return runtime(sub);
     case 'update': return update();
     case 'theme':
     case 'themes':
@@ -394,4 +398,21 @@ async function main(argv) {
   }
 }
 
+function runtime(choice) {
+  const cfg = themes.readConfig(P.config);
+  if (!choice) {
+    const js = sh('sh', ['-c', `. "${path.join(ROOT, 'core', 'runtime.sh')}"; cinnamon_js "${USER}"`]).stdout.trim();
+    say(`${cfg.runtime || 'auto'} ${dim(`(${js || 'none found'})`)}`);
+    return 0;
+  }
+  if (!['node', 'bun', 'auto'].includes(choice)) return fail('usage: cinnamon runtime [node|bun|auto]');
+  themes.writeConfig(P.config, { runtime: choice === 'auto' ? undefined : choice });
+  say(green(`✓ runtime: ${choice}`), dim('(Cinnamon\'s own scripts; the code inside Claude uses Claude\'s runtime)'));
+  return 0;
+}
+
 module.exports = { main, parseSource };
+
+if (require.main === module) {
+  main(process.argv.slice(2)).then((code) => process.exit(code ?? 0), (e) => { console.error(e); process.exit(1); });
+}
