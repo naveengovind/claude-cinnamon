@@ -2,6 +2,6 @@
   "name": "Full width",
   "description": "Adds Full to Settings → Appearance → Transcript width, so the chat can fill the window",
   "version": "1.0.0",
-  "page": ["page.js"],
+  "page": ["page.ts"],
   "css": ["width.css"]
 }

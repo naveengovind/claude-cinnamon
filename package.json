@@ -2,10 +2,13 @@
   "name": "claude-cinnamon",
   "private": true,
   "scripts": {
-    "test": "bun test --timeout 30000 test/"
+    "test": "bun test --timeout 30000 test/",
+    "typecheck": "tsc --noEmit -p . && tsc --noEmit -p tsconfig.page.json"
   },
   "devDependencies": {
-    "jsdom": "^26.1.0"
+    "@types/bun": "^1.4.4",
+    "jsdom": "^26.1.0",
+    "typescript": "^7.0.2"
   },
   "version": "0.1.0",
   "description": "Themes and extensions for the Claude desktop app (macOS)",

@@ -3,7 +3,3 @@ build/
 *.log
 .superpowers/
 *.tmp
-# leftovers from before Cinnamon (the old helper still runs from helper/ until `cinnamon install`)
-helper/
-state/
-applied.json

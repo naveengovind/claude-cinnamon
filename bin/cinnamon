@@ -1,5 +1,5 @@
 #!/bin/sh
-# cinnamon — Cinnamon's command. Finds its install (also through links) and runs core/cli.cjs with Bun.
+# cinnamon — Cinnamon's command. Finds its install (also through links) and runs core/cli/main.ts with Bun.
 src=$0
 while [ -L "$src" ]; do
   t=$(readlink "$src")
@@ -12,4 +12,4 @@ if [ -z "$js" ]; then
   echo "cinnamon needs Bun (brew install oven-sh/bun/bun)" >&2
   exit 1
 fi
-CINNAMON_ROOT=$root exec "$js" "$root/core/cli.cjs" "$@"
+CINNAMON_ROOT=$root exec "$js" "$root/core/cli/main.ts" "$@"

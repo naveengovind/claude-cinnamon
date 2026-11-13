@@ -103,19 +103,21 @@ Also:
 An extension is a folder with a `manifest.json`:
 
 ```json
-{ "id": "zen", "name": "Zen mode", "description": "…", "version": "1.0.0", "page": ["zen.js"], "css": ["zen.css"] }
+{ "id": "zen", "name": "Zen mode", "description": "…", "version": "1.0.0", "page": ["zen.ts"], "css": ["zen.css"] }
 ```
 
-`page` scripts run in Claude's window each time it loads, with a `cinnamon` object:
+`page` scripts (TypeScript or JavaScript; Cinnamon compiles TypeScript with Bun) run in Claude's window each time it
+loads, with a `cinnamon` object (types: `types/cinnamon.d.ts`):
 
-```js
+```ts
 cinnamon.settings.get('key');            // this extension's settings (saved in config.json)
 cinnamon.settings.set('key', value);
 cinnamon.settings.onChange((all) => …);
 ```
 
-Built-in extensions may also have a `main` part that runs in Claude's main process (the sidebar cards use one to
-read session files). Extensions installed from elsewhere run in the page only: a `main` entry is ignored.
+Built-in extensions may also have a `main` part (`.ts` or `.cjs`) that runs in Claude's main process (the sidebar
+cards use one to read session files). Extensions installed from elsewhere run in the page only: a `main` entry is
+ignored, and their TypeScript may only import files inside the extension.
 
 ## How it works
 
@@ -123,10 +125,12 @@ Claude.app is signed and its code archive is integrity-checked, so Cinnamon neve
 
 1. **Cinnamon Helper**, a small login item, watches for Claude to start and clicks Claude's own
    *Developer → Enable Main Process Debugger* (that's why it needs Accessibility, and why Developer Mode is needed).
-2. `core/apply.sh` connects to that debugger on `127.0.0.1:9229` and loads `core/main.js.tmpl` into Claude's main
-   process, then turns the debugger off again. It refuses to touch the port if another process owns it.
-3. From then on, for the rest of that Claude session, the main script puts the theme CSS and the extensions into
-   Claude's window on every load, and watches your config, themes and extensions for changes.
+2. Cinnamon bundles its main-process code (`core/main`, TypeScript) with Bun, connects to that debugger on
+   `127.0.0.1:9229`, runs the bundle inside Claude's main process, then turns the debugger off again. It refuses to
+   touch the port if another process owns it.
+3. From then on, for the rest of that Claude session, the main-process code puts the theme CSS and the extensions into
+   Claude's window on every load (compiling extension TypeScript with Bun as needed), and watches your config, themes
+   and extensions for changes.
 
 It is built to survive app updates: it hooks onto the app's CSS variables, ARIA roles and visible labels, never
 generated class names, and every hook is optional, so if a future version moves something, that one feature quietly
@@ -135,17 +139,27 @@ Developer Mode at the last launch, the last apply, broken themes or extensions).
 
 ## Development
 
+Everything is TypeScript run by [Bun](https://bun.sh) (the helper is Swift, styles are CSS).
+
 ```sh
 git clone https://github.com/naveengovind/claude-cinnamon && cd claude-cinnamon
 bun install
-bun test
+bun test               # bun:test + jsdom
+bun run typecheck      # strict tsc: main-process/CLI code and page code
 bin/cinnamon install   # points the login item at this checkout (run `cinnamon install` again to go back to Homebrew's)
 ```
 
 | Folder | |
 | --- | --- |
-| `core/` | main-process script, page runtime, Settings rows, theme and extension loaders, CLI, helper, scripts |
-| `extensions/` | built-in extensions |
-| `themes/` | built-in themes |
-| `test/` | `bun test` + jsdom tests |
-| `tools/` | probes for exploring the app (load with `bun core/cdp.mjs <file>` while the debugger is on) |
+| `core/main/` | runs inside Claude's main process: `Cinnamon` (orchestrator), `ViewManager`, `ThemeApplier`, `ExtensionHost`, `ExtensionContext`, `Compiler`, `PageChannel`, `FileWatcher`, `WindowMaterial`, `SerialQueue` |
+| `core/page/` | runs in Claude's window: `CinnamonRuntime` (the `cinnamon` API), `SettingsRows` / `RowMenu` (Settings → Appearance rows) |
+| `core/lib/` | shared: `ThemeEngine`, `ThemeStore`, `Config`, `ExtensionCatalog` |
+| `core/apply/` | applying: `Applier`, `AutoApplier` (what the helper runs at each launch), `LockFile`, `System`, the Chrome-tab script |
+| `core/cli/` | the `cinnamon` command: `Cli`, `ThemeCommands`, `ExtensionCommands`, `SourceFetcher`, `HelperClient`, `Doctor` |
+| `core/install/` | `Installer` (helper build, login item, PATH link) |
+| `core/render.ts`, `core/InspectorClient.ts` | bundles the main-process code; talks to Claude's debugger |
+| `core/helper/` | Cinnamon Helper (Swift) |
+| `extensions/`, `themes/` | built-in extensions and themes |
+| `types/cinnamon.d.ts` | the `cinnamon` API for extension page code |
+| `test/` | tests |
+| `tools/` | probes for exploring the app (`bun core/InspectorClient.ts <file>` while the debugger is on) |

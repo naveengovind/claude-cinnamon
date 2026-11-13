@@ -55,3 +55,12 @@ Settings gets an "Extensions" section with on/off switches.
 `cinnamon install | uninstall | apply | status | doctor | theme [id|list] | ext [list|install <url>|remove|enable|disable]`
 Code in the clone (`~/.claude-cinnamon`), user data in `~/.config/claude-cinnamon` (config, themes, extensions,
 labels, logs, state). Install script builds the helper and links the CLI into PATH.
+
+## Code layout (TypeScript, Nov 13 2026)
+Everything is TypeScript under Bun, object-oriented (see the README's folder table). Code that runs inside Claude
+must be plain JavaScript, so: the main-process code is bundled by `core/render.ts` (Bun.build, CommonJS) into one
+script whose wrapper captures the debugger's `require` before the first `await` and hands it in; core page code is
+bundled for the browser at render time; extension page code and bundled extensions' main parts are compiled inside
+Claude by the `Compiler`, which spawns a compiler command from the config (`[bun, 'build']`; a standalone binary
+will pass its own) on a copy of the extension under `node_modules` (no build-time macros) and refuses any input
+outside the extension.

@@ -1,4 +1,4 @@
-# Cinnamon runs its own scripts (the cinnamon command, render.cjs, cdp.mjs) with Bun.
+# Cinnamon runs its own programs (the cinnamon command, the apply scripts) with Bun.
 # (The code that runs inside Claude uses Claude's own runtime.)
 # Usage: . core/runtime.sh; bun=$(cinnamon_bun)
 cinnamon_bun() {
