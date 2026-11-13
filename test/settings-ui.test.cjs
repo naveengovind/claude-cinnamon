@@ -1,4 +1,4 @@
-const test = require('node:test');
+const { test, afterEach } = require('bun:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -26,7 +26,7 @@ const SETTINGS = `
 const THEMES = { current: 'codex', themes: [{ id: 'codex', name: 'Codex' }, { id: 'broken', name: 'broken', error: 'bad json' }, { id: 'paper', name: 'Paper' }] };
 
 const open = [];
-test.afterEach(() => { while (open.length) open.pop().close(); });
+afterEach(() => { while (open.length) open.pop().close(); });
 
 function page(body = SETTINGS) {
   const dom = new JSDOM(`<body>${body}</body>`, { runScripts: 'outside-only', pretendToBeVisual: true });

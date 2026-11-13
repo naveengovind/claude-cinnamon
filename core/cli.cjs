@@ -297,8 +297,7 @@ function status() {
 function doctor() {
   let bad = 0;
   const check = (ok, text, fix) => { say(`${ok ? green('✓') : red('✗')} ${text}${!ok && fix ? dim(`  → ${fix}`) : ''}`); if (!ok) bad++; };
-  const nodeMajor = Number(process.versions.node.split('.')[0]);
-  check(nodeMajor >= 22, `Node ${process.versions.node}`, 'Node 22 or newer is needed (brew install node)');
+  check(!!process.versions.bun, `Bun ${process.versions.bun || '(not running under Bun)'}`, 'brew install oven-sh/bun/bun');
   check(fs.existsSync('/Applications/Claude.app'), 'Claude.app is in /Applications');
   const ver = sh('defaults', ['read', '/Applications/Claude.app/Contents/Info.plist', 'CFBundleShortVersionString']).stdout?.trim();
   if (ver) say(dim(`  Claude ${ver}`));
@@ -352,7 +351,6 @@ usage:
   cinnamon doctor                  check the setup and explain any problem
   cinnamon logs                    the helper's recent log
   cinnamon update                  upgrade Cinnamon (brew upgrade) and refresh the setup
-  cinnamon runtime [node|bun|auto] which JavaScript runtime Cinnamon's own scripts use
 
   cinnamon theme [list]            themes (* = current)
   cinnamon theme <id>              use a theme ("default" = Claude's own colours)
@@ -380,7 +378,6 @@ async function main(argv) {
     case 'status': return status();
     case 'doctor': return doctor();
     case 'logs': return logs();
-    case 'runtime': return runtime(sub);
     case 'update': return update();
     case 'theme':
     case 'themes':
@@ -406,19 +403,6 @@ async function main(argv) {
       console.error(`unknown command: ${cmd}\n\n${HELP}`);
       return 1;
   }
-}
-
-function runtime(choice) {
-  const cfg = themes.readConfig(P.config);
-  if (!choice) {
-    const js = sh('sh', ['-c', `. "${path.join(ROOT, 'core', 'runtime.sh')}"; cinnamon_js "${USER}"`]).stdout.trim();
-    say(`${cfg.runtime || 'auto'} ${dim(`(${js || 'none found'})`)}`);
-    return 0;
-  }
-  if (!['node', 'bun', 'auto'].includes(choice)) return fail('usage: cinnamon runtime [node|bun|auto]');
-  themes.writeConfig(P.config, { runtime: choice === 'auto' ? undefined : choice });
-  say(green(`✓ runtime: ${choice}`), dim('(Cinnamon\'s own scripts; the code inside Claude uses Claude\'s runtime)'));
-  return 0;
 }
 
 module.exports = { main, parseSource };

@@ -1,5 +1,5 @@
 // Tests for core/main.js.tmpl: the script evaluated in Claude's main process. Runs it in a vm with a fake Electron.
-const test = require('node:test');
+const { test, afterEach } = require('bun:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');

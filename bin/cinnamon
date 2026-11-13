@@ -1,6 +1,5 @@
 #!/bin/sh
-# cinnamon — Cinnamon's command. Finds its checkout (also through links), picks Node or Bun (core/runtime.sh) and
-# runs core/cli.cjs.
+# cinnamon — Cinnamon's command. Finds its install (also through links) and runs core/cli.cjs with Bun.
 src=$0
 while [ -L "$src" ]; do
   t=$(readlink "$src")
@@ -8,9 +7,9 @@ while [ -L "$src" ]; do
 done
 root=${CINNAMON_ROOT:-$(cd "$(dirname "$src")/.." && pwd)}
 . "$root/core/runtime.sh"
-js=$(cinnamon_js "${CINNAMON_HOME:-$HOME/.config/claude-cinnamon}")
+js=$(cinnamon_bun)
 if [ -z "$js" ]; then
-  echo "cinnamon needs Node.js 22+ or Bun (brew install node, or brew install oven-sh/bun/bun)" >&2
+  echo "cinnamon needs Bun (brew install oven-sh/bun/bun)" >&2
   exit 1
 fi
 CINNAMON_ROOT=$root exec "$js" "$root/core/cli.cjs" "$@"

@@ -1,4 +1,4 @@
-const test = require('node:test');
+const { test, afterEach } = require('bun:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -6,7 +6,7 @@ const { JSDOM } = require('jsdom');
 
 const SRC = fs.readFileSync(path.join(__dirname, '..', 'core', 'page-runtime.js'), 'utf8');
 const open = [];
-test.afterEach(() => { while (open.length) open.pop().close(); });
+afterEach(() => { while (open.length) open.pop().close(); });
 
 function page() {
   const w = new JSDOM('<body></body>', { runScripts: 'outside-only' }).window;

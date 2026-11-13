@@ -42,8 +42,8 @@ if [ "${1:-}" = "--uninstall" ]; then
 fi
 
 . "$DIR/core/runtime.sh"
-JS=$(cinnamon_js "$USER_DIR" || true)
-[ -n "$JS" ] || { echo "Cinnamon needs Node.js 22 or newer, or Bun (brew install node)"; exit 1; }
+JS=$(cinnamon_bun || true)
+[ -n "$JS" ] || { echo "Cinnamon needs Bun (brew install oven-sh/bun/bun)"; exit 1; }
 command -v swiftc >/dev/null || { echo "Cinnamon needs the Swift compiler to build its helper: xcode-select --install"; exit 1; }
 
 # Build only when the helper's source changed (not just its date): a rebuilt helper has a new signature,

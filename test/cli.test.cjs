@@ -1,5 +1,5 @@
 // The cinnamon command (bin/cinnamon), run against a temporary user folder. Git sources are local repos.
-const test = require('node:test');
+const { test, afterEach } = require('bun:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -192,16 +192,6 @@ test('doctor counts Accessibility as allowed once the helper logs that it was gr
   ].join('\n'));
   const r = run(h, 'doctor');
   assert.match(r.out, /✓ helper may use Accessibility/);
-});
-
-test('cinnamon runtime chooses Node or Bun and remembers it in the config', () => {
-  const h = home();
-  assert.strictEqual(run(h, 'runtime', 'bun').code, 0);
-  assert.strictEqual(config(h).runtime, 'bun');
-  assert.match(run(h, 'runtime').out, /bun/);
-  assert.strictEqual(run(h, 'runtime', 'auto').code, 0);
-  assert.strictEqual(config(h).runtime, undefined);
-  assert.notStrictEqual(run(h, 'runtime', 'deno').code, 0);
 });
 
 test('the cinnamon launcher works through a link, as when it is linked into PATH', () => {

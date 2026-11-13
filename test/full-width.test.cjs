@@ -1,5 +1,5 @@
 // The full-width extension's page code: a "Full" option in Settings → Appearance → Transcript width.
-const test = require('node:test');
+const { test, afterEach } = require('bun:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -23,7 +23,7 @@ const POPUP = `
   </div></div>`;
 
 const open = [];
-test.afterEach(() => { while (open.length) open.pop().close(); });
+afterEach(() => { while (open.length) open.pop().close(); });
 
 function page(settings = {}, body = ROW) {
   const w = new JSDOM(`<body>${body}</body>`, { runScripts: 'outside-only', pretendToBeVisual: true }).window;

@@ -1,4 +1,4 @@
-const test = require('node:test');
+const { test, afterEach } = require('bun:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -32,7 +32,7 @@ case "$1" in
   front) echo 77 ;;
   activate) echo "activate $2" >> "${log}" ;;
 esac`);
-  sh('node', `
+  sh('bun', `
 case "$1" in
   *render.cjs) exec "${process.execPath}" "$@" ;;
   *cdp.mjs)
@@ -167,19 +167,4 @@ test('a successful apply records which Claude process has the mods', () => {
 test('a failed apply records nothing', () => {
   const r = runApply({ mainExit: 1 });
   assert.strictEqual(r.marker, null);
-});
-
-test('CINNAMON_RUNTIME=bun runs Cinnamon\'s scripts with Bun instead of Node', () => {
-  const { bin, log } = fakeBin();
-  // a "bun" that behaves like the fake node, but logs that it was the one used
-  fs.writeFileSync(path.join(bin, 'bun'), fs.readFileSync(path.join(bin, 'node'), 'utf8').replace('echo main >>', 'echo bun-main >>'), { mode: 0o755 });
-  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cm-state-'));
-  const r = spawnSync('bash', [path.join(MODS, 'core', 'apply.sh')], {
-    env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, CM_DIR: MODS, CM_STATE: stateDir, CM_HELPER: path.join(bin, 'helper'), CM_LOCK_WAIT: '1', CINNAMON_RUNTIME: 'bun' },
-    encoding: 'utf8',
-  });
-  assert.strictEqual(r.status, 0, r.stdout + r.stderr);
-  const calls = fs.readFileSync(log, 'utf8');
-  assert.match(calls, /bun-main/);
-  assert.doesNotMatch(calls, /^main$/m);
 });

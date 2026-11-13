@@ -1,5 +1,5 @@
 // The sidebar-cards extension's main part (extensions/sidebar-cards/main.cjs), with a fake extension context.
-const test = require('node:test');
+const { test, afterEach } = require('bun:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');

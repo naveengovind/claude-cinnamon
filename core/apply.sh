@@ -12,8 +12,8 @@ STATE="${CM_STATE:-$USER_DIR/state}"
 HELPER="${CM_HELPER:-$USER_DIR/helper/Cinnamon Helper.app/Contents/MacOS/cinnamon-helper}"
 PRESS_TIMEOUT="${CM_PRESS_TIMEOUT:-60}"
 . "$DIR/core/runtime.sh"
-JS=$(cinnamon_js "$USER_DIR" || true)
-if [ -z "$JS" ]; then echo "Cinnamon needs Node.js 22+ or Bun"; exit 1; fi
+JS=$(cinnamon_bun || true)
+if [ -z "$JS" ]; then echo "Cinnamon needs Bun (brew install oven-sh/bun/bun)"; exit 1; fi
 PORT=9229
 KEEP=0; [ "${1:-}" = "--keep" ] && KEEP=1
 script=""; chrome=""; front=""; closer=""; locked=0; claude=""

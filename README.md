@@ -15,7 +15,7 @@ Not affiliated with or endorsed by Anthropic.
 ## Requirements
 
 - macOS and the Claude desktop app in `/Applications`
-- Node.js 22 or newer, or Bun (`brew install node` / `brew install oven-sh/bun/bun`), and git
+- [Bun](https://bun.sh) (Homebrew installs it with Cinnamon) and git
 - Xcode Command Line Tools, to build the helper (`xcode-select --install`)
 - Developer Mode in Claude: *Help → Troubleshooting → Enable Developer Mode*
 
@@ -138,8 +138,8 @@ Developer Mode at the last launch, the last apply, broken themes or extensions).
 
 ```sh
 git clone https://github.com/naveengovind/claude-cinnamon && cd claude-cinnamon
-npm install
-npm test
+bun install
+bun test
 bin/cinnamon install   # points the login item at this checkout (run `cinnamon install` again to go back to Homebrew's)
 ```
 
@@ -148,5 +148,5 @@ bin/cinnamon install   # points the login item at this checkout (run `cinnamon i
 | `core/` | main-process script, page runtime, Settings rows, theme and extension loaders, CLI, helper, scripts |
 | `extensions/` | built-in extensions |
 | `themes/` | built-in themes |
-| `test/` | `node:test` + jsdom tests |
-| `tools/` | probes for exploring the app (load with `node core/cdp.mjs <file>` while the debugger is on) |
+| `test/` | `bun test` + jsdom tests |
+| `tools/` | probes for exploring the app (load with `bun core/cdp.mjs <file>` while the debugger is on) |

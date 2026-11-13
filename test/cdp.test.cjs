@@ -1,5 +1,5 @@
 // core/cdp.mjs gives up instead of holding Claude's debugger open when the inspector never answers.
-const test = require('node:test');
+const { test, afterEach } = require('bun:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');
