@@ -11,7 +11,8 @@ the app bundle is modified (its asar integrity check rules that out).
   Native macOS menus (menu bar, right-click) can't be themed.
 - Features like the sidebar cards become extensions; extensions install from GitHub links.
 - Downloaded extensions are page-only (page JS + CSS). Only bundled extensions may have a main-process part.
-- Packaged as a CLI named `cinnamon`, macOS only, private repo `naveengovind/claude-cinnamon`.
+- Packaged as a CLI named `cinnamon`, macOS only, public repo `naveengovind/claude-cinnamon` (private until
+  Nov 13 2026), installed with Homebrew (`naveengovind/tap/cinnamon`) or install.sh.
 - Robust against future app versions (below).
 
 ## Robustness principles
@@ -61,6 +62,23 @@ Everything is TypeScript under Bun, object-oriented (see the README's folder tab
 must be plain JavaScript, so: the main-process code is bundled by `core/render.ts` (Bun.build, CommonJS) into one
 script whose wrapper captures the debugger's `require` before the first `await` and hands it in; core page code is
 bundled for the browser at render time; extension page code and bundled extensions' main parts are compiled inside
-Claude by the `Compiler`, which spawns a compiler command from the config (`[bun, 'build']`; a standalone binary
-will pass its own) on a copy of the extension under `node_modules` (no build-time macros) and refuses any input
+Claude by the `Compiler`, which spawns a compiler command from the config (`[bun, 'build']`; the standalone binary
+passes `[itself, '__compile']`) on a copy of the extension under `node_modules` (no build-time macros) and refuses any input
 outside the extension.
+
+## Distribution (Nov 13 2026)
+One standalone binary per Mac architecture (`scripts/build.ts`, `bun build --compile`): Bun, Cinnamon's files and
+a universal, ad-hoc-signed Cinnamon Helper inside. Each version unpacks its files into
+`~/.config/claude-cinnamon/app/<version>` (temp folder + rename, so a version folder is complete or absent) and
+sets `CINNAMON_BIN`, so the `Compiler` runs `cinnamon __compile` instead of `bun build` and the login item runs
+`<your folder>/helper/autoapply.sh`, which hands over to the binary. `install` prunes old versions but keeps the
+previous one (a running Claude may still be using it). The prebuilt helper is used only when its recorded source
+hash matches, and an existing helper built from the same source is kept, so macOS doesn't ask for Accessibility again.
+- **Homebrew** (the default): `naveengovind/tap/cinnamon` installs the binary from the GitHub release
+  (`scripts/formula.ts` writes the formula from `SHA256SUMS`; `scripts/release.ts` publishes it to the tap).
+  Homebrew runs it from `Cellar/cinnamon/<version>`, which an upgrade removes, so `CINNAMON_BIN` names
+  `<prefix>/opt/cinnamon/bin/cinnamon`; `cinnamon update` runs `brew upgrade` then the new version's `install`.
+  Cinnamon never links into Homebrew's `bin` (that would break `brew link`).
+- **install.sh** (no Homebrew): downloads the release tarball, checks `SHA256SUMS`, installs to `~/.local/bin` and
+  runs `cinnamon install`; `cinnamon update` then replaces the binary from the latest release (checksum and
+  `--version` checked first) and runs the new version's `install`.

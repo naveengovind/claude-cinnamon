@@ -1,12 +1,9 @@
 #!/bin/sh
-# Installs Cinnamon (themes and extensions for the Claude desktop app, macOS) as one standalone `cinnamon` command:
-# Bun and everything else are inside it, so neither Homebrew nor Bun is needed. Then runs `cinnamon install`, which
-# sets up the login item that applies Cinnamon each time Claude starts.
+# Installs Cinnamon (themes and extensions for the Claude desktop app, macOS) without Homebrew, as one standalone
+# `cinnamon` command: Bun and everything else are inside it. Then runs `cinnamon install`, which sets up the login item
+# that applies Cinnamon each time Claude starts. (With Homebrew: brew install naveengovind/tap/cinnamon)
 #
-#   While the repository is private (needs the GitHub CLI, signed in):
-#     gh api -H 'Accept: application/vnd.github.raw' repos/naveengovind/claude-cinnamon/contents/install.sh | sh
-#   Once it is public:
-#     curl -fsSL https://raw.githubusercontent.com/naveengovind/claude-cinnamon/main/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/naveengovind/claude-cinnamon/main/install.sh | sh
 #
 # CINNAMON_BIN_DIR: where the command goes (default ~/.local/bin). CINNAMON_RELEASE: a release tag (default: latest).
 set -eu
@@ -30,7 +27,7 @@ if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
 else
   if [ -n "$tag" ]; then base="https://github.com/$repo/releases/download/$tag"; else base="https://github.com/$repo/releases/latest/download"; fi
   if ! curl -fsSL -o "$tmp/$asset" "$base/$asset" || ! curl -fsSL -o "$tmp/SHA256SUMS" "$base/SHA256SUMS"; then
-    echo "Download failed. While the repository is private, install the GitHub CLI and sign in first: gh auth login"
+    echo "Download failed: check your connection (or the release tag in CINNAMON_RELEASE)."
     exit 1
   fi
 fi

@@ -151,21 +151,22 @@ Your settings, themes and extensions: ${this.paths.user}`;
     catch { return this.out.fail(`no log yet (${this.paths.logs})`); }
   }
 
-  /** The standalone binary: the latest release. Homebrew installs: brew upgrade. A development checkout: git pull.
-   *  Then the new version's install refreshes the login item and re-applies. */
+  /** Homebrew installs: brew upgrade. The standalone binary otherwise: the latest release. A development checkout:
+   *  git pull. Then the new version's install refreshes the login item and re-applies. */
   private update(): number {
     const { out, paths } = this;
-    if (paths.binary) {
+    if (paths.binary && !paths.homebrew) {
       return new Updater({ binary: paths.binary, version: paths.version, arch: process.arch === 'arm64' ? 'arm64' : 'x64', repo: Paths.REPO, log: (l) => out.say(l) }).run();
     }
-    if (fs.existsSync(path.join(paths.root, '.git'))) {
+    if (!paths.binary && fs.existsSync(path.join(paths.root, '.git'))) {
       if (sh('git', ['-C', paths.root, 'pull', '--ff-only'], { stdio: 'inherit' }).status !== 0) return out.fail('git pull failed');
       return this.install();
     }
-    if (sh('which', ['brew']).status !== 0) return out.fail(`Homebrew not found; Cinnamon installs with: brew install ${Paths.FORMULA}`);
-    if (sh('brew', ['upgrade', Paths.FORMULA], { stdio: 'inherit' }).status !== 0) return out.fail('brew upgrade failed');
+    const brew = paths.homebrew ? path.join(paths.homebrew, 'bin', 'brew') : 'brew';
+    if (!paths.homebrew && sh('which', ['brew']).status !== 0) return out.fail(`Homebrew not found; Cinnamon installs with: brew install ${Paths.FORMULA}`);
+    if (sh(brew, ['upgrade', Paths.FORMULA], { stdio: 'inherit' }).status !== 0) return out.fail('brew upgrade failed');
     if (process.env.CINNAMON_NO_APPLY) return 0;
-    // the new version's own installer: rebuilds the helper only if its source changed
-    return sh(path.join(paths.root, 'bin', 'cinnamon'), ['install'], { stdio: 'inherit' }).status ?? 1;
+    // the new version's own installer (the binary's opt/ path now leads to it): keeps the helper if its source is unchanged
+    return sh(paths.binary ?? path.join(paths.root, 'bin', 'cinnamon'), ['install'], { stdio: 'inherit' }).status ?? 1;
   }
 }

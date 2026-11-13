@@ -5,12 +5,15 @@
 //   3. Build dist/ (see scripts/build.ts).
 //   4. Push this commit and the new tag.
 //   5. Create the GitHub release with both tarballs and SHA256SUMS.
-// `cinnamon update` and install.sh pick up the release from there.
+//   6. Publish the Homebrew formula for it to the tap (not for a draft: its downloads aren't public yet; publish it
+//      later with `bun scripts/formula.ts --publish`).
+// `brew upgrade`, `cinnamon update` and install.sh pick up the release from there.
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { Paths } from '../core/cli/Paths';
 import { build } from './build';
+import { publishFormula, readSums, renderFormula } from './formula';
 
 const ROOT = path.join(import.meta.dir, '..');
 
@@ -39,12 +42,19 @@ sh('git', ['tag', '-a', tag, '-m', `Cinnamon ${version}`]);
 sh('git', ['push', 'origin', 'HEAD']);
 sh('git', ['push', 'origin', tag]);
 
-const notes = `Standalone build: one \`cinnamon\` command with Bun and everything else inside (no Homebrew or Bun needed).
+const notes = `One \`cinnamon\` command with Bun and everything else inside.
 
-Install (or reinstall):
+Install with Homebrew:
 \`\`\`sh
-gh api -H 'Accept: application/vnd.github.raw' repos/${Paths.REPO}/contents/install.sh | sh
+brew install ${Paths.FORMULA}
+cinnamon install
+\`\`\`
+Or without Homebrew:
+\`\`\`sh
+curl -fsSL https://raw.githubusercontent.com/${Paths.REPO}/main/install.sh | sh
 \`\`\`
 Already installed: \`cinnamon update\`.`;
 sh('gh', ['release', 'create', tag, '--repo', Paths.REPO, '--title', `Cinnamon ${version}`, '--notes', notes, '--verify-tag', ...(draft ? ['--draft'] : []), ...assets]);
 console.log(`Released ${tag}${draft ? ' (draft)' : ''}.`);
+
+if (!draft) publishFormula(renderFormula({ version, repo: Paths.REPO, sha256: readSums(path.join(ROOT, 'dist', 'SHA256SUMS')) }), version);

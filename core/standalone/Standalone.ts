@@ -8,6 +8,7 @@
 import os from 'node:os';
 import path from 'node:path';
 import { compileCommand } from '../cli/Compile';
+import { Homebrew } from './Homebrew';
 import { Payload } from './Payload';
 
 export async function runStandalone(files: Record<string, string>, version: string, argv: string[]): Promise<number> {
@@ -17,7 +18,8 @@ export async function runStandalone(files: Record<string, string>, version: stri
   const user = process.env.CINNAMON_HOME || path.join(os.homedir(), '.config', 'claude-cinnamon');
   const payload = new Payload(files, version);
   const root = await payload.ensure(user);
-  Object.assign(process.env, { CINNAMON_ROOT: root, CINNAMON_BIN: process.execPath, CINNAMON_VERSION: version });
+  // a Homebrew install names its opt/ link: the versioned folder it runs from goes away at the next upgrade
+  Object.assign(process.env, { CINNAMON_ROOT: root, CINNAMON_BIN: Homebrew.stablePath(process.execPath), CINNAMON_VERSION: version });
   // loaded only now: the modules below read these settings
   if (cmd === '__autoapply') {
     const { fromEnv } = await import('../apply/main');

@@ -9,6 +9,7 @@ import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { Homebrew } from '../standalone/Homebrew';
 
 export interface RunResult { status: number; stdout: string; stderr: string }
 export type Runner = (cmd: string, args: string[]) => RunResult;
@@ -66,7 +67,10 @@ export class Installer {
   /** What the login item runs when Claude starts: the install's script, or (standalone) the one in your folder. */
   get launchScript(): string { return this.o.binary ? path.join(this.o.userDir, 'helper', 'autoapply.sh') : path.join(this.o.root, 'core', 'autoapply.sh'); }
   private get launcher(): string { return this.o.binary || path.join(this.o.root, 'bin', 'cinnamon'); }
-  private get linkCandidates(): string[] { return ['/opt/homebrew/bin', '/usr/local/bin', path.join(this.o.home, '.local', 'bin'), path.join(this.o.home, 'bin')]; }
+  /** Where the command may be linked: your own bin folders, never Homebrew's (its `brew link` would then fail). */
+  private get linkCandidates(): string[] { return [path.join(this.o.home, '.local', 'bin'), path.join(this.o.home, 'bin')]; }
+  /** Earlier versions also linked into these; uninstall still removes such a link. */
+  private get oldLinkDirs(): string[] { return ['/opt/homebrew/bin', '/usr/local/bin']; }
 
   /** Hash of the helper's source: a rebuild only happens when it changes. */
   sourceHash(): string { return helperSourceHash(this.o.root); }
@@ -213,13 +217,13 @@ ${o.binary ? `    <key>CINNAMON_BIN</key><string>${xml(o.binary)}</string>` : ` 
   uninstall(): number {
     this.stop(Installer.LABEL);
     fs.rmSync(this.plist, { force: true });
-    for (const d of this.linkCandidates) {
+    for (const d of [...this.linkCandidates, ...this.oldLinkDirs]) {
       const link = path.join(d, 'cinnamon');
       try { if (fs.readlinkSync(link) === this.launcher) fs.rmSync(link); } catch {}
     }
     if (this.o.binary) fs.rmSync(this.launchScript, { force: true });
     this.log(`Removed the login item${this.o.binary ? '' : ' and the cinnamon command'}. Claude goes back to normal at its next launch.`);
-    if (this.o.binary) this.log(`To remove the cinnamon command too: rm ${shQuote(this.o.binary)}`);
+    if (this.o.binary) this.log(`To remove the cinnamon command too: ${Homebrew.prefixOf(this.o.binary) ? 'brew uninstall cinnamon' : `rm ${shQuote(this.o.binary)}`}`);
     this.log(`Your settings stay in ${this.o.userDir}. You can also remove Cinnamon Helper from`);
     this.log('System Settings > Privacy & Security > Accessibility.');
     return 0;

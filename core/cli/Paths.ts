@@ -4,6 +4,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { Homebrew } from '../standalone/Homebrew';
 
 export class Paths {
   readonly root: string;
@@ -18,10 +19,13 @@ export class Paths {
   readonly bundledExtensions: string;
   /** The standalone binary, when running as one. */
   readonly binary: string | null;
+  /** Homebrew's prefix, when Homebrew installed this Cinnamon. */
+  readonly homebrew: string | null;
   readonly version: string;
   static readonly LABEL = 'local.claude-cinnamon.helper';
-  static readonly FORMULA = 'naveengovind/tap/cinnamon';
+  static readonly FORMULA = Homebrew.FORMULA;
   static readonly REPO = 'naveengovind/claude-cinnamon';
+  static readonly TAP = 'naveengovind/homebrew-tap';
 
   constructor(env: NodeJS.ProcessEnv = process.env, defaultRoot = path.join(import.meta.dir, '..', '..')) {
     this.root = env.CINNAMON_ROOT || defaultRoot;
@@ -35,6 +39,7 @@ export class Paths {
     this.bundledThemes = path.join(this.root, 'themes');
     this.bundledExtensions = path.join(this.root, 'extensions');
     this.binary = env.CINNAMON_BIN || null;
+    this.homebrew = Homebrew.prefixOf(this.binary ?? this.root);
     this.version = env.CINNAMON_VERSION || Paths.packageVersion(this.root);
   }
 
