@@ -326,11 +326,20 @@ function logs() {
   catch { return fail(`no log yet (${P.logs})`); }
 }
 
+// Homebrew installs: brew upgrade, then refresh the login item and re-apply. A development checkout: git pull.
+const FORMULA = 'naveengovind/tap/cinnamon';
 function update() {
-  if (!fs.existsSync(path.join(ROOT, '.git'))) return fail('this install is managed by Homebrew (not a git checkout): brew upgrade cinnamon && cinnamon install');
-  const r = sh('git', ['-C', ROOT, 'pull', '--ff-only'], { stdio: 'inherit' });
-  if (r.status !== 0) return fail('git pull failed');
-  return install();
+  if (fs.existsSync(path.join(ROOT, '.git'))) {
+    const r = sh('git', ['-C', ROOT, 'pull', '--ff-only'], { stdio: 'inherit' });
+    if (r.status !== 0) return fail('git pull failed');
+    return install();
+  }
+  if (sh('which', ['brew']).status !== 0) return fail(`Homebrew not found; Cinnamon installs with: brew install ${FORMULA}`);
+  const r = sh('brew', ['upgrade', FORMULA], { stdio: 'inherit' });
+  if (r.status !== 0) return fail('brew upgrade failed');
+  if (process.env.CINNAMON_NO_APPLY) return 0;
+  // the new version's own installer: rebuilds the helper only if its source changed
+  return sh(path.join(ROOT, 'bin', 'cinnamon'), ['install'], { stdio: 'inherit' }).status ?? 1;
 }
 
 const HELP = `${bold('cinnamon')} — themes and extensions for the Claude desktop app (macOS)
@@ -342,7 +351,7 @@ usage:
   cinnamon status                  what is installed and applied
   cinnamon doctor                  check the setup and explain any problem
   cinnamon logs                    the helper's recent log
-  cinnamon update                  get the latest Cinnamon and re-install
+  cinnamon update                  upgrade Cinnamon (brew upgrade) and refresh the setup
   cinnamon runtime [node|bun|auto] which JavaScript runtime Cinnamon's own scripts use
 
   cinnamon theme [list]            themes (* = current)

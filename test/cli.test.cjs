@@ -213,10 +213,13 @@ test('the cinnamon launcher works through a link, as when it is linked into PATH
   assert.match(r.stdout, /codex/);
 });
 
-test('update in an install that is not a git checkout (Homebrew) points to brew upgrade', () => {
+test('update in a Homebrew install runs brew upgrade', () => {
   const copy = fs.mkdtempSync(path.join(os.tmpdir(), 'cm-brew-'));
   spawnSync('sh', ['-c', `cd "${ROOT}" && tar -c --exclude .git --exclude node_modules . | tar -x -C "${copy}"`]);
-  const r = spawnSync(path.join(copy, 'bin', 'cinnamon'), ['update'], { encoding: 'utf8', env: { ...process.env, PATH: `${path.dirname(process.execPath)}:${process.env.PATH}`, CINNAMON_HOME: home(), CINNAMON_ROOT: copy, NO_COLOR: '1' } });
-  assert.notStrictEqual(r.status, 0);
-  assert.match(r.stdout + r.stderr, /brew upgrade cinnamon/);
+  const bin = fs.mkdtempSync(path.join(os.tmpdir(), 'cm-bin-'));
+  const log = path.join(bin, 'brew.log');
+  fs.writeFileSync(path.join(bin, 'brew'), `#!/bin/bash\necho "$@" >> "${log}"\n`, { mode: 0o755 });
+  const r = spawnSync(path.join(copy, 'bin', 'cinnamon'), ['update'], { encoding: 'utf8', env: { ...process.env, PATH: `${bin}:${path.dirname(process.execPath)}:${process.env.PATH}`, CINNAMON_HOME: home(), CINNAMON_ROOT: copy, CINNAMON_NO_APPLY: '1', NO_COLOR: '1' } });
+  assert.strictEqual(r.status, 0, r.stdout + r.stderr);
+  assert.match(fs.readFileSync(log, 'utf8'), /upgrade naveengovind\/tap\/cinnamon/);
 });

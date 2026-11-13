@@ -21,21 +21,14 @@ Not affiliated with or endorsed by Anthropic.
 
 ## Install
 
-With Homebrew:
+With [Homebrew](https://brew.sh):
 
 ```sh
 brew install naveengovind/tap/cinnamon
 cinnamon install
 ```
 
-Or from a clone:
-
-```sh
-git clone https://github.com/naveengovind/claude-cinnamon ~/.claude-cinnamon
-~/.claude-cinnamon/install.sh
-```
-
-(The repos are private: both ways use your normal git credentials for GitHub.)
+The repos are private, so Homebrew fetches them with your normal git credentials for GitHub.
 
 `cinnamon install` builds **Cinnamon Helper**, adds it as a login item, links the `cinnamon` command into your PATH and
 applies Cinnamon if Claude is running. macOS will ask you to allow two things for Cinnamon Helper:
@@ -60,9 +53,9 @@ From the terminal:
 | `cinnamon ext install <source>` / `cinnamon ext remove <id>` | add / remove an extension |
 | `cinnamon apply` | apply now (Cinnamon Helper does it, so your terminal needs no extra permission) |
 | `cinnamon doctor` / `cinnamon logs` | check the setup / the helper's log |
-| `cinnamon update` | get the latest Cinnamon and re-install (Homebrew installs: `brew upgrade cinnamon`) |
+| `cinnamon update` | upgrade Cinnamon (`brew upgrade`) and refresh the setup |
 | `cinnamon runtime [node\|bun\|auto]` | which JavaScript runtime Cinnamon's own scripts use (default: Node if installed, else Bun) |
-| `cinnamon uninstall` | remove the login item (Claude is back to normal at its next launch) |
+| `cinnamon uninstall` | remove the login item (Claude is back to normal at its next launch); then `brew uninstall cinnamon` |
 
 `<source>` is `owner/repo`, `https://github.com/owner/repo[/tree/<branch>/<folder>]`, any git URL or a local folder,
 optionally followed by `#<folder>`. Private repos work with your normal git credentials.
@@ -144,8 +137,10 @@ Developer Mode at the last launch, the last apply, broken themes or extensions).
 ## Development
 
 ```sh
+git clone https://github.com/naveengovind/claude-cinnamon && cd claude-cinnamon
 npm install
 npm test
+bin/cinnamon install   # points the login item at this checkout (run `cinnamon install` again to go back to Homebrew's)
 ```
 
 | Folder | |
