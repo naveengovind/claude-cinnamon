@@ -5,18 +5,23 @@
 // Steps: build Cinnamon Helper once as a universal app (arm64 + x86_64, signed), lay out the payload (core, themes,
 // extensions, types, package.json and the prebuilt helper), generate an entry that embeds every payload file
 // (`with { type: 'file' }`) and hands them to core/standalone/Standalone.ts, then `bun build --compile` per target.
+// Each binary is then run (see verify; an x64 build on Apple silicon under Rosetta) before it is packed.
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { helperSourceHash, Installer } from '../core/install/Installer';
+import os from 'node:os';
+import { helperSourceHash, Installer, runCommand, type RunResult } from '../core/install/Installer';
 
 const ROOT = path.join(import.meta.dir, '..');
 const WORK = path.join(ROOT, 'build', 'standalone');
 const DIST = path.join(ROOT, 'dist');
 const PAYLOAD_DIRS = ['core', 'extensions', 'themes', 'types'];
 const PAYLOAD_FILES = ['package.json'];
-const TARGETS = { arm64: 'bun-darwin-arm64', x64: 'bun-darwin-x64-baseline' } as const;
+// x64: the regular build (AVX2). Cinnamon needs macOS 13, which runs only on Intel Macs from 2017 on, all with AVX2.
+const TARGETS = { arm64: 'bun-darwin-arm64', x64: 'bun-darwin-x64' } as const;
+/** What Bun prints on start under Rosetta, which has no AVX; install.sh gives Apple silicon the arm64 build. */
+const ROSETTA_AVX_WARNING = /^warn: CPU lacks AVX support.*\n.*baseline\.zip\s*$/s;
 type Arch = keyof typeof TARGETS;
 
 function run(cmd: string, args: string[], opts: { cwd?: string } = {}): string {
@@ -78,9 +83,44 @@ function compile(entry: string, arch: Arch): string {
   const outDir = path.join(WORK, arch);
   fs.mkdirSync(outDir, { recursive: true });
   const bin = path.join(outDir, 'cinnamon');
-  run('bun', ['build', '--compile', `--target=${TARGETS[arch]}`, entry, '--outfile', bin], { cwd: ROOT });
+  run('bun', ['build', '--compile', `--target=${TARGETS[arch]}`, entry, '--outfile', bin], { cwd: WORK }); // its temporary files land in cwd
   run('codesign', ['--force', '--sign', '-', bin]);
   return bin;
+}
+
+/** Runs a built binary as a user would, on an empty settings folder; throws on the first thing that is wrong. */
+function verify(bin: string, arch: Arch, version: string): string {
+  const host: Arch = process.arch === 'arm64' ? 'arm64' : 'x64';
+  const rosetta = host === 'arm64' && arch === 'x64' && spawnSync('arch', ['-x86_64', '/usr/bin/true']).status === 0;
+  if (arch !== host && !rosetta) return 'not run (other architecture)';
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'cinnamon-verify-'));
+  const exec = (args: string[]) => {
+    const [cmd, pre] = rosetta ? ['arch', ['-x86_64', bin]] : [bin, []];
+    const r = spawnSync(cmd, [...pre, ...args], { encoding: 'utf8', cwd: home, env: { ...process.env, CINNAMON_HOME: home, NO_COLOR: '1' } });
+    if (r.status !== 0) throw new Error(`${arch}: cinnamon ${args.join(' ')} failed:\n${r.stderr || r.stdout}`);
+    return r;
+  };
+  try {
+    const v = exec(['--version']);
+    if (v.stdout.trim() !== version) throw new Error(`${arch}: --version said ${v.stdout.trim()}, not ${version}`);
+    if (v.stderr.trim() && !(rosetta && ROSETTA_AVX_WARNING.test(v.stderr.trim()))) throw new Error(`${arch}: warnings on start:\n${v.stderr}`);
+    if (!/codex/.test(exec(['theme', 'list']).stdout)) throw new Error(`${arch}: theme list is missing the bundled themes`);
+    fs.writeFileSync(path.join(home, 'probe.ts'), 'const n: number = 6;\nconsole.log(n * 7);\n');
+    if (!/n \* 7/.test(exec(['__compile', 'probe.ts', '--target=browser', '--format=iife']).stdout)) throw new Error(`${arch}: __compile gave no code`);
+    // the unpacked helper: built from this source, signed, and put in place by the installer without a Swift compiler
+    const unpacked = path.join(home, 'app', version);
+    const prebuilt = path.join(unpacked, 'prebuilt', 'Cinnamon Helper.app');
+    if (fs.readFileSync(path.join(unpacked, 'prebuilt', '.built-from'), 'utf8').trim() !== helperSourceHash(ROOT)) throw new Error('prebuilt helper is not from this source');
+    run('codesign', ['--verify', '--strict', prebuilt]);
+    const noSwift = (cmd: string, args: string[]): RunResult =>
+      cmd === 'swiftc' || (cmd === 'which' && args[0] === 'swiftc') ? { status: 1, stdout: '', stderr: 'no swiftc' } : runCommand(cmd, args);
+    const inst = new Installer({ root: unpacked, userDir: home, home, pathEnv: '', bun: bin, uid: process.getuid!(), run: noSwift, log: () => {}, binary: bin, prebuiltHelper: prebuilt });
+    if (!inst.buildHelper()) throw new Error('the installer could not put the prebuilt helper in place');
+    run('codesign', ['--verify', '--strict', inst.app]);
+    return rosetta ? 'verified (Rosetta)' : 'verified';
+  } finally {
+    fs.rmSync(home, { recursive: true, force: true });
+  }
 }
 
 export async function build(arches: Arch[] = ['arm64', 'x64']): Promise<string[]> {
@@ -95,11 +135,12 @@ export async function build(arches: Arch[] = ['arm64', 'x64']): Promise<string[]
   const outputs: string[] = [];
   for (const arch of arches) {
     const bin = compile(entry, arch);
+    const checked = verify(bin, arch, version);
     const tarball = path.join(DIST, `cinnamon-darwin-${arch}.tar.gz`);
     run('tar', ['-czf', tarball, '-C', path.dirname(bin), 'cinnamon']);
     sums.push(`${createHash('sha256').update(fs.readFileSync(tarball)).digest('hex')}  ${path.basename(tarball)}`);
     outputs.push(tarball);
-    console.log(`built ${path.relative(ROOT, tarball)} (${(fs.statSync(tarball).size / 1e6).toFixed(1)} MB, Cinnamon ${version}, ${files.length} files)`);
+    console.log(`built ${path.relative(ROOT, tarball)} (${(fs.statSync(tarball).size / 1e6).toFixed(1)} MB, Cinnamon ${version}, ${files.length} files): ${checked}`);
   }
   fs.writeFileSync(path.join(DIST, 'SHA256SUMS'), `${sums.join('\n')}\n`);
   return outputs;

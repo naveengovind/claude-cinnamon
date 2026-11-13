@@ -1,14 +1,14 @@
 // The files a standalone binary carries (Cinnamon's sources, themes, extensions and the prebuilt helper), unpacked
 // into <your folder>/app/<version> the first time that version runs. Unpacking goes to a temporary folder that is
 // renamed into place, so a version folder is either complete or absent, and two commands starting at once can't
-// leave a half-written one. Older versions stay until `prune` (after an install, which re-applies Cinnamon with the
-// new files): a running Claude keeps using its folder until then.
+// leave a half-written one. `prune` (after an install) removes old versions but keeps the one before this: a running
+// Claude keeps using its folder until Cinnamon is applied to it again.
 import fs from 'node:fs';
 import path from 'node:path';
 
 /** Files to mark executable: scripts and the helper's program. */
 const EXECUTABLE = /(\.sh$|\/Contents\/MacOS\/)/;
-const VERSION = /^[0-9A-Za-z.+-]{1,64}$/;
+const VERSION = /^[0-9A-Za-z][0-9A-Za-z.+-]{0,63}$/;
 
 export class Payload {
   /** @param files payload path ("core/render.ts") → where the binary keeps it (an embedded file's path) */
@@ -41,15 +41,18 @@ export class Payload {
     return dest;
   }
 
-  /** Removes the other versions' folders (and unpacks that never finished). */
+  /** Removes old versions' folders (and unpacks that never finished), keeping this version and the newest other
+   *  one: a running Claude may still be using that until Cinnamon is applied to it again. */
   prune(userDir: string): void {
     const app = path.join(userDir, 'app');
     let names: string[] = [];
     try { names = fs.readdirSync(app); } catch { return; }
+    const order = (a: string, b: string): number => { try { return Bun.semver.order(a, b); } catch { return a.localeCompare(b); } };
+    const others = names.filter((n) => VERSION.test(n) && n !== this.version).sort(order);
+    const keep = new Set([this.version, others[others.length - 1]]);
     for (const n of names) {
-      if (n === this.version) continue;
       const stale = n.startsWith('.unpack-') && Date.now() - fs.statSync(path.join(app, n)).mtimeMs > 10 * 60_000;
-      if (VERSION.test(n) || stale) fs.rmSync(path.join(app, n), { recursive: true, force: true });
+      if ((VERSION.test(n) && !keep.has(n)) || stale) fs.rmSync(path.join(app, n), { recursive: true, force: true });
     }
   }
 }

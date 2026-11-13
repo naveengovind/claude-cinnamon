@@ -38,5 +38,14 @@ test('a broken file fails with the reason', async () => {
   const errs: string[] = [];
   const code = await compileCommand([path.join(dir, 'bad.ts'), '--target=browser', '--format=iife'], () => {}, (s) => errs.push(s));
   assert.notStrictEqual(code, 0);
-  assert.ok(errs.join('').length > 0);
+  assert.match(errs.join(''), /bad\.ts:1:\d+/, 'names the file and line, as `bun build` does');
+});
+
+test('an import that cannot be found is named', async () => {
+  const dir = project();
+  fs.writeFileSync(path.join(dir, 'lost.ts'), "import { x } from '../nowhere';\nconsole.log(x);");
+  const errs: string[] = [];
+  assert.notStrictEqual(await compileCommand([path.join(dir, 'lost.ts'), '--target=browser', '--format=iife'], () => {}, (s) => errs.push(s)), 0);
+  assert.match(errs.join(''), /nowhere/);
+  assert.match(errs.join(''), /lost\.ts/);
 });

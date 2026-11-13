@@ -37,15 +37,21 @@ test('the payload is unpacked once per version, scripts and the helper executabl
   assert.strictEqual(fs.readFileSync(path.join(dir, 'themes', 'codex.json'), 'utf8'), 'changed', 'not unpacked again for the same version');
 });
 
-test('a new version is unpacked beside the old one, which goes only when pruned (after an install re-applied)', async () => {
+test('pruning keeps this version and the one before (a running Claude may still use it), not older ones', async () => {
   const user = tmp('cm-user-');
-  await new Payload(assets(), '1.0.0').ensure(user);
-  const next = new Payload(assets(), '1.1.0');
-  await next.ensure(user);
   const versions = () => fs.readdirSync(path.join(user, 'app')).filter((n) => !n.startsWith('.')).sort();
-  assert.deepStrictEqual(versions(), ['1.0.0', '1.1.0'], 'a running Claude may still use the old files');
-  next.prune(user);
-  assert.deepStrictEqual(versions(), ['1.1.0']);
+  await new Payload(assets(), '1.0.0').ensure(user);
+  const v11 = new Payload(assets(), '1.1.0');
+  await v11.ensure(user);
+  v11.prune(user);
+  assert.deepStrictEqual(versions(), ['1.0.0', '1.1.0']);
+  const v12 = new Payload(assets(), '1.10.0');
+  await v12.ensure(user);
+  const busy = path.join(user, 'app', '.unpack-1.11.0-AbC123');
+  fs.mkdirSync(busy);
+  v12.prune(user);
+  assert.deepStrictEqual(versions(), ['1.1.0', '1.10.0'], 'by version order, not text order');
+  assert.ok(fs.existsSync(busy), 'an unpack still in progress (another command) is left alone');
 });
 
 test('a standalone binary names itself as the compiler for Claude', async () => {
