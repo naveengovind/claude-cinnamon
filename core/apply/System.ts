@@ -2,6 +2,7 @@
 // interface, so tests can replace it.
 import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
+import { pidOf } from '../lib/Processes';
 
 export interface HelperResult { status: number; stdout: string }
 
@@ -28,7 +29,7 @@ export class RealSystem implements System {
     return { status: r.status ?? 1, stdout: r.stdout || '', stderr: r.stderr || '' };
   }
 
-  claudePid(): string | null { return this.run('pgrep', ['-u', String(process.getuid!()), '-x', 'Claude']).stdout.trim().split('\n')[0] || null; }
+  claudePid(): string | null { return pidOf('Claude'); }
   listener(port: number): string | null { return this.run('lsof', ['-nP', `-iTCP:${port}`, '-sTCP:LISTEN', '-t']).stdout.trim().split('\n')[0] || null; }
   lstart(pid: string): string { return this.run('ps', ['-o', 'lstart=', '-p', pid]).stdout.trim(); }
   osascript(args: string[]): string { return this.run('osascript', args).stdout.trim(); }

@@ -5,6 +5,7 @@ import { spawnSync, type SpawnSyncReturns } from 'node:child_process';
 import fs from 'node:fs';
 import type { Output } from './Output';
 import { Paths } from './Paths';
+import { pidOf } from '../lib/Processes';
 
 const pause = (ms: number): void => { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms); };
 export const sh = (cmd: string, args: string[], opts: Parameters<typeof spawnSync>[2] = {}): SpawnSyncReturns<string> =>
@@ -13,10 +14,8 @@ export const sh = (cmd: string, args: string[], opts: Parameters<typeof spawnSyn
 export class HelperClient {
   constructor(private readonly paths: Paths, private readonly out: Output) {}
 
-  /** Your Claude's main process, if it is running. */
-  static claudePid(): string | null {
-    return (sh('pgrep', ['-u', String(process.getuid!()), '-x', 'Claude']).stdout || '').trim().split('\n')[0] || null;
-  }
+  /** Your Claude's main process, if it is running (also when this runs inside it, from a Claude Code session). */
+  static claudePid(): string | null { return pidOf('Claude'); }
 
   loaded(): boolean { return sh('launchctl', ['print', `gui/${process.getuid!()}/${Paths.LABEL}`]).status === 0; }
 
