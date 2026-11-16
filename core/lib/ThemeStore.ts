@@ -2,6 +2,7 @@
 // overrides the same id. Used by the CLI and the main process. No Electron.
 import fs from 'node:fs';
 import path from 'node:path';
+import { CodeTabLook, type Look } from './CodeTabLook';
 import { Config } from './Config';
 import { ThemeEngine, type Theme, type WindowOptions } from './ThemeEngine';
 
@@ -21,6 +22,10 @@ export interface ResolvedTheme {
   window: WindowOptions | null;
   errors: string[];
   themes: ThemeSummary[];
+  /** The Code-tab look for Claude Code's theme API (the cinnamon-colors mod), or null: Cinnamon paints it all. */
+  look: Look | null;
+  /** Why there is no look (when a theme is picked). */
+  lookReason?: string;
 }
 
 export class ThemeStore {
@@ -53,10 +58,13 @@ export class ThemeStore {
     const themes = this.list();
     const want = config.read().theme;
     const found = themes.find((t) => t.id === want && !t.error);
-    const { css, errors } = found ? ThemeEngine.css(found.theme) : { css: '', errors: [] as string[] };
+    const { look, reason } = found ? CodeTabLook.fromTheme(found.id, found.theme) : { look: null, reason: undefined };
+    const { css, errors } = found ? ThemeEngine.css(found.theme, look ? { yieldKeys: CodeTabLook.KEYS } : {}) : { css: '', errors: [] as string[] };
     return {
       current: found ? found.id : 'default',
       css,
+      look,
+      ...(found && !look && reason ? { lookReason: reason } : {}),
       window: found ? ThemeEngine.windowOptions(found.theme, errors) : null,
       errors,
       themes: themes.map(({ id, name, description, error }) => ({ id, name, description, ...(error ? { error } : {}) })),

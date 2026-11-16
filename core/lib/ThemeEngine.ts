@@ -19,6 +19,20 @@ export interface Theme {
 }
 export interface WindowOptions { vibrancy: string }
 export interface ThemeCss { css: string; errors: string[] }
+export interface ThemeCssOptions {
+  /**
+   * The colour keys the theme's Code-tab look carries (CodeTabLook.KEYS), painted by Claude Code's own theme API:
+   * they step aside wherever the app paints this theme's look (the Code tab: Cinnamon's page code marks the root with
+   * data-cinnamon-code-tab="mod" when the app's mod palette is the current look), so the two never fight. A palette
+   * that isn't the current look gets painted over. Every other key (sidebar, popover, borders, buttons, code
+   * panels…), `vars` and extra css stay Cinnamon's everywhere: the look can't express them.
+   */
+  yieldKeys?: ReadonlySet<string>;
+}
+/** Set on the root by Cinnamon's page code while the app paints the current look through Claude Code's theme API. */
+export const MOD_PAINTED = '[data-cinnamon-code-tab="mod"]';
+/** A selector that matches nothing at or under that mark. (Not @scope: Chrome's leaves out the <html> root.) */
+export const outsideModPalette = (sel: string): string => `${sel}:not(${MOD_PAINTED}, ${MOD_PAINTED} *)`;
 
 // Named colour keys → the app's CSS custom properties (Claude desktop, Nov 2026, "cds" design system).
 // Anchoring on variables, not elements, keeps themes working when the app's markup changes; a variable the app
@@ -111,20 +125,27 @@ export class ThemeEngine {
   }
 
   /** Theme object → { css, errors }. */
-  static css(theme: Theme | null | undefined): ThemeCss {
+  static css(theme: Theme | null | undefined, opts: ThemeCssOptions = {}): ThemeCss {
     const errors: string[] = [];
     let css = '';
+    const yieldKeys = opts.yieldKeys ?? new Set<string>();
     for (const [mode, m] of Object.entries(MODES) as [ModeName, (typeof MODES)[ModeName]][]) {
       if (!theme || !theme[mode]) continue;
-      const { root, scoped } = ThemeEngine.declarations(theme[mode], mode, errors);
       // explicit mode, plus "follow system" when the system is in this mode
       const sel = (r: string) => [`:root${r.startsWith('.') ? '' : r}`, `${r} .cds-root`, `${r} .dframe-root`].filter((s) => s !== ':root');
       const rootSel = m.roots.flatMap((r) => (r.startsWith('.') ? [r] : sel(r)));
       const sysRootSel = [':root[data-mode="system"]', '[data-mode="system"] .cds-root', '[data-mode="system"] .dframe-root'];
-      css += ThemeEngine.block(rootSel, root);
-      for (const [s, decls] of scoped) css += ThemeEngine.block([`[data-mode="${mode}"] ${s}`], decls);
-      let sys = ThemeEngine.block(sysRootSel, root);
-      for (const [s, decls] of scoped) sys += ThemeEngine.block([`[data-mode="system"] ${s}`], decls);
+      let sys = '';
+      // the keys the look carries step aside where the app paints it; the rest are Cinnamon's everywhere
+      for (const yielding of [false, true]) {
+        const gate = (sels: string[]): string[] => (yielding ? sels.map(outsideModPalette) : sels);
+        const keep = (key: string) => yieldKeys.has(key) === yielding;
+        const { root, scoped } = ThemeEngine.declarations(theme[mode], mode, yielding ? [] : errors, keep);
+        css += ThemeEngine.block(gate(rootSel), root);
+        for (const [s, decls] of scoped) css += ThemeEngine.block(gate([`[data-mode="${mode}"] ${s}`]), decls);
+        sys += ThemeEngine.block(gate(sysRootSel), root);
+        for (const [s, decls] of scoped) sys += ThemeEngine.block(gate([`[data-mode="system"] ${s}`]), decls);
+      }
       if (sys) css += `@media (prefers-color-scheme: ${m.system}) {\n${sys}}\n`;
     }
     if (theme && typeof theme.css === 'string' && theme.css.trim()) {
@@ -136,11 +157,12 @@ export class ThemeEngine {
     return { css, errors };
   }
 
-  private static declarations(section: ModeSection | undefined, mode: ModeName, errors: string[]) {
+  /** `keep` picks the keys (`vars` counts as the key "vars"). */
+  private static declarations(section: ModeSection | undefined, mode: ModeName, errors: string[], keep: (key: string) => boolean = () => true) {
     const root: string[] = [];
     const scoped = new Map<string, string[]>(); // selector → declarations
     for (const [key, value] of Object.entries(section || {})) {
-      if (key === 'vars') continue;
+      if (key === 'vars' || !keep(key)) continue;
       if (!(key in TOKENS)) { errors.push(`${mode}: unknown colour key "${key}"`); continue; }
       if (!ThemeEngine.safeValue(value)) { errors.push(`${mode}.${key}: rejected value ${JSON.stringify(value)}`); continue; }
       const v = value.trim();
@@ -152,7 +174,7 @@ export class ThemeEngine {
         for (const prop of sc.props(mode)) scoped.get(sel)!.push(`${prop}: ${v} !important;`);
       }
     }
-    for (const [name, value] of Object.entries((section && section.vars) || {})) {
+    for (const [name, value] of Object.entries((keep('vars') && section && section.vars) || {})) {
       if (!VAR_NAME.test(name)) { errors.push(`${mode}.vars: rejected variable name ${JSON.stringify(name)}`); continue; }
       if (!ThemeEngine.safeValue(value)) { errors.push(`${mode}.vars.${name}: rejected value ${JSON.stringify(value)}`); continue; }
       root.push(`${name}: ${value.trim()} !important;`);
@@ -165,4 +187,4 @@ export class ThemeEngine {
   }
 }
 
-export const themeCss = (theme: Theme | null | undefined): ThemeCss => ThemeEngine.css(theme);
+export const themeCss = (theme: Theme | null | undefined, opts?: ThemeCssOptions): ThemeCss => ThemeEngine.css(theme, opts);

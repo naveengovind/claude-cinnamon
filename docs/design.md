@@ -14,6 +14,8 @@ the app bundle is modified (its asar integrity check rules that out).
 - Packaged as a CLI named `cinnamon`, macOS only, public repo `naveengovind/claude-cinnamon` (private until
   Nov 13 2026), installed with Homebrew (`naveengovind/tap/cinnamon`) or install.sh.
 - Robust against future app versions (below).
+- Hybrid with Claude Code mods (Nov 15 2026): what a mod can do, a mod does; Cinnamon covers only what mods can't
+  (see "Working alongside Claude Code mods").
 
 ## Robustness principles
 - Hook onto stable meaning, not layout: CSS custom properties (`--cds-*`), `data-*` attributes, ARIA roles and
@@ -82,3 +84,35 @@ hash matches, and an existing helper built from the same source is kept, so macO
 - **install.sh** (no Homebrew): downloads the release tarball, checks `SHA256SUMS`, installs to `~/.local/bin` and
   runs `cinnamon install`; `cinnamon update` then replaces the binary from the latest release (checksum and
   `--version` checked first) and runs the new version's `install`.
+
+## Working alongside Claude Code mods (Nov 15 2026)
+Claude Code mods (plugins with a hooks module, loaded in every Code session) can draw panes, rewrite tool calls and
+paint the desktop app's Code tab through `$.theme.set({ colors })`. They can't reach the Chat tab, Settings, the
+sidebar's session list, the transcript's width, page CSS or the window's material. So:
+- **The Code tab's colours are a mod's.** `CodeTabLook` maps the picked theme onto `makeColors` anchors (the same
+  pairing as `ThemeEngine.TOKENS`: background-deep → surface-0, background → surface-1, raised → surface-2,
+  panel → surface-3, text levels, accent/danger/success), drops anchors in a fixed order until the app's contrast
+  check passes, and the main process writes the result to `look.json` inside the installed mod
+  (`~/.claude/skills/cinnamon-colors/`). The mod polls it every 2 s and calls `$.theme.set` once an app that paints
+  themes is attached (`$.session.surfaces()`), and `$.theme.clear` (only for colours it set, remembered in
+  `$.store`) when the picked theme has no look (Default, Glass).
+- **The handoff is exact.** The app marks the page's root `data-cds-theme="mod-palette"` while a mod palette stands
+  (Code tab only). Cinnamon's page code compares a few of the app's variables that Cinnamon never sets
+  (`--cds-gray-*`, `--cds-role-*-600`) with the current look's (`CodeTabLook.print`) and, when they match, marks the
+  root `data-cinnamon-code-tab="mod"`. The rules for the keys the look carries (`CodeTabLook.KEYS`: the
+  backgrounds, text levels, accent, danger, success) carry
+  `:not([data-cinnamon-code-tab="mod"], [data-cinnamon-code-tab="mod"] *)`. So Cinnamon steps aside only where the
+  app paints the current look, and paints over an older palette the app still holds. Keys the look can't express
+  (sidebar, popover, borders, hover, buttons, code panels), `vars` and `css` stay Cinnamon's in the Code tab too. (`@scope` was tried first;
+  Chrome's doesn't match the `<html>` root.)
+- **Everything else stays Cinnamon's**: themes outside the Code tab and extra theme CSS, Glass (window vibrancy),
+  full width, sidebar cards, the Settings rows and page extensions.
+- Observed on Claude 5.11492.5 / Claude Code 2.1.325:
+  - the app holds the last drawn mod palette for the whole Code tab, SSH sessions included;
+  - a set made while no app is attached to that session waits for one;
+  - SSH sessions don't get skills-folder plugins (the app leaves those to the host's own `~/.claude/skills`), so
+    only local Code sessions run the mod: with only SSH sessions open, a theme change is painted by Cinnamon until
+    a local session starts, and a switch to Default leaves the old palette until then (or Settings → *Remove
+    colors*);
+  - a theme with no light half still gets the design system's own light palette in the Code tab (a hair off stock);
+  - a saved mod file reloads in a Desktop session within about 30 s.

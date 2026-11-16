@@ -1,5 +1,8 @@
 // The selected theme: resolved from config.json and the theme folders, inserted into each claude.ai view as its own
 // CSS (separate from the core CSS), and switched when the page picks another one.
+import fs from 'node:fs';
+import path from 'node:path';
+import { CodeTabLook } from '../lib/CodeTabLook';
 import type { Config } from '../lib/Config';
 import type { ThemeStore } from '../lib/ThemeStore';
 import type { WebContents } from './electron';
@@ -11,13 +14,19 @@ export class ThemeApplier {
     private readonly store: ThemeStore,
     private readonly config: Config,
     private readonly log: Log,
+    /** The cinnamon-colors mod's folder (~/.claude/skills/cinnamon-colors): its look.json is the Code tab's look. */
+    private readonly modDir: string,
   ) {}
 
   load(): void {
     const state = this.state;
     try { state.theme = this.store.resolve(this.config); }
-    catch (e) { state.theme = { current: 'default', css: '', window: null, errors: [String(e)], themes: [] }; }
+    catch (e) { state.theme = { current: 'default', css: '', window: null, errors: [String(e)], themes: [], look: null }; }
     for (const e of state.theme.errors || []) this.log('theme:', e);
+    // the mod paints the Code tab through Claude Code's theme API; Cinnamon's colours step aside there (ThemeEngine)
+    // (only into an installed mod: without it Cinnamon paints the Code tab, as the theme CSS never steps aside)
+    try { if (fs.existsSync(path.join(this.modDir, '.claude-plugin', 'plugin.json'))) CodeTabLook.write(path.join(this.modDir, CodeTabLook.FILE), state.theme.look ?? null); }
+    catch (e) { this.log('code tab look:', e); }
   }
 
   /** Inserts the new theme css before removing the old one, so the page never flashes the app's own colours. */

@@ -1,5 +1,8 @@
 // cinnamon doctor: checks the setup and says how to fix what's wrong.
 import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { Config } from '../lib/Config';
 import { ExtensionCatalog } from '../lib/ExtensionCatalog';
 import { ThemeStore } from '../lib/ThemeStore';
 import { HelperClient, sh } from './HelperClient';
@@ -37,6 +40,17 @@ export class Doctor {
     this.check(!/never appeared/.test(recent), 'Developer menu found at the last launch', 'in Claude: Help → Troubleshooting → Enable Developer Mode');
     const finished = [...recent.matchAll(/apply finished with status (\d+)/g)].pop();
     if (finished) this.check(finished[1] === '0', `last automatic apply ${finished[1] === '0' ? 'succeeded' : 'failed'}`, 'cinnamon logs');
+    // the Code tab's colours: Claude Code's own theme API through the cinnamon-colors mod, else Cinnamon paints them
+    const mod = path.join(os.homedir(), '.claude', 'skills', 'cinnamon-colors', '.claude-plugin', 'plugin.json');
+    this.check(fs.existsSync(mod), 'cinnamon-colors mod installed (Claude Code paints the Code tab)', 'cinnamon install');
+    try {
+      const r = new ThemeStore([paths.bundledThemes, paths.themes]).resolve(new Config(paths.config));
+      if (r.current !== 'default') {
+        out.say(out.dim(r.look
+          ? `  Code tab: ${r.current} through Claude Code's theme API${r.look.dropped.length ? ` (the app picks: ${r.look.dropped.join(', ')})` : ''}`
+          : `  Code tab: ${r.current} painted by Cinnamon (${r.lookReason || 'no look'})`));
+      }
+    } catch {}
     for (const t of new ThemeStore([paths.bundledThemes, paths.themes]).list()) if (t.error) this.check(false, `theme ${t.id}: ${t.error}`);
     for (const e of new ExtensionCatalog({ bundled: paths.bundledExtensions, user: paths.extensions }).list()) if (e.error) this.check(false, `extension ${e.id}: ${e.error}`);
     out.say(this.problems ? out.red(`${this.problems} problem${this.problems > 1 ? 's' : ''}`) : out.green('All good.'));

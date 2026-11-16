@@ -6,6 +6,7 @@
 // Robustness: every app hook is optional and failures are caught, so a change in a future app version turns a
 // feature off instead of breaking Claude. Event listeners are registered once per app run and always call through
 // the shared state, so a re-apply replaces the code they run.
+import os from 'node:os';
 import path from 'node:path';
 import { Config } from '../lib/Config';
 import { ExtensionCatalog } from '../lib/ExtensionCatalog';
@@ -71,7 +72,7 @@ export class Cinnamon {
 
     this.queue = new SerialQueue(state, this.log);
     this.viewsMgr = new ViewManager(this.electron, state, this.log);
-    this.themes = new ThemeApplier(state, new ThemeStore(themeDirs), config, this.log);
+    this.themes = new ThemeApplier(state, new ThemeStore(themeDirs), config, this.log, path.join(os.homedir(), '.claude', 'skills', 'cinnamon-colors'));
     const compiler = new Compiler(cfg.compiler, state.compileCache);
     this.extensions = new ExtensionHost(state, new ExtensionCatalog(extRoots), config, compiler, this.viewsMgr, this.electron.app, cfg.userDir, load, this.log);
     this.material = new WindowMaterial(this.electron, state, this.viewsMgr, this.log);

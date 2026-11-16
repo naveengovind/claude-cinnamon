@@ -67,3 +67,54 @@ test('loading the runtime twice keeps the settings it already had', () => {
   w.eval(SRC);
   assert.strictEqual(w.__cinnamon.api('x').settings.get('width'), 'full');
 });
+
+// The Code tab handoff: Cinnamon's theme colours step aside only where the app paints the current look.
+const LOOK = { dark: { '--cds-gray-0': '#ffffff', '--cds-gray-500': '#6b6b6b', '--cds-gray-900': '#111111' } };
+function palette(w, vars, { mode = 'dark', mod = true } = {}) {
+  const h = w.document.documentElement;
+  h.setAttribute('data-mode', mode);
+  if (mod) h.setAttribute('data-cds-theme', 'mod-palette'); else h.removeAttribute('data-cds-theme');
+  h.setAttribute('style', Object.entries(vars).map(([k, v]) => `${k}: ${v}`).join('; '));
+}
+const marked = (w) => w.document.documentElement.getAttribute('data-cinnamon-code-tab');
+
+test('the Code tab is marked when the app paints the current look', () => {
+  const w = page();
+  palette(w, LOOK.dark);
+  w.__cinnamon.setLook(LOOK);
+  assert.strictEqual(marked(w), 'mod');
+});
+
+test('a mod palette that is not the current look (an older one) is not marked: Cinnamon paints over it', () => {
+  const w = page();
+  palette(w, { ...LOOK.dark, '--cds-gray-900': '#0f1626' });
+  w.__cinnamon.setLook(LOOK);
+  assert.strictEqual(marked(w), null);
+});
+
+test('no mod palette, or no look, means no mark', () => {
+  const w = page();
+  palette(w, LOOK.dark, { mod: false });
+  w.__cinnamon.setLook(LOOK);
+  assert.strictEqual(marked(w), null);
+  palette(w, LOOK.dark);
+  w.__cinnamon.setLook(null);
+  assert.strictEqual(marked(w), null);
+});
+
+test('the mark follows the app: it is checked again when the page changes', async () => {
+  const w = page();
+  palette(w, LOOK.dark, { mod: false });
+  w.__cinnamon.setLook(LOOK);
+  assert.strictEqual(marked(w), null);
+  palette(w, LOOK.dark);
+  await new Promise((r) => setTimeout(r, 30));
+  assert.strictEqual(marked(w), 'mod');
+});
+
+test('a mode the look does not cover is not marked', () => {
+  const w = page();
+  palette(w, LOOK.dark, { mode: 'light' });
+  w.__cinnamon.setLook(LOOK);
+  assert.strictEqual(marked(w), null);
+});

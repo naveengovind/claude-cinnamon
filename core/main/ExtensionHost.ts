@@ -3,6 +3,7 @@
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import vm from 'node:vm';
+import { CodeTabLook } from '../lib/CodeTabLook';
 import type { Config } from '../lib/Config';
 import { ExtensionCatalog, type ExtensionEntry } from '../lib/ExtensionCatalog';
 import type { Compiler } from './Compiler';
@@ -78,7 +79,8 @@ export class ExtensionHost {
   async pushPageState(wc: WebContents): Promise<void> {
     const state = this.state;
     const data = JSON.stringify({ current: state.theme!.current, themes: state.theme!.themes });
-    const js = `(() => { window.__cinnamon?.setSettings(${JSON.stringify(state.settings)}); window.__cmSetThemes?.(${data}); window.__cmSetExtensions?.(${JSON.stringify(state.extList)}); return true; })()`;
+    const look = JSON.stringify(CodeTabLook.print(state.theme!.look ?? null));
+    const js = `(() => { window.__cinnamon?.setSettings(${JSON.stringify(state.settings)}); window.__cinnamon?.setLook?.(${look}); window.__cmSetThemes?.(${data}); window.__cmSetExtensions?.(${JSON.stringify(state.extList)}); return true; })()`;
     await wc.executeJavaScript(js).catch(() => {});
   }
 

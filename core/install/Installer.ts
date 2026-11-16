@@ -67,6 +67,9 @@ export class Installer {
   /** What the login item runs when Claude starts: the install's script, or (standalone) the one in your folder. */
   get launchScript(): string { return this.o.binary ? path.join(this.o.userDir, 'helper', 'autoapply.sh') : path.join(this.o.root, 'core', 'autoapply.sh'); }
   private get launcher(): string { return this.o.binary || path.join(this.o.root, 'bin', 'cinnamon'); }
+  /** The colours mod (mod/cinnamon-colors): a plugin in ~/.claude/skills loads in every Claude Code session. */
+  get modDir(): string { return path.join(this.o.home, '.claude', 'skills', Installer.MOD); }
+  static readonly MOD = 'cinnamon-colors';
   /** Where the command may be linked: your own bin folders, never Homebrew's (its `brew link` would then fail). */
   private get linkCandidates(): string[] { return [path.join(this.o.home, '.local', 'bin'), path.join(this.o.home, 'bin')]; }
   /** Earlier versions also linked into these; uninstall still removes such a link. */
@@ -209,14 +212,60 @@ ${o.binary ? `    <key>CINNAMON_BIN</key><string>${xml(o.binary)}</string>` : ` 
     const b = this.run('launchctl', ['bootstrap', this.domain, this.plist]);
     if (b.status !== 0) { this.log(`Could not start the login item: ${b.stderr.trim()}`); return 1; }
     this.linkCommand();
+    this.installMod();
     this.log('Cinnamon Helper is running and will start at every login.');
     this.log('If macOS asks, allow Cinnamon Helper under System Settings > Privacy & Security > Accessibility.');
     return 0;
   }
 
+  /**
+   * The colours mod paints the Code tab through Claude Code's own theme API (Cinnamon's colours step aside there).
+   * Its files are overwritten in place and files an older version had are removed: replacing the folder itself would
+   * stop running sessions from seeing the change (Claude Code watches the folder and reloads the mod on a save).
+   */
+  private installMod(): void {
+    const src = path.join(this.o.root, 'mod', Installer.MOD);
+    if (!fs.existsSync(path.join(src, '.claude-plugin', 'plugin.json'))) return;
+    const files = (dir: string): string[] => {
+      const out: string[] = [];
+      const walk = (d: string) => { for (const e of fs.readdirSync(d, { withFileTypes: true })) { const p = path.join(d, e.name); if (e.isDirectory()) walk(p); else out.push(path.relative(dir, p)); } };
+      try { walk(dir); } catch {}
+      return out;
+    };
+    try {
+      const want = files(src);
+      for (const f of want) {
+        const to = path.join(this.modDir, f);
+        fs.mkdirSync(path.dirname(to), { recursive: true });
+        const text = fs.readFileSync(path.join(src, f));
+        let same = false;
+        try { same = fs.readFileSync(to).equals(text); } catch {}
+        if (!same) fs.writeFileSync(to, text);
+      }
+      // look.json is Cinnamon's, written by the main process (CodeTabLook): it stays
+      for (const f of files(this.modDir)) if (!want.includes(f) && f !== 'look.json') fs.rmSync(path.join(this.modDir, f), { force: true });
+      this.log(`Installed the ${Installer.MOD} mod (${this.modDir}): Claude Code paints the Code tab's colours.`);
+    } catch (e) {
+      this.log(`Could not install the ${Installer.MOD} mod: ${(e as Error).message}. Cinnamon paints the Code tab itself.`);
+    }
+  }
+
+  /** Only a folder that is this mod (by its manifest's name). */
+  private removeMod(): void {
+    try {
+      const manifest = JSON.parse(fs.readFileSync(path.join(this.modDir, '.claude-plugin', 'plugin.json'), 'utf8')) as { name?: unknown };
+      if (manifest.name !== Installer.MOD) return;
+    } catch { return; }
+    fs.rmSync(this.modDir, { recursive: true, force: true });
+    fs.rmSync(path.join(this.o.userDir, 'state', 'code-tab-look.json'), { force: true }); // where a 0.3.0 build kept it
+    this.log(`Removed the ${Installer.MOD} mod. If the Code tab keeps its colours, open Settings in the Code tab, search for`);
+    this.log('"code appearance" and choose Remove colors.');
+  }
+
   uninstall(): number {
     this.stop(Installer.LABEL);
     fs.rmSync(this.plist, { force: true });
+    this.removeMod();
     for (const d of [...this.linkCandidates, ...this.oldLinkDirs]) {
       const link = path.join(d, 'cinnamon');
       try { if (fs.readlinkSync(link) === this.launcher) fs.rmSync(link); } catch {}

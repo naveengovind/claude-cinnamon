@@ -4,11 +4,19 @@
 //   cinnamon.settings.get(key) / .set(key, value) / .all() / .onChange(fn)
 //                                        → per-extension settings, saved in ~/.config/claude-cinnamon/config.json
 // Loading it again (each apply) keeps the settings and listeners it had.
+//
+// It also hands the Code tab's colours over to Claude Code's theme API (see core/lib/CodeTabLook.ts): when the app
+// paints a mod palette (data-cds-theme="mod-palette" on the root) and that palette is the current look, the root gets
+// data-cinnamon-code-tab="mod" and Cinnamon's theme colours step aside there. A palette that isn't the current look
+// (an older one the app still holds, say while only SSH sessions are open) gets no mark, so Cinnamon paints over it.
+// The palette is recognised by a few of the app's gray-scale variables, which Cinnamon's own CSS never sets.
 
 type Settings = Record<string, unknown>;
+/** Per mode: app variable → the value the current look gives it. */
+type LookPrint = Partial<Record<'dark' | 'light', Record<string, string>>>;
 type Listener = (settings: Settings) => void;
 
-interface PageWindow { __cinnamon?: CinnamonRuntime }
+interface PageWindow { __cinnamon?: CinnamonRuntime; __cmLookWatch?: { observer: MutationObserver; timer: number } }
 const page = window as unknown as PageWindow;
 /** Always the runtime loaded most recently, so api objects handed out earlier never use a stale one. */
 const current = (): CinnamonRuntime => page.__cinnamon!;
@@ -32,13 +40,54 @@ class ExtensionApi {
   send(msg: string, data?: unknown): void { current().send({ type: 'ext', ext: this.id, msg, data }); }
 }
 
+const MOD_PALETTE = 'mod-palette';
+const MARK = 'data-cinnamon-code-tab';
+const norm = (v: string): string => v.trim().toLowerCase();
+
 class CinnamonRuntime {
   settings: Record<string, Settings>;
   listeners: Record<string, Listener[]>;
+  look: LookPrint | null;
 
   constructor(previous?: Partial<CinnamonRuntime>) {
     this.settings = previous?.settings ?? {};
     this.listeners = previous?.listeners ?? {};
+    this.look = previous?.look ?? null;
+  }
+
+  /** The current look's print (null: the theme has none, so Cinnamon paints the Code tab too). */
+  setLook(print: unknown): void {
+    this.look = print && typeof print === 'object' ? (print as LookPrint) : null;
+    CinnamonRuntime.watchLook();
+    this.checkLook();
+  }
+
+  /** Whether the app paints the current look right now; marks the root for Cinnamon's theme CSS. */
+  checkLook(): void {
+    try {
+      const root = document.documentElement;
+      let mark = false;
+      if (this.look && root.getAttribute('data-cds-theme') === MOD_PALETTE) {
+        const m = root.getAttribute('data-mode');
+        const mode = m === 'light' || m === 'dark' ? m : (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+        const print = this.look[mode];
+        if (print && Object.keys(print).length) {
+          const cs = getComputedStyle(root);
+          mark = Object.entries(print).every(([name, value]) => norm(cs.getPropertyValue(name)) === norm(value));
+        }
+      }
+      if (mark) { if (root.getAttribute(MARK) !== 'mod') root.setAttribute(MARK, 'mod'); }
+      else if (root.hasAttribute(MARK)) root.removeAttribute(MARK);
+    } catch {}
+  }
+
+  /** Re-checks when the app changes the root (theme, mode) and, for palette changes it makes in place, every second. */
+  private static watchLook(): void {
+    if (page.__cmLookWatch) return;
+    const check = () => current().checkLook();
+    const observer = new MutationObserver(check);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-cds-theme', 'data-mode', 'style'] });
+    page.__cmLookWatch = { observer, timer: window.setInterval(check, 1000) };
   }
 
   send(msg: unknown): void { try { console.debug(`[cinnamon] ${JSON.stringify(msg)}`); } catch {} }

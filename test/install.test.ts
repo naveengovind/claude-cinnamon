@@ -95,3 +95,51 @@ test('uninstall stops the helper and removes the login item and only its own lin
   assert.strictEqual(fs.existsSync(s.inst.plist), false);
   assert.ok(s.calls.includes(`launchctl bootout gui/501/${Installer.LABEL}`));
 });
+
+test('install puts the colours mod where Claude Code loads it in every session, replacing an older copy', () => {
+  const s = setup();
+  fs.cpSync(path.join(REPO, 'mod'), path.join(s.root, 'mod'), { recursive: true });
+  const old = path.join(s.home, '.claude', 'skills', 'cinnamon-colors', 'hooks', 'stale.js');
+  fs.mkdirSync(path.dirname(old), { recursive: true });
+  fs.writeFileSync(old, '');
+  assert.strictEqual(s.inst.install(), 0, s.logs.join('\n'));
+  const dir = path.join(s.home, '.claude', 'skills', 'cinnamon-colors');
+  assert.strictEqual(s.inst.modDir, dir);
+  assert.ok(fs.existsSync(path.join(dir, '.claude-plugin', 'plugin.json')));
+  assert.ok(fs.existsSync(path.join(dir, 'hooks', 'register.js')));
+  assert.ok(!fs.existsSync(old), 'the old copy is replaced, not merged');
+});
+
+test('uninstall removes the colours mod and its look, and says how to drop colours the app keeps', () => {
+  const s = setup();
+  fs.cpSync(path.join(REPO, 'mod'), path.join(s.root, 'mod'), { recursive: true });
+  s.inst.install();
+  fs.writeFileSync(path.join(s.inst.modDir, 'look.json'), '{"id":null}\n');
+  s.inst.uninstall();
+  assert.ok(!fs.existsSync(s.inst.modDir));
+  assert.ok(s.logs.some((l) => /Remove colors/.test(l)));
+});
+
+test('uninstall leaves a folder of the same name alone when it is not the colours mod', () => {
+  const s = setup();
+  const other = path.join(s.home, '.claude', 'skills', 'cinnamon-colors');
+  fs.mkdirSync(path.join(other, '.claude-plugin'), { recursive: true });
+  fs.writeFileSync(path.join(other, '.claude-plugin', 'plugin.json'), '{"name":"someone-else"}');
+  s.inst.uninstall();
+  assert.ok(fs.existsSync(other));
+});
+
+test('install without a mod folder (an older install layout) still installs the login item', () => {
+  const s = setup();
+  assert.strictEqual(s.inst.install(), 0);
+  assert.ok(!fs.existsSync(s.inst.modDir));
+});
+
+test('reinstalling keeps the look Cinnamon wrote into the mod', () => {
+  const s = setup();
+  fs.cpSync(path.join(REPO, 'mod'), path.join(s.root, 'mod'), { recursive: true });
+  s.inst.install();
+  fs.writeFileSync(path.join(s.inst.modDir, 'look.json'), '{"id":"codex:1"}\n');
+  s.inst.install();
+  assert.strictEqual(fs.readFileSync(path.join(s.inst.modDir, 'look.json'), 'utf8'), '{"id":"codex:1"}\n');
+});
