@@ -221,6 +221,43 @@ test('changed page code of an extension without clean-up still reloads the windo
   } finally { h.stop(); }
 });
 
+test('an extension that fails to compile is recorded where the CLI can show it', async () => {
+  const h = harness();
+  try {
+    h.addExt('x', { name: 'X', page: ['p.ts'] }, { 'p.ts': 'const = ;' }, h.userExt);
+    await h.run();
+    const errs = JSON.parse(fs.readFileSync(path.join(h.user, 'state', 'extension-errors.json'), 'utf8'));
+    assert.ok(errs.x && errs.x.length, JSON.stringify(errs));
+  } finally { h.stop(); }
+});
+
+test('an error thrown by an extension\'s page code is recorded, and cleared when it loads again', async () => {
+  const h = harness();
+  try {
+    h.addExt('x', { name: 'X', page: ['p.js'] }, { 'p.js': '/*X*/' });
+    await h.run();
+    say(h.wc, { type: 'ext-error', ext: 'x', message: 'TypeError: boom' });
+    await flush();
+    const file = path.join(h.user, 'state', 'extension-errors.json');
+    assert.deepStrictEqual(JSON.parse(fs.readFileSync(file, 'utf8')), { x: ['TypeError: boom'] });
+    say(h.wc, { type: 'ext-error', ext: 'nope', message: 'not an extension' });
+    await flush();
+    assert.strictEqual(JSON.parse(fs.readFileSync(file, 'utf8')).nope, undefined);
+    await h.state().reloadAll();
+    assert.deepStrictEqual(JSON.parse(fs.readFileSync(file, 'utf8')), {});
+  } finally { h.stop(); }
+});
+
+test('page code reports what it throws to Cinnamon', async () => {
+  const h = harness();
+  try {
+    h.addExt('x', { name: 'X', page: ['p.js'] }, { 'p.js': '/*X*/' });
+    await h.run();
+    const code = h.wc.js.find((s) => s.includes('/*X*/'));
+    assert.match(code, /type: *['"]ext-error['"]/);
+  } finally { h.stop(); }
+});
+
 test('turning an extension on applies it without a reload', async () => {
   const h = harness();
   try {

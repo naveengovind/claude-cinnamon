@@ -70,6 +70,10 @@ export class Installer {
   /** The colours mod (mod/cinnamon-colors): a plugin in ~/.claude/skills loads in every Claude Code session. */
   get modDir(): string { return path.join(this.o.home, '.claude', 'skills', Installer.MOD); }
   static readonly MOD = 'cinnamon-colors';
+  /** The cinnamon skill for Claude Code (skill/cinnamon), and the line its SKILL.md carries when Cinnamon put it there. */
+  get skillDir(): string { return path.join(this.o.home, '.claude', 'skills', Installer.SKILL); }
+  static readonly SKILL = 'cinnamon';
+  static readonly SKILL_MARK = 'Installed by Cinnamon';
   /** Where the command may be linked: your own bin folders, never Homebrew's (its `brew link` would then fail). */
   private get linkCandidates(): string[] { return [path.join(this.o.home, '.local', 'bin'), path.join(this.o.home, 'bin')]; }
   /** Earlier versions also linked into these; uninstall still removes such a link. */
@@ -213,6 +217,7 @@ ${o.binary ? `    <key>CINNAMON_BIN</key><string>${xml(o.binary)}</string>` : ` 
     if (b.status !== 0) { this.log(`Could not start the login item: ${b.stderr.trim()}`); return 1; }
     this.linkCommand();
     this.installMod();
+    this.installSkill();
     this.log('Cinnamon Helper is running and will start at every login.');
     this.log('If macOS asks, allow Cinnamon Helper under System Settings > Privacy & Security > Accessibility.');
     return 0;
@@ -226,28 +231,66 @@ ${o.binary ? `    <key>CINNAMON_BIN</key><string>${xml(o.binary)}</string>` : ` 
   private installMod(): void {
     const src = path.join(this.o.root, 'mod', Installer.MOD);
     if (!fs.existsSync(path.join(src, '.claude-plugin', 'plugin.json'))) return;
+    try {
+      // look.json is Cinnamon's, written by the main process (CodeTabLook): it stays
+      Installer.sync(src, this.modDir, { keep: ['look.json'] });
+      this.log(`Installed the ${Installer.MOD} mod (${this.modDir}): Claude Code paints the Code tab's colours.`);
+    } catch (e) {
+      this.log(`Could not install the ${Installer.MOD} mod: ${(e as Error).message}. Cinnamon paints the Code tab itself.`);
+    }
+  }
+
+  /**
+   * The cinnamon skill (skill/cinnamon): lets Claude in any Claude Code session on this Mac change the app through
+   * this install's command. Its Markdown names this install's paths ({{CINNAMON}}, {{USER_DIR}}, {{ROOT}}). A
+   * skill of that name that Cinnamon didn't install is left alone.
+   */
+  private installSkill(): void {
+    const src = path.join(this.o.root, 'skill', Installer.SKILL);
+    if (!fs.existsSync(path.join(src, 'SKILL.md'))) return;
+    const existing = path.join(this.skillDir, 'SKILL.md');
+    if (fs.existsSync(existing) && !this.ownsSkill()) { this.log(`Left ${this.skillDir} alone: a skill of that name that Cinnamon didn't install.`); return; }
+    const fill = (text: string) => text.replaceAll('{{CINNAMON}}', this.launcher).replaceAll('{{USER_DIR}}', this.o.userDir).replaceAll('{{ROOT}}', this.o.root);
+    try {
+      Installer.sync(src, this.skillDir, { transform: (f, b) => (f.endsWith('.md') ? Buffer.from(fill(b.toString('utf8'))) : b) });
+      this.log(`Installed the ${Installer.SKILL} skill (${this.skillDir}): Claude Code sessions can theme and extend the app.`);
+    } catch (e) {
+      this.log(`Could not install the ${Installer.SKILL} skill: ${(e as Error).message}`);
+    }
+  }
+
+  private ownsSkill(): boolean {
+    try { return fs.readFileSync(path.join(this.skillDir, 'SKILL.md'), 'utf8').includes(Installer.SKILL_MARK); } catch { return false; }
+  }
+
+  private removeSkill(): void {
+    if (!this.ownsSkill()) return;
+    fs.rmSync(this.skillDir, { recursive: true, force: true });
+    this.log(`Removed the ${Installer.SKILL} skill.`);
+  }
+
+  /**
+   * Makes `dest` hold `src`'s files: each written only when it differs (in place, so a running Claude Code session
+   * watching the folder reloads it) and files `src` doesn't have removed, except `keep`.
+   */
+  static sync(src: string, dest: string, { keep = [], transform }: { keep?: string[]; transform?: (file: string, body: Buffer) => Buffer } = {}): void {
     const files = (dir: string): string[] => {
       const out: string[] = [];
       const walk = (d: string) => { for (const e of fs.readdirSync(d, { withFileTypes: true })) { const p = path.join(d, e.name); if (e.isDirectory()) walk(p); else out.push(path.relative(dir, p)); } };
       try { walk(dir); } catch {}
       return out;
     };
-    try {
-      const want = files(src);
-      for (const f of want) {
-        const to = path.join(this.modDir, f);
-        fs.mkdirSync(path.dirname(to), { recursive: true });
-        const text = fs.readFileSync(path.join(src, f));
-        let same = false;
-        try { same = fs.readFileSync(to).equals(text); } catch {}
-        if (!same) fs.writeFileSync(to, text);
-      }
-      // look.json is Cinnamon's, written by the main process (CodeTabLook): it stays
-      for (const f of files(this.modDir)) if (!want.includes(f) && f !== 'look.json') fs.rmSync(path.join(this.modDir, f), { force: true });
-      this.log(`Installed the ${Installer.MOD} mod (${this.modDir}): Claude Code paints the Code tab's colours.`);
-    } catch (e) {
-      this.log(`Could not install the ${Installer.MOD} mod: ${(e as Error).message}. Cinnamon paints the Code tab itself.`);
+    const want = files(src);
+    for (const f of want) {
+      const to = path.join(dest, f);
+      fs.mkdirSync(path.dirname(to), { recursive: true });
+      const raw = fs.readFileSync(path.join(src, f));
+      const body = transform ? transform(f, raw) : raw;
+      let same = false;
+      try { same = fs.readFileSync(to).equals(body); } catch {}
+      if (!same) fs.writeFileSync(to, body);
     }
+    for (const f of files(dest)) if (!want.includes(f) && !keep.includes(f)) fs.rmSync(path.join(dest, f), { force: true });
   }
 
   /** Only a folder that is this mod (by its manifest's name). */
@@ -266,6 +309,7 @@ ${o.binary ? `    <key>CINNAMON_BIN</key><string>${xml(o.binary)}</string>` : ` 
     this.stop(Installer.LABEL);
     fs.rmSync(this.plist, { force: true });
     this.removeMod();
+    this.removeSkill();
     for (const d of [...this.linkCandidates, ...this.oldLinkDirs]) {
       const link = path.join(d, 'cinnamon');
       try { if (fs.readlinkSync(link) === this.launcher) fs.rmSync(link); } catch {}

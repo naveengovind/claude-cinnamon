@@ -137,7 +137,7 @@ export class CodeTabLook {
     const text = JSON.stringify(look ? { id: look.id, colors: look.colors } : { id: null }) + '\n';
     try { if (fs.readFileSync(file, 'utf8') === text) return false; } catch {}
     fs.mkdirSync(path.dirname(file), { recursive: true });
-    const tmp = `${file}.${process.pid}.tmp`;
+    const tmp = `${file}.${Date.now()}.tmp`;
     fs.writeFileSync(tmp, text);
     fs.renameSync(tmp, file);
     return true;

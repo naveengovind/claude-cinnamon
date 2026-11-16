@@ -98,6 +98,7 @@ export class Cinnamon {
     state.reloadAll = () => this.queue.run(() => this.reloadAll());
     state.setTheme = (id) => this.themes.setTheme(id);
     state.onPageMessage = (wc, args) => this.channel.handle(wc, args);
+    state.recordExtError = (id, message) => this.extensions.recordPageError(id, message);
     state.wrapWindow = (win) => this.material.wrap(win);
     const app = this.electron.app;
     if (!state.dispatchListening) {

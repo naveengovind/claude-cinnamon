@@ -124,3 +124,12 @@ page to dispose it (`__cinnamon.dispose(id)` runs the clean-up newest first, dro
 `'cinnamon:disposed'`), then runs the new code. An extension with no clean-up still makes the window reload. CSS
 was already swapped in place (new before old is removed). Both built-in extensions register clean-up that removes
 everything they added and guards against a frame already queued.
+
+## Claude controls Cinnamon (Nov 16 2026)
+`skill/cinnamon` is a Claude Code skill installed into `~/.claude/skills/cinnamon` with this install's command, user
+folder and root filled in (`Installer.installSkill`; its SKILL.md carries "Installed by Cinnamon", and a skill of the
+same name without it is left alone). It covers the CLI, how to make themes and extensions (themes.md,
+extensions.md), and what to ask the user first. So a session can check its own work: `cinnamon theme <id>` and
+`doctor` name rejected theme keys and values (`ThemeEngine.problems`), and extension errors from Claude (compile
+errors, errors page code throws when it runs) are written by the main process to `state/extension-errors.json`
+(page code reports through the `ext-error` page message) and shown by `cinnamon ext` and `doctor`.

@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { Config } from '../lib/Config';
 import { ExtensionCatalog } from '../lib/ExtensionCatalog';
+import { ThemeEngine } from '../lib/ThemeEngine';
 import { ThemeStore } from '../lib/ThemeStore';
 import { HelperClient, sh } from './HelperClient';
 import type { Output } from './Output';
@@ -43,6 +44,7 @@ export class Doctor {
     // the Code tab's colours: Claude Code's own theme API through the cinnamon-colors mod, else Cinnamon paints them
     const mod = path.join(os.homedir(), '.claude', 'skills', 'cinnamon-colors', '.claude-plugin', 'plugin.json');
     this.check(fs.existsSync(mod), 'cinnamon-colors mod installed (Claude Code paints the Code tab)', 'cinnamon install');
+    this.check(fs.existsSync(path.join(os.homedir(), '.claude', 'skills', 'cinnamon', 'SKILL.md')), 'cinnamon skill installed (Claude Code can theme and extend the app)', 'cinnamon install');
     try {
       const r = new ThemeStore([paths.bundledThemes, paths.themes]).resolve(new Config(paths.config));
       if (r.current !== 'default') {
@@ -51,8 +53,15 @@ export class Doctor {
           : `  Code tab: ${r.current} painted by Cinnamon (${r.lookReason || 'no look'})`));
       }
     } catch {}
-    for (const t of new ThemeStore([paths.bundledThemes, paths.themes]).list()) if (t.error) this.check(false, `theme ${t.id}: ${t.error}`);
-    for (const e of new ExtensionCatalog({ bundled: paths.bundledExtensions, user: paths.extensions }).list()) if (e.error) this.check(false, `extension ${e.id}: ${e.error}`);
+    for (const t of new ThemeStore([paths.bundledThemes, paths.themes]).list()) {
+      if (t.error) this.check(false, `theme ${t.id}: ${t.error}`);
+      else for (const p of ThemeEngine.problems(t.theme)) this.check(false, `theme ${t.id}: ${p}`, `edit ${t.file}`);
+    }
+    const recorded = ExtensionCatalog.recordedErrors(paths.user);
+    for (const e of new ExtensionCatalog({ bundled: paths.bundledExtensions, user: paths.extensions }).list()) {
+      if (e.error) this.check(false, `extension ${e.id}: ${e.error}`);
+      else for (const err of recorded[e.id] || []) this.check(false, `extension ${e.id}: ${err.split('\n')[0]}`, `fix ${e.dir}`);
+    }
     out.say(this.problems ? out.red(`${this.problems} problem${this.problems > 1 ? 's' : ''}`) : out.green('All good.'));
     return this.problems ? 1 : 0;
   }

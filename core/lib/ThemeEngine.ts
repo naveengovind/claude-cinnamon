@@ -124,6 +124,13 @@ export class ThemeEngine {
     return null;
   }
 
+  /** Everything wrong with a theme: rejected keys, values, css and window material (nothing is applied for those). */
+  static problems(theme: Theme | null | undefined): string[] {
+    const { errors } = ThemeEngine.css(theme);
+    ThemeEngine.windowOptions(theme, errors);
+    return errors;
+  }
+
   /** Theme object → { css, errors }. */
   static css(theme: Theme | null | undefined, opts: ThemeCssOptions = {}): ThemeCss {
     const errors: string[] = [];

@@ -82,6 +82,9 @@ export interface SharedState {
 
   theme?: ResolvedTheme;
   extList?: ExtSummary[];
+  /** Per extension: what failed when it loaded or ran (state/extension-errors.json, for `cinnamon ext` and doctor). */
+  extErrors?: Record<string, string[]>;
+  recordExtError?: (id: string, message: string) => void;
   extLoaded?: Map<string, LoadedExt>;
   settings?: Record<string, unknown>;
   windowMaterial?: string | null;

@@ -32,6 +32,8 @@ export class ThemeCommands {
     if (id !== 'default' && !this.store.list().some((t) => t.id === id && !t.error)) return this.out.fail(`no theme "${id}" (see: cinnamon theme list)`);
     this.config.write({ theme: id });
     this.out.say(this.out.green(`✓ theme: ${id}`));
+    const theme = this.store.list().find((t) => t.id === id)?.theme;
+    for (const p of ThemeEngine.problems(theme)) this.out.say(this.out.red(`  not applied: ${p}`));
     this.out.liveNote();
     return 0;
   }

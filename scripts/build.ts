@@ -16,7 +16,7 @@ import { helperSourceHash, Installer, runCommand, type RunResult } from '../core
 const ROOT = path.join(import.meta.dir, '..');
 const WORK = path.join(ROOT, 'build', 'standalone');
 const DIST = path.join(ROOT, 'dist');
-const PAYLOAD_DIRS = ['core', 'extensions', 'mod', 'themes', 'types'];
+const PAYLOAD_DIRS = ['core', 'extensions', 'mod', 'skill', 'themes', 'types'];
 const PAYLOAD_FILES = ['package.json'];
 // x64: the regular build (AVX2). Cinnamon needs macOS 13, which runs only on Intel Macs from 2017 on, all with AVX2.
 const TARGETS = { arm64: 'bun-darwin-arm64', x64: 'bun-darwin-x64' } as const;

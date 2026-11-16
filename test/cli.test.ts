@@ -213,3 +213,34 @@ test('update in a Homebrew install runs brew upgrade', () => {
   assert.strictEqual(r.status, 0, r.stdout + r.stderr);
   assert.match(fs.readFileSync(log, 'utf8'), /upgrade naveengovind\/tap\/cinnamon/);
 });
+
+test('switching to a theme with rejected keys or values says which, so they can be fixed', () => {
+  const h = home();
+  fs.mkdirSync(path.join(h, 'themes'), { recursive: true });
+  fs.writeFileSync(path.join(h, 'themes', 'bad.json'), JSON.stringify({ name: 'Bad', dark: { background: 'url(x)', nope: '#fff', text: '#eee' } }));
+  const r = run(h, 'theme', 'bad');
+  assert.strictEqual(r.code, 0);
+  assert.match(r.out, /dark\.background: rejected value/);
+  assert.match(r.out, /unknown colour key "nope"/);
+});
+
+test('doctor names rejected keys and values in any theme', () => {
+  const h = home();
+  fs.mkdirSync(path.join(h, 'themes'), { recursive: true });
+  fs.writeFileSync(path.join(h, 'themes', 'bad.json'), JSON.stringify({ name: 'Bad', dark: { nope: '#fff' }, window: { vibrancy: 'shiny' } }));
+  const r = run(h, 'doctor');
+  assert.match(r.out, /theme bad: dark: unknown colour key "nope"/);
+  assert.match(r.out, /theme bad: .*window\.vibrancy/);
+});
+
+test('ext list and doctor show the errors Claude recorded for an extension', () => {
+  const h = home();
+  const dir = path.join(h, 'extensions', 'demo');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'manifest.json'), JSON.stringify({ name: 'Demo', page: ['p.js'] }));
+  fs.writeFileSync(path.join(dir, 'p.js'), '');
+  fs.mkdirSync(path.join(h, 'state'), { recursive: true });
+  fs.writeFileSync(path.join(h, 'state', 'extension-errors.json'), JSON.stringify({ demo: ['TypeError: boom'] }));
+  assert.match(run(h, "ext").out, /demo[\s\S]*TypeError: boom/);
+  assert.match(run(h, 'doctor').out, /extension demo: TypeError: boom/);
+});

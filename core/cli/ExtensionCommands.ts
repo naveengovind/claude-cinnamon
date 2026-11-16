@@ -21,9 +21,11 @@ export class ExtensionCommands {
   list(): number {
     const { out } = this;
     const cfg = this.config.read();
+    const recorded = ExtensionCatalog.recordedErrors(this.paths.user);
     for (const e of this.all()) {
       const on = ExtensionCatalog.isEnabled(e, cfg);
       out.say(`${on ? out.green('on ') : out.dim('off')}  ${e.id.padEnd(18)} ${e.name}${e.bundled ? out.dim(' (built in)') : ''}${e.error ? out.red(`  (couldn't load: ${e.error})`) : ''}`);
+      if (on && !e.error) for (const err of recorded[e.id] || []) out.say(out.red(`       error in Claude: ${err.split('\n').slice(0, 4).join('\n       ')}`));
     }
     return 0;
   }

@@ -1,5 +1,6 @@
 // Extensions in the main process: loads the enabled ones (reading or compiling their files), puts their css and page
 // code into each claude.ai view, and starts/stops the main parts of bundled ones.
+import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import vm from 'node:vm';
@@ -24,7 +25,8 @@ const DISPOSED = 'cinnamon:disposed';
 const wrap = (id: string, code: string): string => `(() => { const cinnamon = window.__cinnamon.api(${JSON.stringify(id)}); window.__cinnamon.reset(${JSON.stringify(id)});
 try {
 ${code}
-} catch (e) { console.warn('cinnamon: extension ' + ${JSON.stringify(id)} + ' failed', e); } })();`;
+} catch (e) { console.warn('cinnamon: extension ' + ${JSON.stringify(id)} + ' failed', e);
+  try { window.__cinnamon.send({ type: 'ext-error', ext: ${JSON.stringify(id)}, message: String((e && e.stack) || e).slice(0, 1000) }); } catch {} } })();`;
 
 export class ExtensionHost {
   constructor(
@@ -45,13 +47,17 @@ export class ExtensionHost {
     const list = this.catalog.list();
     const extList: ExtSummary[] = list.map((e) => ({ id: e.id, name: e.name, description: e.description, bundled: e.bundled, enabled: ExtensionCatalog.isEnabled(e, cfg), ...(e.error ? { error: e.error } : {}) }));
     const extLoaded = new Map<string, LoadedExt>();
+    const errors: Record<string, string[]> = {};
     for (const e of list) {
-      if (e.error) { this.log(`extension ${e.id}:`, e.error); continue; }
+      if (e.error) { this.log(`extension ${e.id}:`, e.error); errors[e.id] = [e.error]; continue; }
       if (!ExtensionCatalog.isEnabled(e, cfg)) continue;
       const l = await this.loadOne(e);
       for (const err of l.errors) this.log(err);
+      if (l.errors.length) errors[e.id] = [...l.errors];
       extLoaded.set(e.id, l);
     }
+    this.state.extErrors = errors;
+    this.writeErrors();
     this.state.extList = extList;
     this.state.extLoaded = extLoaded;
     this.state.settings = cfg.settings && typeof cfg.settings === 'object' && !Array.isArray(cfg.settings) ? cfg.settings as Record<string, unknown> : {};
@@ -119,6 +125,28 @@ export class ExtensionHost {
     state.extKeys.set(wc.id, next);
     for (const keys of had.values()) for (const k of keys) await wc.removeInsertedCSS(k).catch(() => {});
     return false;
+  }
+
+  /** What an extension's page code threw when it ran (reported by the page), kept until it loads again. */
+  recordPageError(id: string, message: string): void {
+    if (!this.state.extLoaded?.has(id)) return;
+    const all = (this.state.extErrors ??= {});
+    const list = (all[id] ??= []);
+    const text = message.slice(0, 1000);
+    if (list.length >= 10 || list.includes(text)) return;
+    list.push(text);
+    this.writeErrors();
+  }
+
+  /** state/extension-errors.json: { <id>: [what failed] }, read by `cinnamon ext` and `cinnamon doctor`. */
+  private writeErrors(): void {
+    try {
+      const file = path.join(this.userDir, 'state', 'extension-errors.json');
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      const tmp = `${file}.${Date.now()}.tmp`;
+      fs.writeFileSync(tmp, JSON.stringify(this.state.extErrors ?? {}, null, 1) + '\n');
+      fs.renameSync(tmp, file);
+    } catch (e) { this.log('extension errors:', e); }
   }
 
   stopMains(): void {

@@ -45,8 +45,9 @@ runs `cinnamon install` for you.
 Either way, `cinnamon update` upgrades later (through `brew upgrade` for a Homebrew install).
 
 `cinnamon install` sets up **Cinnamon Helper**, adds it as a login item, makes sure the `cinnamon` command is on your
-PATH, puts the `cinnamon-colors` mod in `~/.claude/skills/` (see [Code tab colours](#code-tab-colours)) and applies
-Cinnamon if Claude is running. macOS will ask you to allow two things for Cinnamon Helper:
+PATH, puts the `cinnamon-colors` mod and the `cinnamon` skill in `~/.claude/skills/` (see
+[Code tab colours](#code-tab-colours) and [Ask Claude to do it](#ask-claude-to-do-it)) and applies Cinnamon if Claude
+is running. macOS will ask you to allow two things for Cinnamon Helper:
 
 - **Accessibility** (*System Settings → Privacy & Security → Accessibility*), so it can click Claude's
   *Developer → Enable Main Process Debugger* menu item at launch;
@@ -80,6 +81,16 @@ the built helper (`helper/`, kept here so upgrades don't make macOS ask for its 
 Changes to any of them apply to a running Claude within a second, with no restart. Extensions hot-reload: editing
 one's code, or turning it off, swaps it in place when it cleans up after itself (`cinnamon.onDispose`, below; the
 built-in ones do). One that doesn't makes Claude's window reload instead, since its page code can't be taken out.
+
+## Ask Claude to do it
+
+`cinnamon install` also adds a Claude Code skill, `cinnamon`, so Claude in any Claude Code session on this Mac (the
+desktop app's Code tab or the terminal) can change the app you're using: ask it to *make a warm sepia theme*, *add a
+clock to the corner*, *turn off the sidebar cards* or *check what's wrong with Cinnamon*. It works through this
+install's `cinnamon` command and your folder, checks its work with `cinnamon ext` / `doctor`, writes extensions that
+hot-reload, and asks before installing anything from the internet or removing what you made. The skill names this
+install's paths and is rewritten on every `cinnamon install` (`cinnamon uninstall` removes it); SSH sessions use
+their host's own skills, so they don't get it.
 
 ## Themes
 
@@ -223,6 +234,7 @@ run with `bin/cinnamon` needs Bun and the Xcode Command Line Tools (to build the
 | `core/install/` | `Installer` (helper build or prebuilt copy, login item, PATH link, the colours mod) |
 | `core/standalone/` | the standalone binary: `runStandalone` (entry), `Payload` (unpacks its files per version), `Homebrew` (Homebrew installs: stable opt/ path, prefix) |
 | `scripts/`, `install.sh` | standalone build, release and Homebrew formula; the install script (no Homebrew) |
+| `skill/cinnamon/` | the Claude Code skill `cinnamon install` puts in `~/.claude/skills/cinnamon` (`{{CINNAMON}}`, `{{USER_DIR}}`, `{{ROOT}}` are filled in) |
 | `mod/cinnamon-colors/` | the Claude Code mod that paints the Code tab from Cinnamon's theme (`core/lib/CodeTabLook.ts` writes its input; `core/lib/vendor/make-colors.js` is Claude Code's own colour builder, unchanged) |
 | `core/render.ts`, `core/InspectorClient.ts` | bundles the main-process code; talks to Claude's debugger |
 | `core/helper/` | Cinnamon Helper (Swift) |

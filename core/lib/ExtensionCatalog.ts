@@ -39,6 +39,22 @@ const SUFFIXES = { page: ['.js', '.ts'], css: ['.css'], main: ['.cjs', '.ts'] } 
 export class ExtensionCatalog {
   constructor(readonly roots: ExtensionRoots) {}
 
+  /**
+   * What failed when each extension last loaded or ran in Claude (compile errors, errors its page code threw), as the
+   * running Cinnamon recorded it in <your folder>/state/extension-errors.json. Empty when there is none.
+   */
+  static recordedErrors(userDir: string): Record<string, string[]> {
+    try {
+      const all = JSON.parse(fs.readFileSync(path.join(userDir, 'state', 'extension-errors.json'), 'utf8')) as unknown;
+      if (!all || typeof all !== 'object' || Array.isArray(all)) return {};
+      const out: Record<string, string[]> = {};
+      for (const [id, list] of Object.entries(all as Record<string, unknown>)) {
+        if (Array.isArray(list)) { const l = list.filter((x): x is string => typeof x === 'string'); if (l.length) out[id] = l; }
+      }
+      return out;
+    } catch { return {}; }
+  }
+
   /** Bundled and user extensions, sorted by name. A user folder can't replace a bundled id. */
   list(): ExtensionEntry[] {
     const byId = new Map<string, ExtensionEntry>();

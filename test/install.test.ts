@@ -143,3 +143,46 @@ test('reinstalling keeps the look Cinnamon wrote into the mod', () => {
   s.inst.install();
   assert.strictEqual(fs.readFileSync(path.join(s.inst.modDir, 'look.json'), 'utf8'), '{"id":"codex:1"}\n');
 });
+
+test('install puts the cinnamon skill in ~/.claude/skills with this install\'s paths filled in', () => {
+  const s = setup();
+  fs.cpSync(path.join(REPO, 'skill'), path.join(s.root, 'skill'), { recursive: true });
+  assert.strictEqual(s.inst.install(), 0, s.logs.join('\n'));
+  const dir = path.join(s.home, '.claude', 'skills', 'cinnamon');
+  assert.strictEqual(s.inst.skillDir, dir);
+  const skill = fs.readFileSync(path.join(dir, 'SKILL.md'), 'utf8');
+  assert.match(skill, /^---\nname: cinnamon\n/);
+  assert.ok(skill.includes(path.join(s.root, 'bin', 'cinnamon')), 'the command path');
+  assert.ok(skill.includes(s.userDir), 'the user folder');
+  for (const f of ['SKILL.md', 'themes.md', 'extensions.md']) assert.doesNotMatch(fs.readFileSync(path.join(dir, f), 'utf8'), /\{\{[A-Z_]+\}\}/, f);
+  assert.ok(fs.readFileSync(path.join(dir, 'extensions.md'), 'utf8').includes(path.join(s.root, 'types', 'cinnamon.d.ts')));
+});
+
+test('the standalone binary is the command the skill names', () => {
+  const s = setup();
+  fs.cpSync(path.join(REPO, 'skill'), path.join(s.root, 'skill'), { recursive: true });
+  const bin = path.join(s.home, 'opt', 'cinnamon');
+  const inst = new Installer({ root: s.root, userDir: s.userDir, home: s.home, pathEnv: '', bun: '/opt/bun/bin/bun', uid: 501, run: () => ({ status: 0, stdout: '', stderr: '' }), log: () => {}, sleep: () => {}, binary: bin });
+  (inst as unknown as { installSkill(): void }).installSkill();
+  assert.ok(fs.readFileSync(path.join(inst.skillDir, 'SKILL.md'), 'utf8').includes(`Command: \`${bin}\``));
+});
+
+test('a skill named cinnamon that Cinnamon did not install is left alone', () => {
+  const s = setup();
+  fs.cpSync(path.join(REPO, 'skill'), path.join(s.root, 'skill'), { recursive: true });
+  const dir = path.join(s.home, '.claude', 'skills', 'cinnamon');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'SKILL.md'), '---\nname: cinnamon\ndescription: mine\n---\n');
+  s.inst.install();
+  assert.match(fs.readFileSync(path.join(dir, 'SKILL.md'), 'utf8'), /description: mine/);
+  s.inst.uninstall();
+  assert.ok(fs.existsSync(path.join(dir, 'SKILL.md')));
+});
+
+test('uninstall removes the skill Cinnamon installed', () => {
+  const s = setup();
+  fs.cpSync(path.join(REPO, 'skill'), path.join(s.root, 'skill'), { recursive: true });
+  s.inst.install();
+  s.inst.uninstall();
+  assert.ok(!fs.existsSync(s.inst.skillDir));
+});

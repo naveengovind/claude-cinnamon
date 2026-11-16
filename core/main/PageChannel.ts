@@ -18,7 +18,8 @@ type Message =
   | { type: 'open-extensions-folder' }
   | { type: 'extension'; id: string; enabled: boolean }
   | { type: 'ext-setting'; ext: string; key: string; value: unknown }
-  | { type: 'ext'; ext: string; msg: string; data: unknown };
+  | { type: 'ext'; ext: string; msg: string; data: unknown }
+  | { type: 'ext-error'; ext: string; message: string };
 
 export class PageChannel {
   constructor(
@@ -80,6 +81,11 @@ export class PageChannel {
         this.config.write({ settings: all });
         this.state.settings = all;
         for (const v of this.views.views()) await v.executeJavaScript(`window.__cinnamon?.setSettings(${JSON.stringify(all)})`).catch(() => {});
+        break;
+      }
+      case 'ext-error': {
+        if (!known(m.ext) || typeof m.message !== 'string') return;
+        this.state.recordExtError?.(m.ext, m.message);
         break;
       }
       case 'ext': {
