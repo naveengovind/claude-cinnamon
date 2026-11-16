@@ -176,3 +176,47 @@ test('missing branch shows model only; values are text, not HTML', () => {
   assert.strictEqual(b.querySelector('.cm-bottom .cm-branch'), null);
   assert.match(b.querySelector('.cm-bottom').textContent, /Opus 5\.5/);
 });
+
+// Hot reload: the cards take themselves out completely, and come back when run again.
+function pageWithRuntime() {
+  const RUNTIME_SRC = RUNTIME;
+  const dom = new JSDOM(`<body><div data-testid="sidebar-recents">${row('a', 'Title A')}</div></body>`, { runScripts: 'outside-only', pretendToBeVisual: true });
+  const w = dom.window;
+  w.eval(RUNTIME_SRC);
+  const run = () => w.eval(`(() => { const cinnamon = window.__cinnamon.api('sidebar-cards'); window.__cinnamon.reset('sidebar-cards'); ${SRC}\n })();`);
+  run();
+  open.push(w);
+  return { w, run };
+}
+const RUNTIME = await pageCode('core/page/runtime.ts');
+
+test('disposing the cards removes every card line, menu, timer and hook it added', () => {
+  const { w } = pageWithRuntime();
+  w.__cmSetMeta(META);
+  assert.ok(w.document.querySelector('.cm-top'));
+  const state = w.__cmState;
+  assert.ok(state.relist && state.ticker);
+  assert.strictEqual(w.__cinnamon.dispose('sidebar-cards'), 'cinnamon:disposed');
+  assert.strictEqual(w.document.querySelectorAll('.cm-top, .cm-bottom, .cm-menu, [data-cm-card]').length, 0);
+  assert.strictEqual(state.relist, undefined);
+  assert.strictEqual(state.ticker, undefined);
+  assert.strictEqual(state.observer, null);
+  assert.strictEqual(w.__cmSetMeta, undefined);
+});
+
+test('after a hot reload the cards come back with the data they had', () => {
+  const { w, run } = pageWithRuntime();
+  w.__cmSetMeta(META);
+  w.__cinnamon.dispose('sidebar-cards');
+  run();
+  assert.ok(w.document.querySelector('[data-row-key="code:local_a"] .cm-top'));
+});
+
+test('a redraw queued before the cards were taken out does not bring them back', async () => {
+  const { w } = pageWithRuntime();
+  w.__cmSetMeta(META);
+  w.document.querySelector('[data-testid="sidebar-recents"]').insertAdjacentHTML('beforeend', row('b', 'Title B')); // queues a redraw
+  w.__cinnamon.dispose('sidebar-cards');
+  await tick(w);
+  assert.strictEqual(w.document.querySelectorAll('.cm-top, .cm-bottom').length, 0);
+});

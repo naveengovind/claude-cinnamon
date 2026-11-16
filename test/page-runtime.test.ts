@@ -118,3 +118,43 @@ test('a mode the look does not cover is not marked', () => {
   w.__cinnamon.setLook(LOOK);
   assert.strictEqual(marked(w), null);
 });
+
+// Hot reload: an extension that registers clean-up can be taken out of the page and run again, with no reload.
+test('dispose runs an extension\'s clean-up (newest first), forgets it and its listeners, and says it did', () => {
+  const w = page();
+  const api = w.__cinnamon.api('x');
+  const order = [];
+  api.onDispose(() => order.push('a'));
+  api.onDispose(() => order.push('b'));
+  api.settings.onChange(() => order.push('listener'));
+  assert.strictEqual(w.__cinnamon.dispose('x'), 'cinnamon:disposed');
+  assert.deepStrictEqual(order, ['b', 'a']);
+  w.__cinnamon.setSettings({ x: { a: 1 } });
+  assert.deepStrictEqual(order, ['b', 'a'], 'its listeners are gone');
+  assert.strictEqual(w.__cinnamon.dispose('x'), false, 'nothing left to dispose');
+});
+
+test('an extension without clean-up cannot be disposed (Cinnamon reloads the window instead)', () => {
+  const w = page();
+  w.__cinnamon.api('x').settings.onChange(() => {});
+  assert.strictEqual(w.__cinnamon.dispose('x'), false);
+});
+
+test('a failing clean-up does not stop the others', () => {
+  const w = page();
+  const api = w.__cinnamon.api('x');
+  let ran = false;
+  api.onDispose(() => { ran = true; });
+  api.onDispose(() => { throw new Error('boom'); });
+  assert.strictEqual(w.__cinnamon.dispose('x'), 'cinnamon:disposed');
+  assert.ok(ran);
+});
+
+test('clean-up survives the runtime being loaded again (each apply)', () => {
+  const w = page();
+  let ran = false;
+  w.__cinnamon.api('x').onDispose(() => { ran = true; });
+  w.eval(SRC);
+  assert.strictEqual(w.__cinnamon.dispose('x'), 'cinnamon:disposed');
+  assert.ok(ran);
+});

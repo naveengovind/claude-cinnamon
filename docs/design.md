@@ -116,3 +116,11 @@ sidebar's session list, the transcript's width, page CSS or the window's materia
     colors*);
   - a theme with no light half still gets the design system's own light palette in the Code tab (a hair off stock);
   - a saved mod file reloads in a Desktop session within about 30 s.
+
+## Hot reload (Nov 16 2026)
+Extensions' page code is swapped in place when it can be taken out. The page runtime keeps each extension's clean-up
+(`cinnamon.onDispose`); when an extension's page code changes or it is turned off, `ExtensionHost.applyTo` asks the
+page to dispose it (`__cinnamon.dispose(id)` runs the clean-up newest first, drops its settings listeners and returns
+`'cinnamon:disposed'`), then runs the new code. An extension with no clean-up still makes the window reload. CSS
+was already swapped in place (new before old is removed). Both built-in extensions register clean-up that removes
+everything they added and guards against a frame already queued.

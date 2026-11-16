@@ -182,6 +182,45 @@ test('turning an extension off from the page saves it and reloads the view', asy
   } finally { h.stop(); }
 });
 
+test('turning off an extension that can clean up after itself takes it out in place, with no reload', async () => {
+  const h = harness();
+  try {
+    h.addExt('x', { name: 'X', page: ['p.js'] }, { 'p.js': '/*X-CODE*/' });
+    await h.run();
+    h.wc.replies['__cinnamon?.dispose?.("x")'] = 'cinnamon:disposed';
+    say(h.wc, { type: 'extension', id: 'x', enabled: false });
+    await flush();
+    assert.ok(ran(h.wc, '__cinnamon?.dispose?.("x")'));
+    assert.strictEqual(h.wc.reloads, 0);
+  } finally { h.stop(); }
+});
+
+test('changed page code of an extension that can clean up is swapped in place (hot reload)', async () => {
+  const h = harness();
+  try {
+    h.addExt('x', { name: 'X', page: ['p.js'] }, { 'p.js': '/*X-V1*/' });
+    await h.run();
+    h.wc.replies['__cinnamon?.dispose?.("x")'] = 'cinnamon:disposed';
+    fs.writeFileSync(path.join(h.bundled, 'x', 'p.js'), '/*X-V2*/');
+    await h.state().reloadAll();
+    assert.ok(ran(h.wc, '/*X-V2*/'));
+    const js = h.wc.js;
+    assert.ok(js.findIndex((s) => s.includes('__cinnamon?.dispose?.("x")')) < js.findIndex((s) => s.includes('/*X-V2*/')), 'old code out before new code in');
+    assert.strictEqual(h.wc.reloads, 0);
+  } finally { h.stop(); }
+});
+
+test('changed page code of an extension without clean-up still reloads the window', async () => {
+  const h = harness();
+  try {
+    h.addExt('x', { name: 'X', page: ['p.js'] }, { 'p.js': '/*X-V1*/' });
+    await h.run();
+    fs.writeFileSync(path.join(h.bundled, 'x', 'p.js'), '/*X-V2*/');
+    await h.state().reloadAll();
+    assert.strictEqual(h.wc.reloads, 1);
+  } finally { h.stop(); }
+});
+
 test('turning an extension on applies it without a reload', async () => {
   const h = harness();
   try {

@@ -4,7 +4,14 @@
 // data-cinnamon-width="full". Anchors: the settings row labelled "Transcript width", its combobox and the listbox
 // its popup holds (Base UI, linked by aria-controls). Missing anchors → nothing is added.
 
-interface FullWidthState { observer?: MutationObserver; queued?: boolean }
+interface FullWidthState {
+  observer?: MutationObserver;
+  queued?: boolean;
+  /** Taken out (hot reload or turned off): a frame already queued does nothing. */
+  disposed?: boolean;
+  /** The app's listboxes it listens on, so it can stop. */
+  listening?: [HTMLElement, (e: Event) => void][];
+}
 type Listbox = HTMLElement & { __cinnamonListening?: boolean };
 
 const leaves = (el: Element): HTMLElement[] => [...el.querySelectorAll<HTMLElement>('*')].filter((e) => e.childElementCount === 0 && e.textContent!.trim());
@@ -66,10 +73,12 @@ class FullWidth {
     if (!list.__cinnamonListening) {
       list.__cinnamonListening = true;
       // picking one of the app's widths turns Full off (capture: before the app closes the list)
-      list.addEventListener('click', (e) => {
+      const onPick = (e: Event) => {
         const o = (e.target as Element).closest('[role="option"]');
         if (o && !o.hasAttribute('data-cinnamon-option') && this.isFull()) cinnamon.settings.set('width', null);
-      }, true);
+      };
+      list.addEventListener('click', onPick, true);
+      (this.s.listening ??= []).push([list, onPick]);
     }
     opt.setAttribute('aria-selected', String(this.isFull()));
     list.toggleAttribute('data-cinnamon-full', this.isFull());
@@ -84,6 +93,7 @@ class FullWidth {
 
   readonly sync = (): void => {
     this.s.queued = false;
+    if (this.s.disposed) return;
     try {
       if (this.isFull()) this.root.setAttribute('data-cinnamon-width', 'full');
       else this.root.removeAttribute('data-cinnamon-width');
@@ -97,6 +107,7 @@ class FullWidth {
   private readonly schedule = (): void => { if (!this.s.queued) { this.s.queued = true; requestAnimationFrame(this.sync); } };
 
   start(): void {
+    this.s.disposed = false;
     cinnamon.settings.onChange(this.sync);
     this.s.observer = new MutationObserver((muts) => {
       if (muts.every((m) => m.target.nodeType === 1 && (m.target as Element).closest('[data-cinnamon-option]'))) return;
@@ -105,13 +116,32 @@ class FullWidth {
     this.s.observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['aria-expanded'] });
     this.sync();
   }
+
+  /** Takes Full width out of the page (hot reload or turned off): everything it added or changed goes back. */
+  dispose(): void {
+    const s = this.s;
+    s.disposed = true;
+    s.observer?.disconnect();
+    s.observer = undefined;
+    this.root.removeAttribute('data-cinnamon-width');
+    document.querySelectorAll('[data-cinnamon-option]').forEach((n) => n.remove());
+    document.querySelectorAll('[data-cinnamon-full]').forEach((n) => n.removeAttribute('data-cinnamon-full'));
+    for (const v of document.querySelectorAll<HTMLElement>('[data-cinnamon-app]')) {
+      v.textContent = v.dataset.cinnamonApp ?? v.textContent;
+      delete v.dataset.cinnamonApp;
+    }
+    for (const [list, fn] of s.listening ?? []) { list.removeEventListener('click', fn, true); delete (list as Listbox).__cinnamonListening; }
+    s.listening = [];
+  }
 }
 
 {
   const page = window as unknown as { __cinnamonFullWidth?: FullWidthState };
   const s = (page.__cinnamonFullWidth ??= {});
   try { s.observer?.disconnect(); } catch {}
-  new FullWidth(s).start();
+  const fullWidth = new FullWidth(s);
+  fullWidth.start();
+  cinnamon.onDispose(() => fullWidth.dispose()); // hot-reloadable
 }
 
 export {}; // a module: its names stay its own (Bun wraps it for the page)

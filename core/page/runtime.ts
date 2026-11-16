@@ -3,6 +3,9 @@
 //   cinnamon.send(type, data)           → the extension's main part (bundled extensions) receives it
 //   cinnamon.settings.get(key) / .set(key, value) / .all() / .onChange(fn)
 //                                        → per-extension settings, saved in ~/.config/claude-cinnamon/config.json
+//   cinnamon.onDispose(fn)              → clean-up (observers, timers, listeners, added elements). An extension that
+//                                         registers any is hot-reloaded: when its code changes or it is turned off,
+//                                         Cinnamon runs these and swaps it in place instead of reloading the window.
 // Loading it again (each apply) keeps the settings and listeners it had.
 //
 // It also hands the Code tab's colours over to Claude Code's theme API (see core/lib/CodeTabLook.ts): when the app
@@ -15,6 +18,9 @@ type Settings = Record<string, unknown>;
 /** Per mode: app variable → the value the current look gives it. */
 type LookPrint = Partial<Record<'dark' | 'light', Record<string, string>>>;
 type Listener = (settings: Settings) => void;
+type Disposer = () => void;
+/** What dispose returns when it took an extension out (anything else: the window must be reloaded). */
+const DISPOSED = 'cinnamon:disposed';
 
 interface PageWindow { __cinnamon?: CinnamonRuntime; __cmLookWatch?: { observer: MutationObserver; timer: number } }
 const page = window as unknown as PageWindow;
@@ -38,6 +44,7 @@ class ExtensionApi {
   readonly settings: ExtensionSettings;
   constructor(readonly id: string) { this.settings = new ExtensionSettings(id); }
   send(msg: string, data?: unknown): void { current().send({ type: 'ext', ext: this.id, msg, data }); }
+  onDispose(fn: Disposer): void { if (typeof fn === 'function') (current().disposers[this.id] ??= []).push(fn); }
 }
 
 const MOD_PALETTE = 'mod-palette';
@@ -47,11 +54,13 @@ const norm = (v: string): string => v.trim().toLowerCase();
 class CinnamonRuntime {
   settings: Record<string, Settings>;
   listeners: Record<string, Listener[]>;
+  disposers: Record<string, Disposer[]>;
   look: LookPrint | null;
 
   constructor(previous?: Partial<CinnamonRuntime>) {
     this.settings = previous?.settings ?? {};
     this.listeners = previous?.listeners ?? {};
+    this.disposers = previous?.disposers ?? {};
     this.look = previous?.look ?? null;
   }
 
@@ -102,6 +111,19 @@ class CinnamonRuntime {
   }
 
   reset(id: string): void { this.listeners[id] = []; }
+
+  /**
+   * Takes an extension's page code out: runs its clean-up, newest first, and forgets its listeners. Only for an
+   * extension that registered clean-up (returns DISPOSED); otherwise false, and Cinnamon reloads the window.
+   */
+  dispose(id: string): string | false {
+    const fns = this.disposers[id] || [];
+    if (!fns.length) return false;
+    delete this.disposers[id];
+    for (const fn of [...fns].reverse()) { try { fn(); } catch (e) { console.warn(`cinnamon: extension ${id} clean-up failed`, e); } }
+    this.listeners[id] = [];
+    return DISPOSED;
+  }
 
   api(id: string): ExtensionApi { return new ExtensionApi(id); }
 }

@@ -19,6 +19,8 @@ export const fingerprintOf = (loaded: Map<string, LoadedExt> | undefined): strin
   [...(loaded || new Map<string, LoadedExt>())].map(([id, l]) => `${id}:${l.sig}:${l.cssSig}:${l.main || ''}`).join('|');
 
 // Page code runs with its own `cinnamon` api, after its old listeners are dropped; a failure stays inside it.
+/** What the page runtime's dispose returns when it took an extension out. */
+const DISPOSED = 'cinnamon:disposed';
 const wrap = (id: string, code: string): string => `(() => { const cinnamon = window.__cinnamon.api(${JSON.stringify(id)}); window.__cinnamon.reset(${JSON.stringify(id)});
 try {
 ${code}
@@ -85,17 +87,23 @@ export class ExtensionHost {
   }
 
   /**
-   * Runs page code of enabled extensions not yet run in this view and swaps in their css; returns true if the view
-   * needs a reload instead (an extension was turned off, or its code changed: page code can't be un-run).
+   * Runs page code of enabled extensions not yet run in this view and swaps in their css. An extension turned off,
+   * or whose page code changed, is taken out in place when it registered clean-up (cinnamon.onDispose: hot reload),
+   * then run again if still on; returns true if the view needs a reload instead (page code without clean-up can't be
+   * un-run).
    */
   async applyTo(wc: WebContents): Promise<boolean> {
     const state = this.state;
     const loaded = state.extLoaded!;
     const ran = state.ran.get(wc.id) || new Map<string, string>();
     state.ran.set(wc.id, ran);
-    for (const [id, sig] of ran) {
+    for (const [id, sig] of [...ran]) {
       const l = loaded.get(id);
-      if (!l || l.sig !== sig) return true;
+      if (l && l.sig === sig) continue;
+      const out = await wc.executeJavaScript(`window.__cinnamon?.dispose?.(${JSON.stringify(id)})`).catch(() => false);
+      if (out !== DISPOSED) return true;
+      ran.delete(id);
+      this.log(`extension ${id}: ${l ? 'hot-reloaded' : 'taken out'} without a reload`);
     }
     const had = state.extKeys.get(wc.id) || new Map<string, string[]>();
     const next = new Map<string, string[]>();

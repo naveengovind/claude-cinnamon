@@ -77,8 +77,9 @@ optionally followed by `#<folder>`. Private repos work with your normal git cred
 
 Your settings live in `~/.config/claude-cinnamon/`: `config.json`, `themes/`, `extensions/`, `data/`, `logs/`, and
 the built helper (`helper/`, kept here so upgrades don't make macOS ask for its permission again).
-Changes to any of them apply to a running Claude within a second. (Turning off an extension that has page code
-reloads Claude's window, since page code can't be taken out of a running page.)
+Changes to any of them apply to a running Claude within a second, with no restart. Extensions hot-reload: editing
+one's code, or turning it off, swaps it in place when it cleans up after itself (`cinnamon.onDispose`, below; the
+built-in ones do). One that doesn't makes Claude's window reload instead, since its page code can't be taken out.
 
 ## Themes
 
@@ -155,6 +156,17 @@ loads, with a `cinnamon` object (types: `types/cinnamon.d.ts`):
 cinnamon.settings.get('key');            // this extension's settings (saved in config.json)
 cinnamon.settings.set('key', value);
 cinnamon.settings.onChange((all) => …);
+cinnamon.onDispose(() => …);             // undo what you added: observers, timers, listeners, elements
+```
+
+Register clean-up with `cinnamon.onDispose` and the extension hot-reloads: save a change to its files and Cinnamon
+runs your clean-up and then the new code, in place, without reloading Claude's window. For example:
+
+```ts
+const badge = Object.assign(document.createElement('div'), { textContent: 'Hello' });
+document.body.append(badge);
+const timer = setInterval(() => { /* … */ }, 1000);
+cinnamon.onDispose(() => { badge.remove(); clearInterval(timer); });
 ```
 
 Built-in extensions may also have a `main` part (`.ts` or `.cjs`) that runs in Claude's main process (the sidebar

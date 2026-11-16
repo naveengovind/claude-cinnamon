@@ -11,4 +11,10 @@ declare const cinnamon: {
     all(): Record<string, unknown>;
     onChange(fn: (settings: Record<string, unknown>) => void): void;
   };
+  /**
+   * Clean-up for when the extension is taken out of the page: disconnect observers, clear timers, remove listeners
+   * and elements you added. An extension that registers clean-up is hot-reloaded: when its code changes or it is
+   * turned off, Cinnamon runs this and swaps it in place instead of reloading Claude's window.
+   */
+  onDispose(fn: () => void): void;
 };

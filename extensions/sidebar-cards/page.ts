@@ -1,3 +1,4 @@
+/// <reference path="../../types/cinnamon.d.ts" />
 // Sidebar session cards. Runs inside the claude.ai page (an extension's page code).
 // Adds a context line (.cm-top: folder · status chip · age or Working timer) and a detail line (.cm-bottom: branch ·
 // model) to each code-session row, plus a small label menu (.cm-menu). It creates, updates and removes only its own
@@ -16,6 +17,8 @@ interface CardsState {
   escape?: (e: KeyboardEvent) => void;
   relist?: number;
   ticker?: number;
+  /** Taken out (hot reload or turned off): a frame already queued does nothing. */
+  disposed?: boolean;
 }
 interface CardsWindow {
   __cmState?: CardsState;
@@ -187,6 +190,7 @@ class CardDecorator {
 
   readonly decorate = (): void => {
     this.state.queued = false;
+    if (this.state.disposed) return;
     for (const r of document.querySelectorAll(ROW)) {
       const card = r.querySelector('[data-row]');
       const button = r.querySelector('[data-row-main-button]');
@@ -241,8 +245,30 @@ class CardDecorator {
     }
   }
 
+  /** Takes the cards out of the page (hot reload or turned off). The data stays, so a new run shows it at once. */
+  dispose(): void {
+    const { state, win } = this;
+    state.disposed = true;
+    this.menu.close();
+    state.observer?.disconnect();
+    state.observer = null;
+    state.list = null;
+    state.queued = false;
+    if (state.relist) win.clearInterval(state.relist);
+    if (state.ticker) win.clearInterval(state.ticker);
+    state.relist = undefined;
+    state.ticker = undefined;
+    document.querySelectorAll(OURS).forEach((n) => n.remove());
+    document.querySelectorAll('[data-cm-card]').forEach((n) => n.removeAttribute('data-cm-card'));
+    delete win.__cmTick;
+    delete win.__cmSetMeta;
+    delete win.__cmTakeLabelChanges;
+    delete win.__cmStats;
+  }
+
   start(): void {
     const { state, win } = this;
+    state.disposed = false;
     // The list itself can be replaced (mode switch, navigation): re-find it periodically.
     if (!state.relist) state.relist = win.setInterval(() => { if (!state.list || !state.list.isConnected) { state.list = null; this.schedule(); } }, 2000);
     if (!state.ticker) state.ticker = win.setInterval(() => win.__cmTick && win.__cmTick(), 1000);
@@ -270,7 +296,9 @@ class CardDecorator {
   const state = (win.__cmState ??= { meta: {}, observer: null, list: null, queued: false, pending: {}, overrides: {} });
   state.pending ??= {};
   state.overrides ??= {};
-  new CardDecorator(state, win).start();
+  const cards = new CardDecorator(state, win);
+  cards.start();
+  if (typeof cinnamon !== 'undefined') cinnamon.onDispose(() => cards.dispose()); // hot-reloadable
 }
 
 export {}; // a module: its names stay its own (Bun wraps it for the page)

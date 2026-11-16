@@ -103,3 +103,21 @@ test('nothing is added without the Transcript width row', async () => {
   await tick(w);
   assert.strictEqual(full(w), null);
 });
+
+// Hot reload: Full width takes itself out completely.
+test('disposing Full width removes its option, its mark and the value it showed', async () => {
+  const w = page({ width: 'full' });
+  await openList(w);
+  assert.ok(full(w));
+  assert.strictEqual(w.document.querySelector('#pop-trigger-value').textContent, 'Full');
+  assert.strictEqual(w.__cinnamon.dispose('full-width'), 'cinnamon:disposed');
+  assert.strictEqual(full(w), null);
+  assert.strictEqual(w.document.documentElement.hasAttribute('data-cinnamon-width'), false);
+  assert.strictEqual(w.document.querySelector('[role=listbox]').hasAttribute('data-cinnamon-full'), false);
+  assert.strictEqual(w.document.querySelector('#pop-trigger-value').textContent, 'Wide');
+  // nothing reacts any more
+  w.document.querySelector('[role=combobox]').setAttribute('aria-expanded', 'false');
+  w.document.querySelector('[role=combobox]').setAttribute('aria-expanded', 'true');
+  await tick(w);
+  assert.strictEqual(full(w), null);
+});
