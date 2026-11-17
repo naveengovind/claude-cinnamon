@@ -1,9 +1,9 @@
-// Cinnamon colours: a Claude Code mod that paints the Claude desktop app's Code tab with the colour scheme picked in
-// Cinnamon, through the app's own theme API ($.theme.set). Cinnamon does the colour work: it turns the picked theme
-// into the app's colour data and writes it to look.json in this folder as { id, colors }, or { id: null } when the
+// Cinnamon colors: a Claude Code mod that paints the Claude desktop app's Code tab with the color scheme picked in
+// Cinnamon, through the app's own theme API ($.theme.set). Cinnamon does the color work: it turns the picked theme
+// into the app's color data and writes it to look.json in this folder as { id, colors }, or { id: null } when the
 // scheme is one only Cinnamon can paint (Default, Glass). This mod passes that on and follows changes. The desktop app
 // copies local plugins to the SSH hosts its Code sessions run on, so the look travels with the mod there. While the app paints a mod theme it marks the page (data-cds-theme="mod-palette"), and Cinnamon's own
-// colours step aside there, so the two never fight.
+// colors step aside there, so the two never fight.
 //
 // Installed by `cinnamon install` into ~/.claude/skills/cinnamon-colors (a plugin there loads in every session) and
 // removed by `cinnamon uninstall`. Where nothing draws themes (the terminal, VS Code, a host without Cinnamon's

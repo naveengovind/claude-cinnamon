@@ -1,10 +1,10 @@
-// Themes: JSON colour schemes turned into CSS that overrides the Claude page's own colour variables.
+// Themes: JSON color schemes turned into CSS that overrides the Claude page's own color variables.
 // Pure: no files, no Electron. Used by the main process (through ThemeStore) and by `cinnamon theme install`.
 //
-// A theme file:  { "name", "description", "dark": { <key>: colour, …, "vars": { "--any-var": value } },
+// A theme file:  { "name", "description", "dark": { <key>: color, …, "vars": { "--any-var": value } },
 //                  "light": { … }, "css": "extra CSS", "window": { "vibrancy": "<macOS material>" } }
 // Keys are the names in TOKENS; each sets every app variable listed for it. A missing key, or a missing mode
-// section, leaves Claude's own colour. Values that could escape a declaration are rejected.
+// section, leaves Claude's own color. Values that could escape a declaration are rejected.
 
 export type ModeName = 'dark' | 'light';
 export type ModeSection = Record<string, unknown> & { vars?: Record<string, unknown> };
@@ -21,7 +21,7 @@ export interface WindowOptions { vibrancy: string }
 export interface ThemeCss { css: string; errors: string[] }
 export interface ThemeCssOptions {
   /**
-   * The colour keys the theme's Code-tab look carries (CodeTabLook.KEYS), painted by Claude Code's own theme API:
+   * The color keys the theme's Code-tab look carries (CodeTabLook.KEYS), painted by Claude Code's own theme API:
    * they step aside wherever the app paints this theme's look (the Code tab: Cinnamon's page code marks the root with
    * data-cinnamon-code-tab="mod" when the app's mod palette is the current look), so the two never fight. A palette
    * that isn't the current look gets painted over. Every other key (sidebar, popover, borders, buttons, code
@@ -34,7 +34,7 @@ export const MOD_PAINTED = '[data-cinnamon-code-tab="mod"]';
 /** A selector that matches nothing at or under that mark. (Not @scope: Chrome's leaves out the <html> root.) */
 export const outsideModPalette = (sel: string): string => `${sel}:not(${MOD_PAINTED}, ${MOD_PAINTED} *)`;
 
-// Named colour keys → the app's CSS custom properties (Claude desktop, Nov 2026, "cds" design system).
+// Named color keys → the app's CSS custom properties (Claude desktop, Nov 2026, "cds" design system).
 // Anchoring on variables, not elements, keeps themes working when the app's markup changes; a variable the app
 // stops using simply has no effect.
 export const TOKENS: Readonly<Record<string, readonly string[]>> = {
@@ -74,7 +74,7 @@ export const TOKENS: Readonly<Record<string, readonly string[]>> = {
 };
 
 // Keys painted on particular elements rather than the page root: selector → properties, per mode.
-// Code panels and code blocks take their colours from the user's code theme, set inline on the element; an
+// Code panels and code blocks take their colors from the user's code theme, set inline on the element; an
 // !important stylesheet rule beats a normal inline declaration.
 interface Scoped { sel(mode: ModeName): string; props(mode: ModeName): string[] }
 const SCOPED: Readonly<Record<string, Scoped>> = {
@@ -88,8 +88,8 @@ const MODES: Readonly<Record<ModeName, { roots: string[]; system: string }>> = {
   light: { roots: ['[data-mode="light"]'], system: 'light' },
 };
 
-// Colour values: plain characters only (no quotes, backslashes, comments or ; { } < > : @), balanced brackets, and the
-// only functions allowed are colour ones — so a value can't load anything (url(), image-set()…) or break the sheet.
+// Color values: plain characters only (no quotes, backslashes, comments or ; { } < > : @), balanced brackets, and the
+// only functions allowed are color ones — so a value can't load anything (url(), image-set()…) or break the sheet.
 const COLOR_FUNCS = new Set(['rgb', 'rgba', 'hsl', 'hsla', 'hwb', 'lab', 'lch', 'oklab', 'oklch', 'color', 'color-mix',
   'var', 'calc', 'min', 'max', 'clamp', 'light-dark']);
 // Extra css: no escapes, nothing that can load or embed anything.
@@ -103,7 +103,7 @@ const VAR_NAME = /^--[A-Za-z0-9_-]+$/;
 export class ThemeEngine {
   static readonly TOKENS = TOKENS;
 
-  /** A colour value that can't escape its declaration or load anything. */
+  /** A color value that can't escape its declaration or load anything. */
   static safeValue(v: unknown): v is string {
     if (typeof v !== 'string') return false;
     const s = v.trim();
@@ -124,7 +124,7 @@ export class ThemeEngine {
     return null;
   }
 
-  /** Whether a colour lets what's behind it show through (an alpha under 1, `transparent`, a mix with it). */
+  /** Whether a color lets what's behind it show through (an alpha under 1, `transparent`, a mix with it). */
   static isSeeThrough(v: unknown): boolean {
     if (typeof v !== 'string') return false;
     const s = v.trim().toLowerCase();
@@ -142,7 +142,7 @@ export class ThemeEngine {
   }
 
   /**
-   * Advice, not errors: see-through colours on surfaces that cover each other darken where they overlap (bands and
+   * Advice, not errors: see-through colors on surfaces that cover each other darken where they overlap (bands and
    * boxes, around the message box most of all). `transparent` is fine: it adds no coat.
    */
   static notes(theme: Theme | null | undefined): string[] {
@@ -190,7 +190,7 @@ export class ThemeEngine {
         if (!yielding && ThemeEngine.isSeeThrough(theme[mode]!.background)) {
           // The app paints the chat background again on strips around the message box (the sticky strip under it,
           // the dock mask while text scrolls under it, the scroll fades); with nothing else painting the chat area,
-          // a see-through colour there shows as dark bands. Those strips go transparent instead.
+          // a see-through color there shows as dark bands. Those strips go transparent instead.
           const clear = '--epitaxy-transcript-surface: transparent !important;';
           root.push(clear);
           scoped.set('[class*="--epitaxy-transcript-surface:"]', [clear]);
@@ -218,7 +218,7 @@ export class ThemeEngine {
     const scoped = new Map<string, string[]>(); // selector → declarations
     for (const [key, value] of Object.entries(section || {})) {
       if (key === 'vars' || !keep(key)) continue;
-      if (!(key in TOKENS)) { errors.push(`${mode}: unknown colour key "${key}"`); continue; }
+      if (!(key in TOKENS)) { errors.push(`${mode}: unknown color key "${key}"`); continue; }
       if (!ThemeEngine.safeValue(value)) { errors.push(`${mode}.${key}: rejected value ${JSON.stringify(value)}`); continue; }
       const v = value.trim();
       for (const name of TOKENS[key]!) root.push(`${name}: ${v} !important;`);

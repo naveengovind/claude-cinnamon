@@ -5,9 +5,9 @@ re-applies everything at each launch through the app's own Developer → Enable 
 the app bundle is modified (its asar integrity check rules that out).
 
 ## Decisions (from the user)
-- Themes are JSON files; a config file picks one; `default` = Claude's own colours. Adding a theme = dropping in a file.
+- Themes are JSON files; a config file picks one; `default` = Claude's own colors. Adding a theme = dropping in a file.
 - The theme picker lives in Claude's own Settings → Appearance ("Color scheme" row), not the menu bar.
-- Theme colours apply everywhere it makes sense: page, sidebar, dialogs, dropdowns, menus, tabs, fields, buttons.
+- Theme colors apply everywhere it makes sense: page, sidebar, dialogs, dropdowns, menus, tabs, fields, buttons.
   Native macOS menus (menu bar, right-click) can't be themed.
 - Features like the sidebar cards become extensions; extensions install from GitHub links.
 - Downloaded extensions are page-only (page JS + CSS). Only bundled extensions may have a main-process part.
@@ -35,9 +35,9 @@ the app bundle is modified (its asar integrity check rules that out).
   "light": { … },
   "css": "optional extra CSS" }
 ```
-Named colour keys map to the app's variables (one key → several variables); a missing key keeps Claude's colour;
+Named color keys map to the app's variables (one key → several variables); a missing key keeps Claude's color;
 `vars` sets any variable directly. A mode section that is absent leaves that mode untouched. Values are any CSS
-colour; anything containing `;`, `{`, `}` or `<` is rejected so one typo can't break the stylesheet.
+color; anything containing `;`, `{`, `}` or `<` is rejected so one typo can't break the stylesheet.
 
 Applying: the main process turns the selected theme into CSS and inserts it into every claude.ai view (its own
 insertCSS key, separate from the base CSS), re-applied on reload. `config.json` and the theme folders are watched,
@@ -89,12 +89,12 @@ hash matches, and an existing helper built from the same source is kept, so macO
 Claude Code mods (plugins with a hooks module, loaded in every Code session) can draw panes, rewrite tool calls and
 paint the desktop app's Code tab through `$.theme.set({ colors })`. They can't reach the Chat tab, Settings, the
 sidebar's session list, the transcript's width, page CSS or the window's material. So:
-- **The Code tab's colours are a mod's.** `CodeTabLook` maps the picked theme onto `makeColors` anchors (the same
+- **The Code tab's colors are a mod's.** `CodeTabLook` maps the picked theme onto `makeColors` anchors (the same
   pairing as `ThemeEngine.TOKENS`: background-deep → surface-0, background → surface-1, raised → surface-2,
   panel → surface-3, text levels, accent/danger/success), drops anchors in a fixed order until the app's contrast
   check passes, and the main process writes the result to `look.json` inside the installed mod
   (`~/.claude/skills/cinnamon-colors/`). The mod polls it every 2 s and calls `$.theme.set` once an app that paints
-  themes is attached (`$.session.surfaces()`), and `$.theme.clear` (only for colours it set, remembered in
+  themes is attached (`$.session.surfaces()`), and `$.theme.clear` (only for colors it set, remembered in
   `$.store`) when the picked theme has no look (Default, Glass).
 - **The handoff is exact.** The app marks the page's root `data-cds-theme="mod-palette"` while a mod palette stands
   (Code tab only). Cinnamon's page code compares a few of the app's variables that Cinnamon never sets
@@ -149,7 +149,7 @@ already read Claude's data on disk, so this adds little, and the switch is there
 Cards go on every Code row (`code:local_…` for this Mac and SSH, `code:session_…` for cloud). Data comes from the
 app's session files and Claude Code's log, or, for an SSH session, the copy of its log the app keeps in
 `~/.claude/projects/ssh-<id>/` (branch); a session with no file here gets the place the app shows (Cloud, an
-environment). *Working* follows the app's own status: the row's `[data-session-status]` / status icon labelled
+environment). *Working* follows the app's own status: the row's `[data-session-status]` / status icon labeled
 "Running" (not the pulsing dot, which also marks an unread response), timed from the log's last prompt when there
 is one and otherwise from when the app first showed it running (kept in localStorage). The status chips and the
 label picker were removed as clutter: the app shows its own status.

@@ -56,7 +56,7 @@ Claude's window is a React app that re-renders and changes between versions:
 - Add your own elements (marked with a class or `data-` attribute of yours) rather than changing the app's; watch
   with a `MutationObserver` to put them back after a re-render, and ignore mutations of your own nodes so you don't
   loop.
-- Prefer CSS for looks; use code for behaviour.
+- Prefer CSS for looks; use code for behavior.
 
 ## Check
 

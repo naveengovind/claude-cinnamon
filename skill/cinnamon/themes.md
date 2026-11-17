@@ -8,17 +8,17 @@ window) or `{{ROOT}}/themes/ember.json` (an animated backdrop under one veil: ho
 ```json
 {
   "name": "Dusk",
-  "description": "Blue-grey",
+  "description": "Blue-gray",
   "dark":  { "background": "#101018", "sidebar": "#14141d", "popover": "#22222e", "text": "#f2f2f7", "accent": "#5b8cff" },
   "light": { "background": "#fbfbfd" }
 }
 ```
 
-A section per mode (`dark`, `light`). A missing section or key keeps Claude's own colour, so a dark-only theme
-leaves light mode alone. Values are CSS colours: hex, names, `rgb`/`hsl`/`oklch`/`color-mix`/`var`/`calc`/
+A section per mode (`dark`, `light`). A missing section or key keeps Claude's own color, so a dark-only theme
+leaves light mode alone. Values are CSS colors: hex, names, `rgb`/`hsl`/`oklch`/`color-mix`/`var`/`calc`/
 `light-dark`…
 
-| Key | Colours |
+| Key | Colors |
 | --- | --- |
 | `background`, `background-deep`, `frame` | the chat area, the deepest wells, the frame behind the main area |
 | `sidebar`, `text-sidebar` | the sidebar and its text |
@@ -36,24 +36,24 @@ Also:
 - `"window": { "vibrancy": "under-window" }` makes the window a macOS glass material (needs transparent
   `background`/`frame`/`panel`/`sidebar`, as in glass.json).
 
-## See-through themes: don't stack the colour
+## See-through themes: don't stack the color
 
-Use opaque colours (six-digit hex) unless the user asks for something see-through: glass, transparency, or an
-animated or picture background showing through. See-through colours are where themes go wrong.
+Use opaque colors (six-digit hex) unless the user asks for something see-through: glass, transparency, or an
+animated or picture background showing through. See-through colors are where themes go wrong.
 
-**Why:** the app paints the same colour on layers that sit on top of each other. For example, the chat area's colour
+**Why:** the app paints the same color on layers that sit on top of each other. For example, the chat area's color
 is painted again on a strip under the message box, on the message box's dock while text scrolls under it, and on the
-scroll fades. With an opaque colour those layers are invisible. With a see-through one, every extra layer adds
+scroll fades. With an opaque color those layers are invisible. With a see-through one, every extra layer adds
 another coat, so the doubled-up places show as darker bands and boxes. The area around the message box is where it
 shows most.
 
 Cinnamon already makes those three layers (the strip, the dock and the fades) transparent whenever `background` is
 see-through. Everything else is up to the theme:
 
-1. **Tint once.** Paint the see-through colour, or the picture or animation, in one place: `body` in `css`, as
+1. **Tint once.** Paint the see-through color, or the picture or animation, in one place: `body` in `css`, as
    glass.json does, or a fixed `body::before` layer with `z-index: -1` and `pointer-events: none`. Then make the big
    surfaces that cover the window `transparent`, not see-through: `background`, `background-deep`, `frame` and
-   `panel`, and `sidebar` if the backdrop should show there too. A colour like `#1a0902a6` on `background` *and*
+   `panel`, and `sidebar` if the backdrop should show there too. A color like `#1a0902a6` on `background` *and*
    `panel` *and* `sidebar` stacks.
 2. **Keep the things you read off nearly solid**: `popover` (menus and the message box) and `raised` (dialogs, cards)
    at about 90% opacity or more (`e6`–`f2` in eight-digit hex). Use `code-background` and `hover`/`selected` as light
@@ -69,11 +69,11 @@ the message box area with text behind it, the sidebar edge, and text over the br
 
 ## The Code tab
 
-The Code tab's main colours go through Claude Code's own theme API: Cinnamon converts the theme and its
+The Code tab's main colors go through Claude Code's own theme API: Cinnamon converts the theme and its
 `cinnamon-colors` mod hands it to the app in local Code sessions, and Cinnamon still paints the rest (sidebar,
 popovers, borders, hover, buttons, code panels, `vars`, `css`). What carries over: `background-deep`,
 `background`, `raised`, `panel`, `text`, `text-secondary`, `text-muted`, `accent`, `danger`, `success`, as
-six-digit or three-digit hex only. The app refuses text that's too faint; Cinnamon then leaves that colour to the app
+six-digit or three-digit hex only. The app refuses text that's too faint; Cinnamon then leaves that color to the app
 (`{{CINNAMON}} doctor` lists which). Optional:
 - `"codeTab": false` keeps the Code tab entirely Cinnamon's.
 - `"codeTab": { "dark": { "gray": { "anchors": { "surface-0": "#…", "surface-1": "#…", "surface-2": "#…",
@@ -85,6 +85,6 @@ six-digit or three-digit hex only. The app refuses text that's too faint; Cinnam
 
 `{{CINNAMON}} theme` lists it (an error is shown next to a broken file), `{{CINNAMON}} doctor` names rejected keys
 or values, and `{{CINNAMON}} status` shows the current theme. `{{CINNAMON}} theme <id>` prints `not applied:` for
-anything rejected and `note:` for see-through colours that stack. Fix every note before you're done; each one is a
+anything rejected and `note:` for see-through colors that stack. Fix every note before you're done; each one is a
 band or box the user would see. Then take a screenshot and look: a note-free theme can still be hard to read. Keep text readable: aim for 7:1 contrast for `text`
 on `background`, and 4.5:1 for `text-muted`.

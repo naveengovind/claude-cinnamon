@@ -39,7 +39,7 @@ test('a Cellar path is kept when there is no opt/ link to use instead', () => {
   assert.strictEqual(Homebrew.stablePath(p), p);
 });
 
-test('a Homebrew install is recognised from its Cellar or opt/ path, and only with a brew next to it', () => {
+test('a Homebrew install is recognized from its Cellar or opt/ path, and only with a brew next to it', () => {
   const h = prefix();
   assert.strictEqual(Homebrew.prefixOf(h.cellarBin), h.p);
   assert.strictEqual(Homebrew.prefixOf(h.optBin), h.p);

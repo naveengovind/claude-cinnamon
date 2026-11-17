@@ -221,7 +221,7 @@ test('switching to a theme with rejected keys or values says which, so they can 
   const r = run(h, 'theme', 'bad');
   assert.strictEqual(r.code, 0);
   assert.match(r.out, /dark\.background: rejected value/);
-  assert.match(r.out, /unknown colour key "nope"/);
+  assert.match(r.out, /unknown color key "nope"/);
 });
 
 test('doctor names rejected keys and values in any theme', () => {
@@ -229,7 +229,7 @@ test('doctor names rejected keys and values in any theme', () => {
   fs.mkdirSync(path.join(h, 'themes'), { recursive: true });
   fs.writeFileSync(path.join(h, 'themes', 'bad.json'), JSON.stringify({ name: 'Bad', dark: { nope: '#fff' }, window: { vibrancy: 'shiny' } }));
   const r = run(h, 'doctor');
-  assert.match(r.out, /theme bad: dark: unknown colour key "nope"/);
+  assert.match(r.out, /theme bad: dark: unknown color key "nope"/);
   assert.match(r.out, /theme bad: .*window\.vibrancy/);
 });
 
@@ -245,7 +245,7 @@ test('ext list and doctor show the errors Claude recorded for an extension', () 
   assert.match(run(h, 'doctor').out, /extension demo: TypeError: boom/);
 });
 
-test('switching to a theme that stacks see-through colours notes which ones, and how to fix it', () => {
+test('switching to a theme that stacks see-through colors notes which ones, and how to fix it', () => {
   const h = home();
   fs.mkdirSync(path.join(h, 'themes'), { recursive: true });
   fs.writeFileSync(path.join(h, 'themes', 'haze.json'), JSON.stringify({ name: 'Haze', dark: { background: '#1a0902a6', panel: '#1d0a028c', sidebar: '#140600b3', text: '#fff' } }));

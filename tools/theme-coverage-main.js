@@ -1,5 +1,5 @@
 // Main process: theme coverage check. Opens each menu, dropdown, dialog and side panel it can find, and reports
-// opaque neutral colours that are not in the active theme's palette, with the CSS variables those elements use.
+// opaque neutral colors that are not in the active theme's palette, with the CSS variables those elements use.
 // Usage: CM_PALETTE="#111111,#151515,…" substituted for __PALETTE__ by the caller.
 (async () => {
   const { webContents } = require('electron');

@@ -23,13 +23,13 @@ export class ThemeApplier {
     try { state.theme = this.store.resolve(this.config); }
     catch (e) { state.theme = { current: 'default', css: '', window: null, errors: [String(e)], themes: [], look: null }; }
     for (const e of state.theme.errors || []) this.log('theme:', e);
-    // the mod paints the Code tab through Claude Code's theme API; Cinnamon's colours step aside there (ThemeEngine)
+    // the mod paints the Code tab through Claude Code's theme API; Cinnamon's colors step aside there (ThemeEngine)
     // (only into an installed mod: without it Cinnamon paints the Code tab, as the theme CSS never steps aside)
     try { if (fs.existsSync(path.join(this.modDir, '.claude-plugin', 'plugin.json'))) CodeTabLook.write(path.join(this.modDir, CodeTabLook.FILE), state.theme.look ?? null); }
     catch (e) { this.log('code tab look:', e); }
   }
 
-  /** Inserts the new theme css before removing the old one, so the page never flashes the app's own colours. */
+  /** Inserts the new theme css before removing the old one, so the page never flashes the app's own colors. */
   async applyTo(wc: WebContents): Promise<void> {
     const state = this.state;
     const css = state.theme?.css || '';

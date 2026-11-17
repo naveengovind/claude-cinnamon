@@ -1,12 +1,12 @@
-// The Code tab's colours, handed to Claude Code's own theme API. Claude Code mods can paint the desktop app's Code tab
+// The Code tab's colors, handed to Claude Code's own theme API. Claude Code mods can paint the desktop app's Code tab
 // ($.theme.set), so Cinnamon leaves that to its small mod (mod/cinnamon-colors) and only paints what mods can't. This
-// turns a Cinnamon theme into the colour data the app paints (through makeColors, the design system's own builder
+// turns a Cinnamon theme into the color data the app paints (through makeColors, the design system's own builder
 // that Claude Code ships for mods) and writes it where the mod reads it. Pure apart from `write`. No Electron.
 //
 // A theme maps itself the way its keys already map to the app's variables (ThemeEngine.TOKENS): background-deep →
 // surface-0 (or background when absent), background → surface-1, raised → surface-2, panel → surface-3,
 // text / text-secondary / text-muted, and accent / danger / success as roles. Only hex
-// colours carry over. The app refuses a whole theme whose text fails its contrast bar, so anchors are dropped (in the
+// colors carry over. The app refuses a whole theme whose text fails its contrast bar, so anchors are dropped (in the
 // order below) until it paints; the design system fills a dropped one in. A theme can give its own makeColors input
 // as "codeTab": { … }, or opt out with "codeTab": false. A theme with a window material (Glass) has no look: mods
 // can't make the window see-through, so Cinnamon keeps painting it everywhere.
@@ -16,7 +16,7 @@ import type { Theme } from './ThemeEngine';
 import { makeColors, type Anchors, type MakeColorsDefinition, type Mode, type Roles } from './vendor/make-colors.js';
 
 export interface Look {
-  /** `<theme id>:<hash of the colours>`: the mod sets the theme again when it changes. */
+  /** `<theme id>:<hash of the colors>`: the mod sets the theme again when it changes. */
   id: string;
   /** What `$.theme.set({ colors })` takes. */
   colors: unknown;
@@ -46,7 +46,7 @@ function hex(v: unknown): string | null {
   return null;
 }
 
-/** FNV-1a, 32 bits: a short, stable id for a colour set (no crypto needed in Claude's main process). */
+/** FNV-1a, 32 bits: a short, stable id for a color set (no crypto needed in Claude's main process). */
 function hash(s: string): string {
   let h = 0x811c9dc5;
   for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
@@ -54,7 +54,7 @@ function hash(s: string): string {
 }
 
 export class CodeTabLook {
-  /** The theme keys a look carries: where the app paints the look, Cinnamon's colours for these step aside. */
+  /** The theme keys a look carries: where the app paints the look, Cinnamon's colors for these step aside. */
   static readonly KEYS: ReadonlySet<string> = new Set([...Object.keys(ANCHORS), ...ROLES]);
   /** In the mod's own folder (~/.claude/skills/cinnamon-colors/look.json), where the mod reads it. */
   static readonly FILE = 'look.json';
@@ -106,7 +106,7 @@ export class CodeTabLook {
       const { theme, problems } = makeColors(def);
       const refused = problems.find((p) => p.startsWith(REFUSED));
       if (refused) return { look: null, reason: refused };
-      // A half the theme leaves out comes from the design system's own colours, a hair off the app's stock ones
+      // A half the theme leaves out comes from the design system's own colors, a hair off the app's stock ones
       // (#f9f9f7 for #f9f9f9 in light mode); the app paints those even when the half is left out of the data.
       return { look: { id: `${id}:${hash(JSON.stringify(theme))}`, colors: theme, dropped } };
     } catch (e) {
@@ -115,7 +115,7 @@ export class CodeTabLook {
   }
 
   /**
-   * A few of the look's colours, as the app's variables, per mode: how the page recognises that the palette the app
+   * A few of the look's colors, as the app's variables, per mode: how the page recognizes that the palette the app
    * paints is this look (core/page/runtime.ts). Gray-scale and role stops only, which Cinnamon's own CSS never sets.
    */
   static print(look: Look | null): Partial<Record<'dark' | 'light', Record<string, string>>> | null {

@@ -1,7 +1,7 @@
 /// <reference path="../../types/cinnamon.d.ts" />
 // Full width — adds "Full" to Settings → Appearance → Transcript width, next to the app's own widths.
 // The choice is saved as this extension's `width` setting; width.css does the rest when the page is marked
-// data-cinnamon-width="full". Anchors: the settings row labelled "Transcript width", its combobox and the listbox
+// data-cinnamon-width="full". Anchors: the settings row labeled "Transcript width", its combobox and the listbox
 // its popup holds (Base UI, linked by aria-controls). Missing anchors → nothing is added.
 
 interface FullWidthState {

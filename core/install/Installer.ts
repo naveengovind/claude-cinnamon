@@ -67,7 +67,7 @@ export class Installer {
   /** What the login item runs when Claude starts: the install's script, or (standalone) the one in your folder. */
   get launchScript(): string { return this.o.binary ? path.join(this.o.userDir, 'helper', 'autoapply.sh') : path.join(this.o.root, 'core', 'autoapply.sh'); }
   private get launcher(): string { return this.o.binary || path.join(this.o.root, 'bin', 'cinnamon'); }
-  /** The colours mod (mod/cinnamon-colors): a plugin in ~/.claude/skills loads in every Claude Code session. */
+  /** The colors mod (mod/cinnamon-colors): a plugin in ~/.claude/skills loads in every Claude Code session. */
   get modDir(): string { return path.join(this.o.home, '.claude', 'skills', Installer.MOD); }
   static readonly MOD = 'cinnamon-colors';
   /** The cinnamon skill for Claude Code (skill/cinnamon), and the line its SKILL.md carries when Cinnamon put it there. */
@@ -224,7 +224,7 @@ ${o.binary ? `    <key>CINNAMON_BIN</key><string>${xml(o.binary)}</string>` : ` 
   }
 
   /**
-   * The colours mod paints the Code tab through Claude Code's own theme API (Cinnamon's colours step aside there).
+   * The colors mod paints the Code tab through Claude Code's own theme API (Cinnamon's colors step aside there).
    * Its files are overwritten in place and files an older version had are removed: replacing the folder itself would
    * stop running sessions from seeing the change (Claude Code watches the folder and reloads the mod on a save).
    */
@@ -234,7 +234,7 @@ ${o.binary ? `    <key>CINNAMON_BIN</key><string>${xml(o.binary)}</string>` : ` 
     try {
       // look.json is Cinnamon's, written by the main process (CodeTabLook): it stays
       Installer.sync(src, this.modDir, { keep: ['look.json'] });
-      this.log(`Installed the ${Installer.MOD} mod (${this.modDir}): Claude Code paints the Code tab's colours.`);
+      this.log(`Installed the ${Installer.MOD} mod (${this.modDir}): Claude Code paints the Code tab's colors.`);
     } catch (e) {
       this.log(`Could not install the ${Installer.MOD} mod: ${(e as Error).message}. Cinnamon paints the Code tab itself.`);
     }
@@ -301,7 +301,7 @@ ${o.binary ? `    <key>CINNAMON_BIN</key><string>${xml(o.binary)}</string>` : ` 
     } catch { return; }
     fs.rmSync(this.modDir, { recursive: true, force: true });
     fs.rmSync(path.join(this.o.userDir, 'state', 'code-tab-look.json'), { force: true }); // where a 0.3.0 build kept it
-    this.log(`Removed the ${Installer.MOD} mod. If the Code tab keeps its colours, open Settings in the Code tab, search for`);
+    this.log(`Removed the ${Installer.MOD} mod. If the Code tab keeps its colors, open Settings in the Code tab, search for`);
     this.log('"code appearance" and choose Remove colors.');
   }
 

@@ -41,7 +41,7 @@ export class Doctor {
     this.check(!/never appeared/.test(recent), 'Developer menu found at the last launch', 'in Claude: Help → Troubleshooting → Enable Developer Mode');
     const finished = [...recent.matchAll(/apply finished with status (\d+)/g)].pop();
     if (finished) this.check(finished[1] === '0', `last automatic apply ${finished[1] === '0' ? 'succeeded' : 'failed'}`, 'cinnamon logs');
-    // the Code tab's colours: Claude Code's own theme API through the cinnamon-colors mod, else Cinnamon paints them
+    // the Code tab's colors: Claude Code's own theme API through the cinnamon-colors mod, else Cinnamon paints them
     const mod = path.join(os.homedir(), '.claude', 'skills', 'cinnamon-colors', '.claude-plugin', 'plugin.json');
     this.check(fs.existsSync(mod), 'cinnamon-colors mod installed (Claude Code paints the Code tab)', 'cinnamon install');
     this.check(fs.existsSync(path.join(os.homedir(), '.claude', 'skills', 'cinnamon', 'SKILL.md')), 'cinnamon skill installed (Claude Code can theme and extend the app)', 'cinnamon install');

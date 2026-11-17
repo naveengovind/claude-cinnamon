@@ -22,7 +22,7 @@ test('Codex becomes a look the Desktop paints, keeping its near-black surfaces',
   assert.equal(darkInputs(look!)['gray-900'], '#111111');
 });
 
-test('the same theme gives the same id; a colour change gives another', () => {
+test('the same theme gives the same id; a color change gives another', () => {
   const a = CodeTabLook.fromTheme('codex', codex).look!;
   const b = CodeTabLook.fromTheme('codex', codex).look!;
   const c = CodeTabLook.fromTheme('codex', { ...codex, dark: { ...codex.dark, background: '#141414' } }).look!;
@@ -52,7 +52,7 @@ test('"codeTab" as an object is passed to makeColors as it is', () => {
   assert.equal(darkInputs(look!)['gray-900'], '#1f1a15');
 });
 
-test('colours that are not six- or three-digit hex are skipped, and a mode without background and text is left out', () => {
+test('colors that are not six- or three-digit hex are skipped, and a mode without background and text is left out', () => {
   const r = CodeTabLook.fromTheme('t', { dark: { background: 'rgb(1,2,3)', text: '#fff' } });
   assert.equal(r.look, null);
   assert.match(r.reason!, /background and text/);
@@ -65,7 +65,7 @@ const GUARD = ':not([data-cinnamon-code-tab="mod"], [data-cinnamon-code-tab="mod
 /** selector → declarations, for every rule outside @media */
 const rules = (css: string) => [...css.replace(/@media[^{]*\{[\s\S]*?\n\}\n/g, '').matchAll(/([^{}]+)\{([^}]*)\}/g)].map((m) => ({ sels: m[1]!.trim().split(',\n').map((x) => x.trim()), body: m[2]! }));
 
-test('the colours a look carries step aside where the app paints it; the rest stay Cinnamon\'s', () => {
+test('the colors a look carries step aside where the app paints it; the rest stay Cinnamon\'s', () => {
   const { css } = ThemeEngine.css(codex, { yieldKeys: CodeTabLook.KEYS });
   const rs = rules(css);
   const guarded = rs.filter((r) => r.sels.every((x) => x.endsWith(GUARD)));

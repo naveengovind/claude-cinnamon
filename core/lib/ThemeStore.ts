@@ -39,7 +39,7 @@ export class ThemeStore {
       try { files = fs.readdirSync(dir).filter((f) => f.endsWith('.json')); } catch { continue; }
       for (const f of files) {
         const id = f.slice(0, -5);
-        if (id === 'default') continue; // "Default" always means Claude's own colours
+        if (id === 'default') continue; // "Default" always means Claude's own colors
         const file = path.join(dir, f);
         try {
           const t = JSON.parse(fs.readFileSync(file, 'utf8')) as Theme;

@@ -10,13 +10,13 @@ import { readConfig, writeConfig } from '../core/lib/Config';
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'cm-theme-'));
 const write = (dir, name, obj) => fs.writeFileSync(path.join(dir, name), typeof obj === 'string' ? obj : JSON.stringify(obj));
 
-test('a colour key sets every app variable it stands for, in dark mode, with !important', () => {
+test('a color key sets every app variable it stands for, in dark mode, with !important', () => {
   const { css } = themeCss({ dark: { background: '#111111' } });
   for (const v of TOKENS.background) assert.match(css, new RegExp(`${v}: #111111 !important`));
   assert.match(css, /:root\[data-mode="dark"\]/);
 });
 
-test('dark colours also apply when the app follows a dark system setting', () => {
+test('dark colors also apply when the app follows a dark system setting', () => {
   const { css } = themeCss({ dark: { background: '#111111' } });
   assert.match(css, /@media \(prefers-color-scheme: dark\)\s*\{[^@]*\[data-mode="system"\][^}]*--cds-surface-1: #111111/);
 });
@@ -33,13 +33,13 @@ test('a light section is applied to light mode', () => {
   assert.doesNotMatch(css, /data-mode="dark"/);
 });
 
-test('sidebar colours go on the sidebar itself', () => {
+test('sidebar colors go on the sidebar itself', () => {
   const { css } = themeCss({ dark: { sidebar: '#151515', 'text-sidebar': '#dcdcdc' } });
   assert.match(css, /\[data-mode="dark"\] \.dframe-sidebar\s*\{[^}]*background-color: #151515 !important/);
   assert.match(css, /\[data-mode="dark"\] \.dframe-sidebar\s*\{[^}]*--cds-text-primary: #dcdcdc !important/);
 });
 
-test('code-background recolours code panels and blocks, which take their colour from the code theme', () => {
+test('code-background recolors code panels and blocks, which take their color from the code theme', () => {
   const dark = themeCss({ dark: { 'code-background': '#111111' } }).css;
   assert.match(dark, /\[data-mode="dark"\] \[style\*="--code-theme-dark-bg"\]\s*\{[^}]*--code-theme-dark-bg: #111111 !important;[^}]*--code-theme-bg: #111111 !important/);
   const light = themeCss({ light: { 'code-background': '#fafafa' } }).css;
@@ -60,7 +60,7 @@ test('values that could break the stylesheet are rejected and reported', () => {
   assert.strictEqual(errors.length, 3, errors.join('\n'));
 });
 
-test('unknown colour keys are reported, not emitted', () => {
+test('unknown color keys are reported, not emitted', () => {
   const { css, errors } = themeCss({ dark: { backgroud: '#111' } });
   assert.strictEqual(css.includes('#111'), false);
   assert.match(errors[0], /backgroud/);
@@ -146,7 +146,7 @@ test('extra css may not import or load anything from outside (no @import, only d
   assert.match(ok.css, /data:image\/png/);
 });
 
-test('colour values may only use colour functions; urls, quotes, escapes and comments are refused', () => {
+test('color values may only use color functions; urls, quotes, escapes and comments are refused', () => {
   for (const bad of ['url(https://x.example/p.png)', 'image-set("https://x.example/a.png" 1x)', '-webkit-image-set(url(a.png) 1x)', 'u\\72 l(https://x)', 'red /* x', '"red"', 'expression(alert(1))']) {
     const { css, errors } = themeCss({ dark: { background: bad } });
     assert.strictEqual(css.includes('--cds-surface-1'), false, bad);
@@ -166,7 +166,7 @@ test('extra css with escapes, image-set or @font-face is refused', () => {
   }
 });
 
-test('a theme file called default.json is ignored (Default means Claude\'s own colours)', () => {
+test('a theme file called default.json is ignored (Default means Claude\'s own colors)', () => {
   const a = tmp();
   write(a, 'default.json', { name: 'Sneaky' });
   write(a, 'ok.json', { name: 'OK' });
@@ -175,7 +175,7 @@ test('a theme file called default.json is ignored (Default means Claude\'s own c
 
 // See-through themes: the app paints the background again on strips around the message box (the sticky strip under
 // it, the dock mask while text scrolls under it, the scroll fades). Nothing else paints the chat area, so with a
-// see-through colour those strips show as dark bands; Cinnamon makes them transparent.
+// see-through color those strips show as dark bands; Cinnamon makes them transparent.
 test('a see-through background clears the strips the app paints it on again around the message box', () => {
   const { css } = themeCss({ dark: { background: '#1a0902a6' } });
   assert.match(css, /--epitaxy-transcript-surface: transparent !important/);
@@ -190,7 +190,7 @@ test('an opaque background leaves those strips alone', () => {
   }
 });
 
-test('see-through is recognised in the usual colour forms', () => {
+test('see-through is recognized in the usual color forms', () => {
   for (const bg of ['transparent', '#0008', '#1a0902a6', 'rgba(1, 2, 3, 0.5)', 'rgb(1 2 3 / 50%)', 'hsla(10, 20%, 30%, .4)', 'color-mix(in srgb, #000 60%, transparent)']) {
     const { css } = themeCss({ dark: { background: bg } });
     assert.match(css, /--epitaxy-transcript-surface: transparent/, bg);

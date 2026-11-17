@@ -8,11 +8,11 @@
 //                                         Cinnamon runs these and swaps it in place instead of reloading the window.
 // Loading it again (each apply) keeps the settings and listeners it had.
 //
-// It also hands the Code tab's colours over to Claude Code's theme API (see core/lib/CodeTabLook.ts): when the app
+// It also hands the Code tab's colors over to Claude Code's theme API (see core/lib/CodeTabLook.ts): when the app
 // paints a mod palette (data-cds-theme="mod-palette" on the root) and that palette is the current look, the root gets
-// data-cinnamon-code-tab="mod" and Cinnamon's theme colours step aside there. A palette that isn't the current look
+// data-cinnamon-code-tab="mod" and Cinnamon's theme colors step aside there. A palette that isn't the current look
 // (an older one the app still holds, say while only SSH sessions are open) gets no mark, so Cinnamon paints over it.
-// The palette is recognised by a few of the app's gray-scale variables, which Cinnamon's own CSS never sets.
+// The palette is recognized by a few of the app's gray-scale variables, which Cinnamon's own CSS never sets.
 
 type Settings = Record<string, unknown>;
 /** Per mode: app variable → the value the current look gives it. */

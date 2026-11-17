@@ -96,7 +96,7 @@ test('uninstall stops the helper and removes the login item and only its own lin
   assert.ok(s.calls.includes(`launchctl bootout gui/501/${Installer.LABEL}`));
 });
 
-test('install puts the colours mod where Claude Code loads it in every session, replacing an older copy', () => {
+test('install puts the colors mod where Claude Code loads it in every session, replacing an older copy', () => {
   const s = setup();
   fs.cpSync(path.join(REPO, 'mod'), path.join(s.root, 'mod'), { recursive: true });
   const old = path.join(s.home, '.claude', 'skills', 'cinnamon-colors', 'hooks', 'stale.js');
@@ -110,7 +110,7 @@ test('install puts the colours mod where Claude Code loads it in every session, 
   assert.ok(!fs.existsSync(old), 'the old copy is replaced, not merged');
 });
 
-test('uninstall removes the colours mod and its look, and says how to drop colours the app keeps', () => {
+test('uninstall removes the colors mod and its look, and says how to drop colors the app keeps', () => {
   const s = setup();
   fs.cpSync(path.join(REPO, 'mod'), path.join(s.root, 'mod'), { recursive: true });
   s.inst.install();
@@ -120,7 +120,7 @@ test('uninstall removes the colours mod and its look, and says how to drop colou
   assert.ok(s.logs.some((l) => /Remove colors/.test(l)));
 });
 
-test('uninstall leaves a folder of the same name alone when it is not the colours mod', () => {
+test('uninstall leaves a folder of the same name alone when it is not the colors mod', () => {
   const s = setup();
   const other = path.join(s.home, '.claude', 'skills', 'cinnamon-colors');
   fs.mkdirSync(path.join(other, '.claude-plugin'), { recursive: true });

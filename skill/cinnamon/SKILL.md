@@ -1,6 +1,6 @@
 ---
 name: cinnamon
-description: Customize the Claude desktop app itself with Cinnamon (this Mac's themes-and-extensions tool for Claude). Use when the user wants to change how the Claude app looks or behaves - colours, a theme or color scheme, dark/glass looks, the sidebar session cards, full-width transcripts, or a new extension/plugin/tweak for the app's window - or asks to list, switch, create, install, edit, enable, disable or remove Cinnamon themes or extensions, or to check or repair Cinnamon (doctor, status, logs, apply, update).
+description: Customize the Claude desktop app itself with Cinnamon (this Mac's themes-and-extensions tool for Claude). Use when the user wants to change how the Claude app looks or behaves - colors, a theme or color scheme, dark/glass looks, the sidebar session cards, full-width transcripts, or a new extension/plugin/tweak for the app's window - or asks to list, switch, create, install, edit, enable, disable or remove Cinnamon themes or extensions, or to check or repair Cinnamon (doctor, status, logs, apply, update).
 ---
 <!-- Installed by Cinnamon (`cinnamon install`): replaced on every install and removed by `cinnamon uninstall`. -->
 
@@ -21,7 +21,7 @@ second, with no restart**. So to change the app, you change files or run the CLI
 | --- | --- |
 | `{{CINNAMON}} status` | install, login item, whether Claude is running and Cinnamon is applied, current theme, enabled extensions |
 | `{{CINNAMON}} doctor` | checks the setup; each ✗ line says how to fix it |
-| `{{CINNAMON}} theme` / `theme <id>` | list themes (`*` = current) / switch (`default` = Claude's own colours) |
+| `{{CINNAMON}} theme` / `theme <id>` | list themes (`*` = current) / switch (`default` = Claude's own colors) |
 | `{{CINNAMON}} theme install <source> --yes` / `theme remove <id>` | add themes from GitHub, git or a folder / remove one |
 | `{{CINNAMON}} ext` / `ext enable <id>` / `ext disable <id>` | list extensions / turn one on or off |
 | `{{CINNAMON}} ext install <source> --yes` / `ext remove <id> --yes` | add an extension from GitHub, git or a folder / remove one |
@@ -62,7 +62,7 @@ Settings for extensions live in `config.json` under `"settings": { "<extension i
 
 - **A theme** is one JSON file, `{{USER_DIR}}/themes/<id>.json`, then `{{CINNAMON}} theme <id>`. Keys, rules and
   what reaches the Code tab: [themes.md](themes.md). For anything see-through (glass, transparency, an animated or
-  picture background), read its "See-through themes" section first: stacked see-through colours are what leave
+  picture background), read its "See-through themes" section first: stacked see-through colors are what leave
   dark bands around the message box.
 - **An extension** is a folder `{{USER_DIR}}/extensions/<id>/` with `manifest.json`, page code and CSS. It runs in
   Claude's window, hot-reloads when it registers clean-up, and can keep settings: [extensions.md](extensions.md).

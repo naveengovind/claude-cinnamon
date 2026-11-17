@@ -43,7 +43,7 @@ usage:
   cinnamon version                 Cinnamon's version
 
   cinnamon theme [list]            themes (* = current)
-  cinnamon theme <id>              use a theme ("default" = Claude's own colours)
+  cinnamon theme <id>              use a theme ("default" = Claude's own colors)
   cinnamon theme install <source>  add themes from GitHub / git / a folder
   cinnamon theme remove <id>       remove an installed theme
 

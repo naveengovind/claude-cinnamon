@@ -1,4 +1,4 @@
-// Printing for the cinnamon command: plain text, colours only on a terminal (and never with NO_COLOR).
+// Printing for the cinnamon command: plain text, colors only on a terminal (and never with NO_COLOR).
 import readline from 'node:readline';
 
 export class Output {

@@ -21,7 +21,7 @@ export class ThemeCommands {
     const { out } = this;
     const current = this.config.read().theme;
     const mark = (id: string) => (current === id ? out.green('*') : ' ');
-    out.say(`${mark('default')} ${'default'.padEnd(16)} Default ${out.dim('(Claude\'s own colours)')}`);
+    out.say(`${mark('default')} ${'default'.padEnd(16)} Default ${out.dim('(Claude\'s own colors)')}`);
     for (const t of this.store.list()) {
       out.say(`${mark(t.id)} ${t.id.padEnd(16)} ${t.name}${t.error ? out.red(`  (couldn't load: ${t.error})`) : ''}${t.description ? out.dim(`  ${t.description}`) : ''}`);
     }
@@ -60,7 +60,7 @@ export class ThemeCommands {
       if (!good.length) return out.fail('no theme files (*.json) found');
       out.say(`${out.bold('Themes')} from ${src.url}${src.commit ? out.dim(` @ ${src.commit.slice(0, 12)}`) : ''}:`);
       for (const g of good) out.say(`  ${g.f.replace(/\.json$/, '').padEnd(16)} ${g.name}`);
-      out.say(out.dim('  Themes only change colours and styles; they can\'t run code or load anything from the internet.'));
+      out.say(out.dim('  Themes only change colors and styles; they can\'t run code or load anything from the internet.'));
       if (!(await out.confirm('Install these themes?', yes))) return 1;
       fs.mkdirSync(this.paths.themes, { recursive: true });
       for (const g of good) fs.copyFileSync(path.join(dir, g.f), path.join(this.paths.themes, `${SourceFetcher.sanitizeId(g.f.replace(/\.json$/, ''))}.json`));

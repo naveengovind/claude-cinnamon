@@ -1,7 +1,7 @@
 // Main process: inventory for theming.
 //  - what the app's own frame page (file://…/main_window) shows
-//  - every colour variable the claude.ai page declares for dark mode, by selector group
-//  - every distinct background / border / text colour currently on screen, with an example element
+//  - every color variable the claude.ai page declares for dark mode, by selector group
+//  - every distinct background / border / text color currently on screen, with an example element
 (async () => {
   const { webContents } = require('electron');
   const fs = require('fs');

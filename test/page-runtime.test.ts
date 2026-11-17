@@ -68,7 +68,7 @@ test('loading the runtime twice keeps the settings it already had', () => {
   assert.strictEqual(w.__cinnamon.api('x').settings.get('width'), 'full');
 });
 
-// The Code tab handoff: Cinnamon's theme colours step aside only where the app paints the current look.
+// The Code tab handoff: Cinnamon's theme colors step aside only where the app paints the current look.
 const LOOK = { dark: { '--cds-gray-0': '#ffffff', '--cds-gray-500': '#6b6b6b', '--cds-gray-900': '#111111' } };
 function palette(w, vars, { mode = 'dark', mod = true } = {}) {
   const h = w.document.documentElement;

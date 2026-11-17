@@ -3,7 +3,7 @@
 Themes and extensions for the **Claude desktop app on macOS**, in the spirit of Spicetify.
 Not affiliated with or endorsed by Anthropic.
 
-- **Colour schemes** picked in Claude's own *Settings → Appearance → Color scheme*: Codex (neutral near-black),
+- **Color schemes** picked in Claude's own *Settings → Appearance → Color scheme*: Codex (neutral near-black),
   Glass (see-through, blurred desktop behind), Ember (a slow-drifting orange sun and stars behind see-through
   panels), or any theme you write as a small JSON file.
 - **Extensions**, switched on and off in *Settings → Appearance → Extensions*:
@@ -14,7 +14,7 @@ Not affiliated with or endorsed by Anthropic.
   - Install more from GitHub: `cinnamon ext install owner/repo`.
 - **Re-applies itself every time Claude starts.** Claude.app itself is never modified.
 - **Works alongside Claude Code mods.** Claude Code's own [mods](https://code.claude.com/docs/en/plugins/mods/overview)
-  can colour the Code tab, so Cinnamon hands that part to a small mod it installs (`cinnamon-colors`) and only does
+  can color the Code tab, so Cinnamon hands that part to a small mod it installs (`cinnamon-colors`) and only does
   what mods can't: the rest of the app, glass, full width, the sidebar cards and the Settings rows.
 
 ## Requirements
@@ -48,7 +48,7 @@ Either way, `cinnamon update` upgrades later (through `brew upgrade` for a Homeb
 
 `cinnamon install` sets up **Cinnamon Helper**, adds it as a login item, makes sure the `cinnamon` command is on your
 PATH, puts the `cinnamon-colors` mod and the `cinnamon` skill in `~/.claude/skills/` (see
-[Code tab colours](#code-tab-colours) and [Ask Claude to do it](#ask-claude-to-do-it)) and applies Cinnamon if Claude
+[Code tab colors](#code-tab-colors) and [Ask Claude to do it](#ask-claude-to-do-it)) and applies Cinnamon if Claude
 is running. macOS will ask you to allow two things for Cinnamon Helper:
 
 - **Accessibility** (*System Settings → Privacy & Security → Accessibility*), so it can click Claude's
@@ -65,7 +65,7 @@ From the terminal:
 | Command | |
 | --- | --- |
 | `cinnamon status` | what is installed and applied |
-| `cinnamon theme` / `cinnamon theme <id>` | list themes / use one (`default` = Claude's own colours) |
+| `cinnamon theme` / `cinnamon theme <id>` | list themes / use one (`default` = Claude's own colors) |
 | `cinnamon theme install <source>` / `cinnamon theme remove <id>` | add themes from GitHub, git or a folder / remove one |
 | `cinnamon ext` / `cinnamon ext enable\|disable <id>` | list extensions / switch one |
 | `cinnamon ext install <source>` / `cinnamon ext remove <id>` | add / remove an extension |
@@ -102,16 +102,16 @@ A theme is one JSON file in `~/.config/claude-cinnamon/themes/` (or `themes/` he
 ```json
 {
   "name": "Dusk",
-  "description": "Blue-grey",
+  "description": "Blue-gray",
   "dark":  { "background": "#101018", "sidebar": "#14141d", "popover": "#22222e", "text": "#f2f2f7" },
   "light": { "background": "#fbfbfd" }
 }
 ```
 
-A section per mode (`dark`, `light`); a missing section or key keeps Claude's own colour. Values are CSS colours:
-hex, names, or colour functions (`rgb`, `hsl`, `oklch`, `color-mix`, `var`, `calc`, `light-dark`…).
+A section per mode (`dark`, `light`); a missing section or key keeps Claude's own color. Values are CSS colors:
+hex, names, or color functions (`rgb`, `hsl`, `oklch`, `color-mix`, `var`, `calc`, `light-dark`…).
 
-| Key | Colours |
+| Key | Colors |
 | --- | --- |
 | `background`, `background-deep`, `frame` | the chat area, the deepest wells, the frame behind the main area |
 | `sidebar`, `text-sidebar` | the sidebar and its text |
@@ -128,35 +128,35 @@ Also:
   backslash escapes, `@import`, `@font-face`, `image-set()`/`image()`/`cross-fade()`, or `url()` except `data:` URLs;
 - `"window": { "vibrancy": "under-window" }` gives the window a macOS glass material while the theme is on (see
   `themes/glass.json`); Claude's own material comes back when you switch away.
-- See-through colours stack: the app paints a colour again on layers that cover each other, so a see-through
+- See-through colors stack: the app paints a color again on layers that cover each other, so a see-through
   `background` *and* `panel` (say) come out darker where they overlap. Tint once (`body` in `css`, as glass.json
-  does) and make the rest `transparent`; `cinnamon theme <id>` prints a `note:` for colours that stack. When
+  does) and make the rest `transparent`; `cinnamon theme <id>` prints a `note:` for colors that stack. When
   `background` is see-through, Cinnamon clears the strips the app repaints it on around the message box.
 
-## Code tab colours
+## Code tab colors
 
 Claude Code mods can paint the desktop app's Code tab through Claude Code's own theme API, so Cinnamon doesn't do
-that part itself. When you pick a colour scheme, Cinnamon turns it into the app's colour data (with `makeColors`, the
+that part itself. When you pick a color scheme, Cinnamon turns it into the app's color data (with `makeColors`, the
 design system's builder that Claude Code ships for mods) and the `cinnamon-colors` mod hands it to the app in each
-Code session. While the app paints it, Cinnamon's own colours for what it carries (backgrounds, text, accent, danger,
+Code session. While the app paints it, Cinnamon's own colors for what it carries (backgrounds, text, accent, danger,
 success) step aside in the Code tab; the rest of the theme (sidebar, menus and popovers, borders, hover, buttons, code
 panels, `vars`, `css`) stays Cinnamon's there too, and everywhere else (Chat, Cowork, Settings) Cinnamon paints it
 all as before. You pick in one place, *Settings → Appearance → Color scheme*.
 
-- The app builds about a hundred colours from a theme's `background-deep`/`background`/`raised`/`panel`, `text`,
-  `text-secondary`, `text-muted`, `accent`, `danger` and `success` (hex colours only), so the Code tab is close to
+- The app builds about a hundred colors from a theme's `background-deep`/`background`/`raised`/`panel`, `text`,
+  `text-secondary`, `text-muted`, `accent`, `danger` and `success` (hex colors only), so the Code tab is close to
   the rest of the app rather than identical. The app refuses a theme whose text is too faint, so Cinnamon leaves such
-  colours to the app (`cinnamon doctor` lists them). A theme can give its own `makeColors` input as
+  colors to the app (`cinnamon doctor` lists them). A theme can give its own `makeColors` input as
   `"codeTab": { … }`, or opt out with `"codeTab": false`.
 - Themes with a window material (Glass) stay Cinnamon's everywhere: mods can't make the window see-through.
 - Only local Code sessions run the mod (the app doesn't hand skills-folder plugins to SSH hosts). Cinnamon checks
-  that the colours the app shows are the scheme you picked and paints over them when they aren't, so a change made
+  that the colors the app shows are the scheme you picked and paints over them when they aren't, so a change made
   while only SSH sessions are open still shows at once. One exception: switching to *Default* leaves the old Code
-  tab colours until a local Code session opens (or use *Remove colors*, below).
-- A scheme without a `light` section still gets the app's design-system light colours in the Code tab, a hair
+  tab colors until a local Code session opens (or use *Remove colors*, below).
+- A scheme without a `light` section still gets the app's design-system light colors in the Code tab, a hair
   warmer than stock.
 - Without the mod (or in an app too old to paint mod themes), Cinnamon paints the Code tab itself.
-- After `cinnamon uninstall`, if the Code tab keeps its colours: Settings in the Code tab, search *code appearance*,
+- After `cinnamon uninstall`, if the Code tab keeps its colors: Settings in the Code tab, search *code appearance*,
   *Remove colors*.
 
 ## Extensions
@@ -238,11 +238,11 @@ run with `bin/cinnamon` needs Bun and the Xcode Command Line Tools (to build the
 | `core/lib/` | shared: `ThemeEngine`, `ThemeStore`, `CodeTabLook`, `Config`, `ExtensionCatalog` |
 | `core/apply/` | applying: `Applier`, `AutoApplier` (what the helper runs at each launch), `LockFile`, `System`, the Chrome-tab script |
 | `core/cli/` | the `cinnamon` command: `Cli`, `ThemeCommands`, `ExtensionCommands`, `SourceFetcher`, `HelperClient`, `Doctor`, `Updater` (standalone updates), `Compile` (`cinnamon __compile`) |
-| `core/install/` | `Installer` (helper build or prebuilt copy, login item, PATH link, the colours mod) |
+| `core/install/` | `Installer` (helper build or prebuilt copy, login item, PATH link, the colors mod) |
 | `core/standalone/` | the standalone binary: `runStandalone` (entry), `Payload` (unpacks its files per version), `Homebrew` (Homebrew installs: stable opt/ path, prefix) |
 | `scripts/`, `install.sh` | standalone build, release and Homebrew formula; the install script (no Homebrew) |
 | `skill/cinnamon/` | the Claude Code skill `cinnamon install` puts in `~/.claude/skills/cinnamon` (`{{CINNAMON}}`, `{{USER_DIR}}`, `{{ROOT}}` are filled in) |
-| `mod/cinnamon-colors/` | the Claude Code mod that paints the Code tab from Cinnamon's theme (`core/lib/CodeTabLook.ts` writes its input; `core/lib/vendor/make-colors.js` is Claude Code's own colour builder, unchanged) |
+| `mod/cinnamon-colors/` | the Claude Code mod that paints the Code tab from Cinnamon's theme (`core/lib/CodeTabLook.ts` writes its input; `core/lib/vendor/make-colors.js` is Claude Code's own color builder, unchanged) |
 | `core/render.ts`, `core/InspectorClient.ts` | bundles the main-process code; talks to Claude's debugger |
 | `core/helper/` | Cinnamon Helper (Swift) |
 | `extensions/`, `themes/` | built-in extensions and themes |
