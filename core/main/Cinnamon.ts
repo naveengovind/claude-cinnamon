@@ -17,6 +17,7 @@ import { ExtensionHost, fingerprintOf } from './ExtensionHost';
 import { FileWatcher } from './FileWatcher';
 import { PageChannel } from './PageChannel';
 import { SerialQueue } from './SerialQueue';
+import { RequestServer } from './RequestServer';
 import { ThemeApplier } from './ThemeApplier';
 import { ViewManager } from './ViewManager';
 import { WindowMaterial } from './WindowMaterial';
@@ -46,6 +47,7 @@ export class Cinnamon {
   private readonly material: WindowMaterial;
   private readonly channel: PageChannel;
   private readonly watcher: FileWatcher;
+  private readonly requests: RequestServer;
 
   /** Synchronous: `load` (the debugger's require) is only usable until the first await. */
   constructor(load: Load, private readonly cfg: MainConfig) {
@@ -78,6 +80,7 @@ export class Cinnamon {
     this.material = new WindowMaterial(this.electron, state, this.viewsMgr, this.log);
     this.channel = new PageChannel(this.electron, state, config, this.viewsMgr, themeDirs[themeDirs.length - 1]!, extRoots, this.log);
     this.watcher = new FileWatcher(state, themeDirs, extRoots, config.file, this.log);
+    this.requests = new RequestServer(state, this.viewsMgr, config, cfg.userDir, this.log);
   }
 
   /** What versions before extensions left running. */
@@ -123,6 +126,7 @@ export class Cinnamon {
     state.windowMaterial = state.windowMaterial ?? null;
     await this.material.apply();
     this.watcher.start(() => state.reloadAll?.());
+    this.requests.start();
 
     // Fresh apply: everything is re-run in each open view.
     const applied: number[] = [];

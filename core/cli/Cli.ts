@@ -13,6 +13,7 @@ import { Output } from './Output';
 import { Paths } from './Paths';
 import { ThemeCommands } from './ThemeCommands';
 import { Updater } from './Updater';
+import { Screenshot } from './Screenshot';
 
 export class Cli {
   private readonly out = new Output();
@@ -36,6 +37,8 @@ usage:
   cinnamon status                  what is installed and applied
   cinnamon doctor                  check the setup and explain any problem
   cinnamon logs                    the helper's recent log
+  cinnamon screenshot [--out f.png] [--width px]
+                                   a picture of Claude's window, taken by Cinnamon inside Claude (no permission needed)
   cinnamon update                  upgrade Cinnamon and refresh the setup
   cinnamon version                 Cinnamon's version
 
@@ -66,6 +69,7 @@ Your settings, themes and extensions: ${this.paths.user}`;
       case 'uninstall': return this.installer().uninstall();
       case 'status': return this.status();
       case 'doctor': return new Doctor(this.paths, out, this.helper).run();
+      case 'screenshot': return new Screenshot(this.paths, out).run(args.slice(1));
       case 'logs': return this.logs();
       case 'update': return this.update();
       case 'version':

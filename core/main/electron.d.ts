@@ -12,8 +12,16 @@ export interface WebContents {
   removeInsertedCSS(key: string): Promise<void>;
   executeJavaScript(code: string): Promise<unknown>;
   reload(): void;
+  invalidate(): void;
+  capturePage(rect?: undefined, opts?: { stayHidden?: boolean; stayAwake?: boolean }): Promise<NativeImage>;
   on(event: 'dom-ready' | 'destroyed', listener: () => void): this;
   on(event: 'console-message', listener: (...args: unknown[]) => void): this;
+}
+
+export interface NativeImage {
+  getSize(): { width: number; height: number };
+  toPNG(): Uint8Array;
+  resize(opts: { width: number }): NativeImage;
 }
 
 export interface BrowserWindow {

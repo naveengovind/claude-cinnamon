@@ -133,3 +133,14 @@ extensions.md), and what to ask the user first. So a session can check its own w
 `doctor` name rejected theme keys and values (`ThemeEngine.problems`), and extension errors from Claude (compile
 errors, errors page code throws when it runs) are written by the main process to `state/extension-errors.json`
 (page code reports through the `ext-error` page message) and shown by `cinnamon ext` and `doctor`.
+
+## Seeing the app without permissions (Nov 16 2026)
+`cinnamon screenshot` asks the Cinnamon running inside Claude for a picture of its window through files: the command
+writes `state/requests/<id>.json` (folder 0700, file 0600) and `core/main/RequestServer` (watching the folder, and
+polling once a second) answers in `state/responses/<id>.json`, with the PNG beside it. Claude capturing its own window
+(`webContents.capturePage`) needs no Screen Recording permission and no debugger; a background window is woken and
+repainted first (one capture, `invalidate()`, a pause, then the real one), or the capture would be a stale frame.
+Answers are only ever written into the responses folder and are pruned after 10 minutes; ids are checked, unknown
+kinds are answered with an error, and `"screenshots": false` in config.json turns it off. The cinnamon skill uses it
+to look at every visible change it makes. Any process running as you could also ask for a picture this way; it can
+already read Claude's data on disk, so this adds little, and the switch is there for anyone who wants it off.

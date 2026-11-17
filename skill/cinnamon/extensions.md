@@ -62,4 +62,5 @@ Claude's window is a React app that re-renders and changes between versions:
 
 `{{CINNAMON}} ext` lists the extension and whether it's on, and shows `error in Claude:` lines for compile errors or
 errors its page code threw when it last ran. `{{CINNAMON}} doctor` reports the same. Fix and save; it reloads.
+Then `{{CINNAMON}} screenshot` and look at it (SKILL.md, "Look at your work"): where it landed, what it covers.
 Errors the code throws later (in a timer or event handler) aren't recorded, so wrap such handlers in `try`/`catch`.

@@ -25,6 +25,7 @@ second, with no restart**. So to change the app, you change files or run the CLI
 | `{{CINNAMON}} theme install <source> --yes` / `theme remove <id>` | add themes from GitHub, git or a folder / remove one |
 | `{{CINNAMON}} ext` / `ext enable <id>` / `ext disable <id>` | list extensions / turn one on or off |
 | `{{CINNAMON}} ext install <source> --yes` / `ext remove <id> --yes` | add an extension from GitHub, git or a folder / remove one |
+| `{{CINNAMON}} screenshot` | a picture of Claude's window as it is now; prints the PNG's path (see "Look at your work") |
 | `{{CINNAMON}} logs` | the helper's log (what happened at the last launches) |
 | `{{CINNAMON}} apply` | re-inject Cinnamon now (only needed if `status` says it isn't applied) |
 
@@ -37,7 +38,22 @@ second, with no restart**. So to change the app, you change files or run the CLI
 2. Make the change: a CLI command, or a file in the user's folder (a theme JSON in `themes/`, an extension folder in
    `extensions/`). Never write into `{{ROOT}}` or Claude.app.
 3. Check it. `{{CINNAMON}} theme` / `ext` show what's active, and `doctor` lists broken themes and extensions with
-   the reason. Then tell the user what to look at; they see the change live.
+   the reason. Then look at it (below) before you say it's done.
+
+## Look at your work
+
+`{{CINNAMON}} screenshot` saves a picture of Claude's window as it is right now and prints the file's path; open that
+file with your Read tool to see it. Cinnamon takes it from inside Claude, so it needs no Screen Recording permission,
+and it works while the window is in the background. It takes about a second and a half. The file is in Cinnamon's
+private folder and is deleted after 10 minutes, so leave it there: don't pass `--out` unless the user asks for a copy.
+Take one after every visible change (wait a second after saving, for it to apply), and fix what you see. Look for
+unreadable text, dark bands or boxes (see-through themes), overlaps with the app's own controls, and things
+off-screen. `--width <px>` sets the size (default 1600); go bigger to check something small.
+
+- It shows whatever the user has open, often a conversation. Don't describe or repeat its contents beyond what the
+  check needs, and don't copy it anywhere else.
+- If it says there's no answer, Cinnamon isn't running in Claude (`{{CINNAMON}} status`). If it says screenshots are
+  turned off, the user did that (`"screenshots": false` in config.json); ask them to look instead.
 
 Settings for extensions live in `config.json` under `"settings": { "<extension id>": { … } }` (e.g. Full width:
 `"full-width": { "width": "full" }` or `null`); edits apply live. Prefer the CLI for turning things on and off.

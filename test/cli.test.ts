@@ -261,3 +261,40 @@ test('a theme that tints once gets no note', () => {
   fs.writeFileSync(path.join(h, 'themes', 'clean.json'), JSON.stringify({ name: 'Clean', dark: { background: 'transparent', panel: 'transparent', popover: '#222222f0' } }));
   assert.doesNotMatch(run(h, 'theme', 'clean').out, /note:/);
 });
+
+// cinnamon screenshot: a request file the Cinnamon running in Claude answers (here, the test answers it).
+test('screenshot asks the Cinnamon in Claude for a picture and saves it where asked', async () => {
+  const h = home();
+  const out = path.join(h, 'shot.png');
+  const { spawn } = await import('node:child_process');
+  const p = spawn(BIN, ['screenshot', '--out', out, '--width', '800'], { env: { ...process.env, PATH: `${path.dirname(process.execPath)}:${process.env.PATH}`, CINNAMON_HOME: h, CINNAMON_NO_APPLY: '1', NO_COLOR: '1', CINNAMON_SCREENSHOT_TIMEOUT_MS: '8000' } });
+  let text = '';
+  p.stdout.on('data', (d) => { text += d; });
+  p.stderr.on('data', (d) => { text += d; });
+  const reqDir = path.join(h, 'state', 'requests');
+  let req = null;
+  for (let i = 0; i < 100 && !req; i++) {
+    await new Promise((r) => setTimeout(r, 50));
+    try { const f = fs.readdirSync(reqDir).find((x) => x.endsWith('.json')); if (f) req = JSON.parse(fs.readFileSync(path.join(reqDir, f), 'utf8')); } catch {}
+  }
+  assert.ok(req, 'a request was written');
+  assert.strictEqual(req.type, 'screenshot');
+  assert.strictEqual(req.width, 800);
+  assert.strictEqual(fs.statSync(reqDir).mode & 0o777, 0o700, 'only you can write requests');
+  const resDir = path.join(h, 'state', 'responses');
+  fs.mkdirSync(resDir, { recursive: true });
+  fs.writeFileSync(path.join(resDir, `${req.id}.png`), 'PNG');
+  fs.writeFileSync(path.join(resDir, `${req.id}.json`), JSON.stringify({ ok: true, png: path.join(resDir, `${req.id}.png`), width: 800, height: 500 }));
+  const code = await new Promise((r) => p.on('close', r));
+  assert.strictEqual(code, 0, text);
+  assert.strictEqual(fs.readFileSync(out, 'utf8'), 'PNG');
+  assert.match(text, /shot\.png/);
+});
+
+test('screenshot says what to do when nothing answers', () => {
+  const h = home();
+  const r = spawnSync(BIN, ['screenshot'], { encoding: 'utf8', env: { ...process.env, PATH: `${path.dirname(process.execPath)}:${process.env.PATH}`, CINNAMON_HOME: h, CINNAMON_NO_APPLY: '1', NO_COLOR: '1', CINNAMON_SCREENSHOT_TIMEOUT_MS: '600' } });
+  assert.notStrictEqual(r.status, 0);
+  assert.match(r.stdout + r.stderr, /cinnamon (status|apply)/);
+  assert.deepStrictEqual(fs.readdirSync(path.join(h, 'state', 'requests')), [], 'an unanswered request is taken back');
+});

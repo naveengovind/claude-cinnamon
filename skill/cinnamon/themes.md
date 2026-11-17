@@ -2,8 +2,8 @@
 
 A theme is one JSON file, `{{USER_DIR}}/themes/<id>.json` (`id`: lowercase letters, digits, `-`). Saving it applies
 live if it's the current theme; `{{CINNAMON}} theme <id>` switches to it. Same id as a built-in theme overrides it.
-Start from a built-in one: `{{ROOT}}/themes/codex.json` (dark, neutral) or `{{ROOT}}/themes/glass.json`
-(see-through window).
+Start from a built-in one: `{{ROOT}}/themes/codex.json` (dark, neutral), `{{ROOT}}/themes/glass.json` (see-through
+window) or `{{ROOT}}/themes/ember.json` (an animated backdrop under one veil: how to do a see-through theme).
 
 ```json
 {
@@ -64,8 +64,8 @@ see-through. Everything else is up to the theme:
 4. **Respect reduced motion** for animated backgrounds:
    `@media (prefers-reduced-motion: reduce) { body::before, body::after { animation: none !important; } }`.
 
-When you finish a see-through theme, tell the user to check three places, because you can't see them yourself: the
-message box area (with long text scrolled behind it), the sidebar edge, and an open menu.
+When you finish a see-through theme, look at it with `{{CINNAMON}} screenshot` (SKILL.md, "Look at your work"):
+the message box area with text behind it, the sidebar edge, and text over the brightest part of the backdrop.
 
 ## The Code tab
 
@@ -86,5 +86,5 @@ six-digit or three-digit hex only. The app refuses text that's too faint; Cinnam
 `{{CINNAMON}} theme` lists it (an error is shown next to a broken file), `{{CINNAMON}} doctor` names rejected keys
 or values, and `{{CINNAMON}} status` shows the current theme. `{{CINNAMON}} theme <id>` prints `not applied:` for
 anything rejected and `note:` for see-through colours that stack. Fix every note before you're done; each one is a
-band or box the user would see. Keep text readable: aim for 7:1 contrast for `text`
+band or box the user would see. Then take a screenshot and look: a note-free theme can still be hard to read. Keep text readable: aim for 7:1 contrast for `text`
 on `background`, and 4.5:1 for `text-muted`.

@@ -91,6 +91,8 @@ export interface SharedState {
   appMaterials?: WeakMap<BrowserWindow, string | null>;
 
   watchers?: FSWatcher[];
+  /** The request folder's watcher and poll (RequestServer), replaced on each apply. */
+  requests?: { watcher: FSWatcher | null; timer: ReturnType<typeof setInterval> | null } | null;
   reloadDebounce?: Timer | null;
   pollTimer?: Timer | null;
   lastFingerprint?: string;

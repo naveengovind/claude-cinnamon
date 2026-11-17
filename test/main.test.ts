@@ -18,6 +18,12 @@ class FakeWC extends EventEmitter {
   async insertCSS(c) { this.css.push(c); return `k${this.id}-${this.css.length}`; }
   async removeInsertedCSS(k) { this.removed.push(k); }
   reload() { this.reloads++; }
+  invalidate() { this.invalidated = (this.invalidated || 0) + 1; }
+  async capturePage() {
+    this.captures = (this.captures || 0) + 1;
+    const image = (w, h) => ({ getSize: () => ({ width: w, height: h }), toPNG: () => Buffer.from(`PNG ${w}x${h}`), resize: ({ width }) => image(width, Math.round(h * width / w)) });
+    return image(3200, 2000);
+  }
   async executeJavaScript(s) {
     this.js.push(s);
     for (const [needle, reply] of Object.entries(this.replies)) if (s.includes(needle)) return typeof reply === 'function' ? reply() : reply;
@@ -65,6 +71,8 @@ function harness({ seed } = {}) {
     for (const w of s.watchers || []) { try { w.close(); } catch {} }
     clearTimeout(s.reloadDebounce);
     clearInterval(s.pollTimer);
+    try { s.requests?.watcher?.close(); } catch {}
+    clearInterval(s.requests?.timer);
     for (const m of s.mains?.values() || []) m.ctx._cleanup();
   };
   return { app, wc, all, ctx, run, stop, state, configPath, setConfig, config, addExt, user, userExt, opened, bundled, win, windows, themes };
@@ -255,6 +263,62 @@ test('page code reports what it throws to Cinnamon', async () => {
     await h.run();
     const code = h.wc.js.find((s) => s.includes('/*X*/'));
     assert.match(code, /type: *['"]ext-error['"]/);
+  } finally { h.stop(); }
+});
+
+// ---- requests from the cinnamon command (screenshots) ----
+const request = (h, body) => {
+  const dir = path.join(h.user, 'state', 'requests');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, `${body.id}.json`), JSON.stringify(body));
+};
+const response = (h, id) => path.join(h.user, 'state', 'responses', `${id}.json`);
+
+test('a screenshot request is answered with a PNG of Claude\'s window, sized as asked', async () => {
+  const h = harness();
+  try {
+    await h.run();
+    request(h, { id: 'shot-0001', type: 'screenshot', width: 1600 });
+    assert.ok(await until(() => fs.existsSync(response(h, 'shot-0001'))), 'answered');
+    const r = JSON.parse(fs.readFileSync(response(h, 'shot-0001'), 'utf8'));
+    assert.strictEqual(r.ok, true);
+    assert.strictEqual(r.width, 1600);
+    assert.strictEqual(fs.readFileSync(r.png, 'utf8'), 'PNG 1600x1000');
+    assert.strictEqual(path.dirname(r.png), path.join(h.user, 'state', 'responses'), 'only ever written into its own folder');
+    assert.ok(h.wc.captures >= 2 && h.wc.invalidated >= 1, 'a background window is woken and repainted before the real capture');
+    assert.ok(!fs.existsSync(path.join(h.user, 'state', 'requests', 'shot-0001.json')), 'the request is used up');
+  } finally { h.stop(); }
+});
+
+test('requests with an odd id or of an unknown kind are dropped without an answer', async () => {
+  const h = harness();
+  try {
+    await h.run();
+    const dir = path.join(h.user, 'state', 'requests');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'odd id.json'), JSON.stringify({ id: '../../escape', type: 'screenshot' }));
+    request(h, { id: 'kind-0001', type: 'format-disk' });
+    await new Promise((r) => setTimeout(r, 1500));
+    assert.deepStrictEqual(fs.readdirSync(path.join(h.user, 'state', 'responses')).sort(), ['kind-0001.json'], 'nothing answered for the odd id');
+    assert.ok(!fs.existsSync(path.join(dir, 'odd id.json')), 'but it is cleared away');
+    assert.ok(!h.wc.captures);
+    const r = JSON.parse(fs.readFileSync(response(h, 'kind-0001'), 'utf8'));
+    assert.strictEqual(r.ok, false);
+    assert.match(r.error, /unknown request/);
+  } finally { h.stop(); }
+});
+
+test('screenshots can be turned off in the config', async () => {
+  const h = harness();
+  try {
+    h.setConfig({ screenshots: false });
+    await h.run();
+    request(h, { id: 'off-00001', type: 'screenshot' });
+    assert.ok(await until(() => fs.existsSync(response(h, 'off-00001'))));
+    const r = JSON.parse(fs.readFileSync(response(h, 'off-00001'), 'utf8'));
+    assert.strictEqual(r.ok, false);
+    assert.match(r.error, /turned off/);
+    assert.ok(!h.wc.captures);
   } finally { h.stop(); }
 });
 

@@ -4,7 +4,8 @@ Themes and extensions for the **Claude desktop app on macOS**, in the spirit of 
 Not affiliated with or endorsed by Anthropic.
 
 - **Colour schemes** picked in Claude's own *Settings → Appearance → Color scheme*: Codex (neutral near-black),
-  Glass (see-through, blurred desktop behind), or any theme you write as a small JSON file.
+  Glass (see-through, blurred desktop behind), Ember (a slow-drifting orange sun and stars behind see-through
+  panels), or any theme you write as a small JSON file.
 - **Extensions**, switched on and off in *Settings → Appearance → Extensions*:
   - **Sidebar cards**: t3-style session cards with folder, branch, model and age, a live *Working* timer, the app's
     status (Needs you / Blocked / Failed / Review) and your own labels (To do / In progress / Done).
@@ -69,6 +70,7 @@ From the terminal:
 | `cinnamon ext install <source>` / `cinnamon ext remove <id>` | add / remove an extension |
 | `cinnamon apply` | apply now (Cinnamon Helper does it, so your terminal needs no extra permission) |
 | `cinnamon doctor` / `cinnamon logs` | check the setup / the helper's log |
+| `cinnamon screenshot [--out f.png] [--width px]` | a picture of Claude's window, taken by Cinnamon inside Claude: no Screen Recording permission, no debugger, works with the window in the background (`"screenshots": false` in config.json turns it off) |
 | `cinnamon update` | upgrade to the latest release and refresh the setup |
 | `cinnamon uninstall` | remove the login item (Claude is back to normal at its next launch); then remove the command (`brew uninstall cinnamon`, or the `rm` it shows) |
 | `cinnamon version` | Cinnamon's version |
