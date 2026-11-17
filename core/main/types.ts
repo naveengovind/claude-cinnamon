@@ -16,6 +16,8 @@ export interface MainConfig {
   userDir: string;
   themeDirs: string[] | null;
   extRoots: ExtensionRoots | null;
+  /** The cinnamon-colors mod's folder (its look.json is the look the Claude apps draw). */
+  modDir: string;
   /** argv prefix of the TypeScript compiler (`[<bun>, 'build']`); null = .ts files can't be loaded. */
   compiler: string[] | null;
   /** The core page code (page runtime + Settings rows), already compiled, and its CSS. */

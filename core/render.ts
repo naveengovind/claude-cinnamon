@@ -18,6 +18,8 @@ export interface RenderOptions {
   extRoots?: ExtensionRoots | null;
   /** argv prefix that compiles extension TypeScript inside Claude; default: see defaultCompiler. */
   compiler?: string[] | null;
+  /** The cinnamon-colors mod's folder, where the look is written; default ~/.claude/skills/cinnamon-colors. */
+  modDir?: string;
 }
 
 /** The standalone binary compiles with its built-in Bun (`cinnamon __compile`); otherwise this Bun's `build`. */
@@ -31,7 +33,7 @@ async function bundle(entry: string, target: 'node' | 'browser', format: 'cjs' |
   return r.outputs[0]!.text();
 }
 
-export async function renderMain({ root, userDir = USER_DIR, themeDirs = null, extRoots = null, compiler }: RenderOptions): Promise<string> {
+export async function renderMain({ root, userDir = USER_DIR, themeDirs = null, extRoots = null, compiler, modDir = path.join(os.homedir(), '.claude', 'skills', 'cinnamon-colors') }: RenderOptions): Promise<string> {
   const core = path.join(root, 'core');
   const main = await bundle(path.join(core, 'main', 'index.ts'), 'node', 'cjs');
   const pageJs = [
@@ -39,7 +41,7 @@ export async function renderMain({ root, userDir = USER_DIR, themeDirs = null, e
     await bundle(path.join(core, 'page', 'settings-ui.ts'), 'browser', 'iife'),
   ].join('\n;\n');
   const config: MainConfig = {
-    root, userDir, themeDirs, extRoots,
+    root, userDir, themeDirs, extRoots, modDir,
     compiler: compiler === undefined ? defaultCompiler() : compiler,
     page: { js: pageJs, css: fs.readFileSync(path.join(core, 'page', 'settings-ui.css'), 'utf8') },
   };

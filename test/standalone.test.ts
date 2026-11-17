@@ -58,7 +58,7 @@ test('a standalone binary names itself as the compiler for Claude', async () => 
   const before = process.env.CINNAMON_BIN;
   process.env.CINNAMON_BIN = '/x/cinnamon';
   try {
-    const script = await renderMain({ root: ROOT, userDir: tmp('cm-u-') });
+    const script = await renderMain({ root: ROOT, userDir: tmp('cm-u-'), modDir: path.join(tmp('cm-m-'), 'cinnamon-colors') });
     assert.match(script, /"compiler":\["\/x\/cinnamon","__compile"\]/);
   } finally {
     if (before === undefined) delete process.env.CINNAMON_BIN; else process.env.CINNAMON_BIN = before;

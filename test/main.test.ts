@@ -35,7 +35,7 @@ class FakeWC extends EventEmitter {
 class FakeWindowBase { setVibrancy(m) { this.materials.push(m); } }
 class FakeWindow extends FakeWindowBase { constructor(id) { super(); this.id = id; this.materials = []; } isDestroyed() { return false; } }
 
-function harness({ seed } = {}) {
+function harness({ seed, modDir } = {}) {
   const base = fs.mkdtempSync(path.join(os.tmpdir(), 'cm-main-'));
   const userData = path.join(base, 'app'); fs.mkdirSync(path.join(userData, 'claude-code-sessions'), { recursive: true });
   const user = path.join(base, 'user');
@@ -64,7 +64,9 @@ function harness({ seed } = {}) {
     fs.writeFileSync(path.join(dir, 'manifest.json'), JSON.stringify(manifest));
     for (const [f, body] of Object.entries(files)) fs.writeFileSync(path.join(dir, f), body);
   };
-  const run = async (): Promise<any> => vm.runInContext(await renderMain({ root: ROOT, userDir: user, themeDirs: [themes, path.join(user, 'themes')], extRoots: { bundled, user: userExt } }), ctx);
+  // the mod's folder: a temporary one, so a test never writes the real ~/.claude/skills/cinnamon-colors
+  const mod = modDir || path.join(base, 'mod', 'cinnamon-colors');
+  const run = async (): Promise<any> => vm.runInContext(await renderMain({ root: ROOT, userDir: user, themeDirs: [themes, path.join(user, 'themes')], extRoots: { bundled, user: userExt }, modDir: mod }), ctx);
   const state = () => ctx.__claudeMod;
   const stop = () => {
     const s = ctx.__claudeMod;
@@ -695,5 +697,21 @@ test('the apply result lists the claude.ai views it could see, for diagnosing an
     assert.deepStrictEqual([...r.views], [1]); // copied: the result comes from the vm's own realm
     assert.deepStrictEqual([...r.applied], [1]);
     assert.deepStrictEqual(JSON.parse(JSON.stringify(r.seen)), [[1, 'https://claude.ai']]);
+  } finally { h.stop(); }
+});
+
+test('the look is written into the mod folder the config names, never the real ~/.claude in tests', async () => {
+  const before = (() => { try { return fs.statSync(path.join(os.homedir(), '.claude', 'skills', 'cinnamon-colors', 'look.json')).mtimeMs; } catch { return null; } })();
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'cm-moddir-'));
+  const modDir = path.join(base, 'cinnamon-colors');
+  fs.mkdirSync(path.join(modDir, '.claude-plugin'), { recursive: true });
+  fs.writeFileSync(path.join(modDir, '.claude-plugin', 'plugin.json'), '{"name":"cinnamon-colors"}');
+  const h = harness({ modDir });
+  try {
+    h.setConfig({ theme: 'codex' });
+    await h.run();
+    assert.ok(fs.existsSync(path.join(modDir, 'look.json')), 'written where the config says');
+    const after = (() => { try { return fs.statSync(path.join(os.homedir(), '.claude', 'skills', 'cinnamon-colors', 'look.json')).mtimeMs; } catch { return null; } })();
+    assert.strictEqual(after, before, 'the real one is untouched');
   } finally { h.stop(); }
 });
