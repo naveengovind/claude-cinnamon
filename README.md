@@ -125,6 +125,10 @@ Also:
   backslash escapes, `@import`, `@font-face`, `image-set()`/`image()`/`cross-fade()`, or `url()` except `data:` URLs;
 - `"window": { "vibrancy": "under-window" }` gives the window a macOS glass material while the theme is on (see
   `themes/glass.json`); Claude's own material comes back when you switch away.
+- See-through colours stack: the app paints a colour again on layers that cover each other, so a see-through
+  `background` *and* `panel` (say) come out darker where they overlap. Tint once (`body` in `css`, as glass.json
+  does) and make the rest `transparent`; `cinnamon theme <id>` prints a `note:` for colours that stack. When
+  `background` is see-through, Cinnamon clears the strips the app repaints it on around the message box.
 
 ## Code tab colours
 

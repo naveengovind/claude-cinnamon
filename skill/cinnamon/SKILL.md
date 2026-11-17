@@ -45,7 +45,9 @@ Settings for extensions live in `config.json` under `"settings": { "<extension i
 ## Making themes and extensions
 
 - **A theme** is one JSON file, `{{USER_DIR}}/themes/<id>.json`, then `{{CINNAMON}} theme <id>`. Keys, rules and
-  what reaches the Code tab: [themes.md](themes.md).
+  what reaches the Code tab: [themes.md](themes.md). For anything see-through (glass, transparency, an animated or
+  picture background), read its "See-through themes" section first: stacked see-through colours are what leave
+  dark bands around the message box.
 - **An extension** is a folder `{{USER_DIR}}/extensions/<id>/` with `manifest.json`, page code and CSS. It runs in
   Claude's window, hot-reloads when it registers clean-up, and can keep settings: [extensions.md](extensions.md).
 

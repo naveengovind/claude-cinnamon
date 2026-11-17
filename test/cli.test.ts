@@ -244,3 +244,20 @@ test('ext list and doctor show the errors Claude recorded for an extension', () 
   assert.match(run(h, "ext").out, /demo[\s\S]*TypeError: boom/);
   assert.match(run(h, 'doctor').out, /extension demo: TypeError: boom/);
 });
+
+test('switching to a theme that stacks see-through colours notes which ones, and how to fix it', () => {
+  const h = home();
+  fs.mkdirSync(path.join(h, 'themes'), { recursive: true });
+  fs.writeFileSync(path.join(h, 'themes', 'haze.json'), JSON.stringify({ name: 'Haze', dark: { background: '#1a0902a6', panel: '#1d0a028c', sidebar: '#140600b3', text: '#fff' } }));
+  const r = run(h, 'theme', 'haze');
+  assert.strictEqual(r.code, 0);
+  assert.match(r.out, /note: dark: background and panel are both see-through/);
+  assert.doesNotMatch(r.out, /sidebar/, 'the sidebar sits beside the chat area, not on it');
+});
+
+test('a theme that tints once gets no note', () => {
+  const h = home();
+  fs.mkdirSync(path.join(h, 'themes'), { recursive: true });
+  fs.writeFileSync(path.join(h, 'themes', 'clean.json'), JSON.stringify({ name: 'Clean', dark: { background: 'transparent', panel: 'transparent', popover: '#222222f0' } }));
+  assert.doesNotMatch(run(h, 'theme', 'clean').out, /note:/);
+});

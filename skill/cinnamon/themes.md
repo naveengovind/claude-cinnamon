@@ -36,6 +36,37 @@ Also:
 - `"window": { "vibrancy": "under-window" }` makes the window a macOS glass material (needs transparent
   `background`/`frame`/`panel`/`sidebar`, as in glass.json).
 
+## See-through themes: don't stack the colour
+
+Use opaque colours (six-digit hex) unless the user asks for something see-through: glass, transparency, or an
+animated or picture background showing through. See-through colours are where themes go wrong.
+
+**Why:** the app paints the same colour on layers that sit on top of each other. For example, the chat area's colour
+is painted again on a strip under the message box, on the message box's dock while text scrolls under it, and on the
+scroll fades. With an opaque colour those layers are invisible. With a see-through one, every extra layer adds
+another coat, so the doubled-up places show as darker bands and boxes. The area around the message box is where it
+shows most.
+
+Cinnamon already makes those three layers (the strip, the dock and the fades) transparent whenever `background` is
+see-through. Everything else is up to the theme:
+
+1. **Tint once.** Paint the see-through colour, or the picture or animation, in one place: `body` in `css`, as
+   glass.json does, or a fixed `body::before` layer with `z-index: -1` and `pointer-events: none`. Then make the big
+   surfaces that cover the window `transparent`, not see-through: `background`, `background-deep`, `frame` and
+   `panel`, and `sidebar` if the backdrop should show there too. A colour like `#1a0902a6` on `background` *and*
+   `panel` *and* `sidebar` stacks.
+2. **Keep the things you read off nearly solid**: `popover` (menus and the message box) and `raised` (dialogs, cards)
+   at about 90% opacity or more (`e6`–`f2` in eight-digit hex). Use `code-background` and `hover`/`selected` as light
+   overlays (alpha `1a`–`40`).
+3. **Never fix a band by darkening something else.** That just adds another coat. Find the layer that's doubling up
+   and make it `transparent`. To find it, compare how the area looks when the chat is short with how it looks while
+   long text scrolls behind the message box.
+4. **Respect reduced motion** for animated backgrounds:
+   `@media (prefers-reduced-motion: reduce) { body::before, body::after { animation: none !important; } }`.
+
+When you finish a see-through theme, tell the user to check three places, because you can't see them yourself: the
+message box area (with long text scrolled behind it), the sidebar edge, and an open menu.
+
 ## The Code tab
 
 The Code tab's main colours go through Claude Code's own theme API: Cinnamon converts the theme and its
@@ -53,5 +84,7 @@ six-digit or three-digit hex only. The app refuses text that's too faint; Cinnam
 ## Check
 
 `{{CINNAMON}} theme` lists it (an error is shown next to a broken file), `{{CINNAMON}} doctor` names rejected keys
-or values, and `{{CINNAMON}} status` shows the current theme. Keep text readable: aim for 7:1 contrast for `text`
+or values, and `{{CINNAMON}} status` shows the current theme. `{{CINNAMON}} theme <id>` prints `not applied:` for
+anything rejected and `note:` for see-through colours that stack. Fix every note before you're done; each one is a
+band or box the user would see. Keep text readable: aim for 7:1 contrast for `text`
 on `background`, and 4.5:1 for `text-muted`.

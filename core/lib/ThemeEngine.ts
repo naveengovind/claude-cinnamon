@@ -124,6 +124,45 @@ export class ThemeEngine {
     return null;
   }
 
+  /** Whether a colour lets what's behind it show through (an alpha under 1, `transparent`, a mix with it). */
+  static isSeeThrough(v: unknown): boolean {
+    if (typeof v !== 'string') return false;
+    const s = v.trim().toLowerCase();
+    if (s === 'transparent') return true;
+    const hex = /^#([0-9a-f]{4}|[0-9a-f]{8})$/.exec(s);
+    if (hex) return hex[1]!.length === 4 ? hex[1]!.at(-1) !== 'f' : hex[1]!.slice(-2) !== 'ff';
+    if (/^color-mix\(/.test(s)) return /\btransparent\b/.test(s);
+    const fn = /^(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch)\((.*)\)$/.exec(s);
+    if (!fn) return false;
+    const body = fn[1]!;
+    const alpha = body.includes('/') ? body.split('/').pop()!.trim() : (body.split(',').length === 4 ? body.split(',').pop()!.trim() : null);
+    if (alpha === null) return false;
+    const n = alpha.endsWith('%') ? parseFloat(alpha) / 100 : parseFloat(alpha);
+    return Number.isFinite(n) && n < 1;
+  }
+
+  /**
+   * Advice, not errors: see-through colours on surfaces that cover each other darken where they overlap (bands and
+   * boxes, around the message box most of all). `transparent` is fine: it adds no coat.
+   */
+  static notes(theme: Theme | null | undefined): string[] {
+    const notes: string[] = [];
+    const tinted = (v: unknown) => ThemeEngine.isSeeThrough(v) && String(v).trim().toLowerCase() !== 'transparent';
+    // what sits on top of what: the chat area and the sidebar both sit on the frame; panels and wells on the chat area
+    const over: [string, string[]][] = [['background', ['background-deep', 'panel']], ['frame', ['background', 'sidebar']]];
+    for (const mode of ['dark', 'light'] as const) {
+      const s = theme?.[mode];
+      if (!s) continue;
+      for (const [under, tops] of over) {
+        if (!tinted(s[under])) continue;
+        for (const key of tops) {
+          if (tinted(s[key])) notes.push(`${mode}: ${under} and ${key} are both see-through and ${key} sits on ${under}, so it comes out darker. Tint once: make one of them "transparent".`);
+        }
+      }
+    }
+    return notes;
+  }
+
   /** Everything wrong with a theme: rejected keys, values, css and window material (nothing is applied for those). */
   static problems(theme: Theme | null | undefined): string[] {
     const { errors } = ThemeEngine.css(theme);
@@ -148,6 +187,15 @@ export class ThemeEngine {
         const gate = (sels: string[]): string[] => (yielding ? sels.map(outsideModPalette) : sels);
         const keep = (key: string) => yieldKeys.has(key) === yielding;
         const { root, scoped } = ThemeEngine.declarations(theme[mode], mode, yielding ? [] : errors, keep);
+        if (!yielding && ThemeEngine.isSeeThrough(theme[mode]!.background)) {
+          // The app paints the chat background again on strips around the message box (the sticky strip under it,
+          // the dock mask while text scrolls under it, the scroll fades); with nothing else painting the chat area,
+          // a see-through colour there shows as dark bands. Those strips go transparent instead.
+          const clear = '--epitaxy-transcript-surface: transparent !important;';
+          root.push(clear);
+          scoped.set('[class*="--epitaxy-transcript-surface:"]', [clear]);
+          scoped.set('[data-cds-dock-masked]', ['--cds-page-bg: transparent !important;']);
+        }
         css += ThemeEngine.block(gate(rootSel), root);
         for (const [s, decls] of scoped) css += ThemeEngine.block(gate([`[data-mode="${mode}"] ${s}`]), decls);
         sys += ThemeEngine.block(gate(sysRootSel), root);

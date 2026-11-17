@@ -34,6 +34,7 @@ export class ThemeCommands {
     this.out.say(this.out.green(`✓ theme: ${id}`));
     const theme = this.store.list().find((t) => t.id === id)?.theme;
     for (const p of ThemeEngine.problems(theme)) this.out.say(this.out.red(`  not applied: ${p}`));
+    for (const n of ThemeEngine.notes(theme)) this.out.say(this.out.yellow(`  note: ${n}`));
     this.out.liveNote();
     return 0;
   }

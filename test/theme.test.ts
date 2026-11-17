@@ -172,3 +172,34 @@ test('a theme file called default.json is ignored (Default means Claude\'s own c
   write(a, 'ok.json', { name: 'OK' });
   assert.deepStrictEqual(listThemes([a]).map((x) => x.id), ['ok']);
 });
+
+// See-through themes: the app paints the background again on strips around the message box (the sticky strip under
+// it, the dock mask while text scrolls under it, the scroll fades). Nothing else paints the chat area, so with a
+// see-through colour those strips show as dark bands; Cinnamon makes them transparent.
+test('a see-through background clears the strips the app paints it on again around the message box', () => {
+  const { css } = themeCss({ dark: { background: '#1a0902a6' } });
+  assert.match(css, /--epitaxy-transcript-surface: transparent !important/);
+  assert.match(css, /\[data-cds-dock-masked\][^{]*\{[^}]*--cds-page-bg: transparent !important/);
+  assert.match(css, /\[class\*="--epitaxy-transcript-surface:"\][^{]*\{[^}]*--epitaxy-transcript-surface: transparent !important/);
+});
+
+test('an opaque background leaves those strips alone', () => {
+  for (const bg of ['#111111', '#111', 'rgb(1, 2, 3)', '#1a0902ff', 'black']) {
+    const { css } = themeCss({ dark: { background: bg } });
+    assert.doesNotMatch(css, /--epitaxy-transcript-surface/, bg);
+  }
+});
+
+test('see-through is recognised in the usual colour forms', () => {
+  for (const bg of ['transparent', '#0008', '#1a0902a6', 'rgba(1, 2, 3, 0.5)', 'rgb(1 2 3 / 50%)', 'hsla(10, 20%, 30%, .4)', 'color-mix(in srgb, #000 60%, transparent)']) {
+    const { css } = themeCss({ dark: { background: bg } });
+    assert.match(css, /--epitaxy-transcript-surface: transparent/, bg);
+  }
+});
+
+test('only the see-through mode gets it', () => {
+  const { css } = themeCss({ dark: { background: '#00000080' }, light: { background: '#ffffff' } });
+  const rules = [...css.matchAll(/([^{}]+)\{([^}]*)\}/g)].filter((m) => m[2]!.includes('transparent !important'));
+  assert.ok(rules.length > 0);
+  for (const m of rules) assert.doesNotMatch(m[1]!, /data-mode="light"/);
+});
