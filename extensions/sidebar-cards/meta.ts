@@ -1,6 +1,6 @@
 // Session metadata for the sidebar cards, read from the Claude app's own session files and the matching Claude Code
 // session logs. Only display fields are kept: folder, branch, last activity time, model, whether a turn is in
-// progress (and since when), the app's after-turn status and its one-line summary.
+// progress (and since when) and the app's one-line summary of the last turn.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -11,7 +11,6 @@ export interface Session {
   time: number | null;
   model: string | null;
   working: number | null;
-  state: AppState;
   summary: string | null;
 }
 export interface CardData {
@@ -20,11 +19,8 @@ export interface CardData {
   rel: string;
   model: string | null;
   working: number | null;
-  state: AppState;
   summary: string | null;
-  label: string | null;
 }
-export type AppState = 'needs' | 'blocked' | 'failed' | 'review' | null;
 type LogEntry = { type?: string; isMeta?: boolean; timestamp?: string; message?: { content?: unknown; stop_reason?: string | null } };
 
 const DEFAULT_PROJECTS = path.join(os.homedir(), '.claude', 'projects');
@@ -40,9 +36,12 @@ export class SessionLog {
   static info(projectsRoot: string, cwd: string | null, cliId: string | null, now: number): { branch: string | null; working: number | null } {
     const none = { branch: null, working: null };
     if (!cwd || !cliId) return none;
-    const file = path.join(projectsRoot, cwd.replace(/[^A-Za-z0-9]/g, '-'), `${cliId}.jsonl`);
-    let st: fs.Stats;
-    try { st = fs.statSync(file); } catch { return none; }
+    // Claude Code's own log, or (an SSH session, whose log is on its host) the copy the app keeps here
+    const files = [path.join(projectsRoot, cwd.replace(/[^A-Za-z0-9]/g, '-'), `${cliId}.jsonl`), path.join(projectsRoot, `ssh-${cliId}`, `${cliId}.jsonl`)];
+    let st: fs.Stats | null = null;
+    let file = '';
+    for (const f of files) { try { st = fs.statSync(f); file = f; break; } catch {} }
+    if (!st) return none;
     const key = `${st.size}:${st.mtimeMs}`;
     let hit = SessionLog.cache.get(file);
     if (!hit || hit.key !== key) {
@@ -120,23 +119,7 @@ export class SessionLog {
 
 /** The app's session files (claude-code-sessions/<account>/<org>/local_*.json) → card data. */
 export class SessionReader {
-  private static readonly NEEDS = new Set(['needs_input', 'need_input', 'awaiting_permission', 'requires_action']);
-  private static readonly STATES: Record<string, AppState> = { blocked: 'blocked', failed: 'failed', review_ready: 'review' };
-
   constructor(private readonly root: string, private readonly projectsRoot = DEFAULT_PROJECTS) {}
-
-  /** The app's own after-turn status, reduced to the chips worth showing. */
-  static appState(d: unknown): AppState {
-    if (!d || typeof d !== 'object') return null;
-    const s = d as { interruptedAwaitingPerson?: unknown; postTurnSummary?: unknown };
-    if (s.interruptedAwaitingPerson) return 'needs';
-    const p = s.postTurnSummary as { needs_action?: unknown; status_category?: unknown } | undefined;
-    if (!p || typeof p !== 'object') return null;
-    if (typeof p.needs_action === 'string' && p.needs_action.trim()) return 'needs';
-    const cat = typeof p.status_category === 'string' ? p.status_category : '';
-    if (SessionReader.NEEDS.has(cat)) return 'needs';
-    return SessionReader.STATES[cat] || null;
-  }
 
   static relTime(ms: number, now: number): string {
     const s = Math.max(0, (now - ms) / 1000);
@@ -183,7 +166,6 @@ export class SessionReader {
             time: typeof d.lastActivityAt === 'number' ? d.lastActivityAt : null,
             model: str(d.model),
             working: log.working,
-            state: SessionReader.appState(d),
             summary: summary ? summary.slice(0, 200) : null,
           };
         }
@@ -192,8 +174,8 @@ export class SessionReader {
     return out;
   }
 
-  /** What the page's cards show, with your labels. */
-  cards(now: number, labels: Record<string, { label?: string } | undefined> = {}): Record<string, CardData> {
+  /** What the page's cards show. (A session with no file here, a cloud one, gets what the app shows for it.) */
+  cards(now: number): Record<string, CardData> {
     const out: Record<string, CardData> = {};
     for (const [id, m] of Object.entries(this.sessions(now))) {
       out[id] = {
@@ -202,9 +184,7 @@ export class SessionReader {
         rel: m.time == null ? '' : SessionReader.relTime(m.time, now),
         model: SessionReader.shortModel(m.model),
         working: m.working,
-        state: m.state,
         summary: m.summary,
-        label: labels[id]?.label ?? null,
       };
     }
     return out;
@@ -212,12 +192,11 @@ export class SessionReader {
 }
 
 // Function forms (used by the tests).
-export const appState = SessionReader.appState;
 export const relTime = SessionReader.relTime;
 export const shortModel = SessionReader.shortModel;
 export function readSessions(root: string, { projectsRoot = DEFAULT_PROJECTS, now = Date.now() }: { projectsRoot?: string; now?: number } = {}): Record<string, Session> {
   return new SessionReader(root, projectsRoot).sessions(now);
 }
-export function payload(root: string, now: number, { labels = {}, projectsRoot = DEFAULT_PROJECTS }: { labels?: Record<string, { label?: string } | undefined>; projectsRoot?: string } = {}): Record<string, CardData> {
-  return new SessionReader(root, projectsRoot).cards(now, labels);
+export function payload(root: string, now: number, { projectsRoot = DEFAULT_PROJECTS }: { projectsRoot?: string } = {}): Record<string, CardData> {
+  return new SessionReader(root, projectsRoot).cards(now);
 }

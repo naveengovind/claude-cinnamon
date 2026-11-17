@@ -10,7 +10,7 @@
     "jsdom": "^26.1.0",
     "typescript": "^7.0.2"
   },
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "Themes and extensions for the Claude desktop app (macOS)",
   "bin": {
     "cinnamon": "bin/cinnamon"

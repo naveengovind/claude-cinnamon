@@ -44,14 +44,15 @@ test('decorates code rows with meta lines in order', () => {
   assert.match(b.querySelector('.cm-bottom').textContent, /claude\/test-3cda1d.*Opus 5\.5/);
 });
 
-test('rows without meta get card styling only; label rows are untouched', () => {
+test('a row with no data still gets a card (and no detail line); label rows are untouched', () => {
   const w = page();
   w.__cmSetMeta(META);
   const x = w.document.querySelector('[data-row-key="code:local_x"] [data-row]');
   assert.ok(x.hasAttribute('data-cm-card'));
-  assert.strictEqual(x.querySelector('.cm-top'), null);
+  assert.ok(x.querySelector('.cm-top'));
+  assert.strictEqual(x.querySelector('.cm-bottom'), null);
   assert.strictEqual(w.document.querySelector('[data-row-key^="label:"] [data-row]').hasAttribute('data-cm-card'), false);
-  assert.deepStrictEqual({ ...w.__cmStats() }, { rows: 2, decorated: 1, duplicates: 0 });
+  assert.deepStrictEqual({ ...w.__cmStats() }, { rows: 2, decorated: 2, duplicates: 0 });
 });
 
 test('re-applying the script and meta never duplicates lines', () => {
@@ -59,7 +60,7 @@ test('re-applying the script and meta never duplicates lines', () => {
   w.__cmSetMeta(META);
   w.eval(SRC);
   w.__cmSetMeta(META);
-  assert.deepStrictEqual({ ...w.__cmStats() }, { rows: 2, decorated: 1, duplicates: 0 });
+  assert.deepStrictEqual({ ...w.__cmStats() }, { rows: 2, decorated: 2, duplicates: 0 });
 });
 
 test('meta updates replace text in place', () => {
@@ -84,38 +85,21 @@ test('a row re-rendered by the app gets its lines back once', async () => {
   assert.strictEqual(fresh.querySelectorAll('.cm-bottom').length, 1);
 });
 
-// ---- status chips, working badge, your labels ----
+// ---- the Working badge and the summary tooltip ----
 const M = (extra) => ({ local_a: { folder: 'acme', branch: 'main', rel: '3h', model: 'Opus 5.5', working: null, state: null, summary: null, label: null, ...extra } });
-const chip = (w) => btn(w, 'a').querySelector('.cm-top .cm-chip');
 
-test('your label shows as a chip', () => {
+test('a working session shows Working with elapsed time instead of the age', () => {
   const w = page();
-  w.__cmSetMeta(M({ label: 'doing' }));
-  assert.strictEqual(chip(w).dataset.kind, 'doing');
-  assert.strictEqual(chip(w).textContent, 'In progress');
-});
-
-test("the app's attention state shows when you have no label, and your label wins", () => {
-  const w = page();
-  w.__cmSetMeta(M({ state: 'needs' }));
-  assert.strictEqual(chip(w).textContent, 'Needs you');
-  w.__cmSetMeta(M({ state: 'needs', label: 'done' }));
-  assert.strictEqual(chip(w).textContent, 'Done');
-});
-
-test('no label and no state shows the faint add chip', () => {
-  const w = page();
-  w.__cmSetMeta(M({}));
-  assert.strictEqual(chip(w).dataset.kind, 'add');
-});
-
-test('a working session shows Working with elapsed time instead of the age, keeping its chip', () => {
-  const w = page();
-  w.__cmSetMeta(M({ working: Date.now() - 12_000, label: 'todo' }));
+  w.__cmSetMeta(M({ working: Date.now() - 12_000 }));
   const top = btn(w, 'a').querySelector('.cm-top');
   assert.match(top.querySelector('.cm-working').textContent, /Working 1[12]s/);
   assert.strictEqual(top.querySelector('.cm-time'), null);
-  assert.strictEqual(chip(w).textContent, 'To do');
+});
+
+test('no status chips or label picker: the app\'s own status (needs you, review…) is not repeated', () => {
+  const w = page();
+  w.__cmSetMeta(M({ state: 'needs', label: 'todo' }));
+  assert.strictEqual(w.document.querySelector('.cm-chip, .cm-menu, [aria-label="Set label"]'), null);
 });
 
 test('elapsed time ticks without rebuilding the line', () => {
@@ -132,39 +116,6 @@ test("the app's one-line summary is the time's tooltip", () => {
   const w = page();
   w.__cmSetMeta(M({ summary: 'fork ready; no changes' }));
   assert.strictEqual(btn(w, 'a').querySelector('.cm-time').title, 'fork ready; no changes');
-});
-
-test('clicking the chip opens the label menu and does not open the session', () => {
-  const w = page();
-  w.__cmSetMeta(M({}));
-  let opened = 0;
-  btn(w, 'a').addEventListener('click', () => opened++);
-  chip(w).dispatchEvent(new w.MouseEvent('click', { bubbles: true, cancelable: true }));
-  assert.strictEqual(opened, 0);
-  const items = [...w.document.querySelectorAll('.cm-menu [data-label]')].map((n) => n.textContent);
-  assert.deepStrictEqual(items, ['To do', 'In progress', 'Done', 'Clear']);
-});
-
-test('choosing a label shows it, queues it for saving once, and survives a stale push', () => {
-  const w = page();
-  w.__cmSetMeta(M({}));
-  chip(w).dispatchEvent(new w.MouseEvent('click', { bubbles: true, cancelable: true }));
-  w.document.querySelector('.cm-menu [data-label="done"]').dispatchEvent(new w.MouseEvent('click', { bubbles: true, cancelable: true }));
-  assert.strictEqual(chip(w).textContent, 'Done');
-  assert.strictEqual(w.document.querySelector('.cm-menu'), null);
-  assert.deepStrictEqual({ ...w.__cmTakeLabelChanges() }, { local_a: 'done' });
-  assert.deepStrictEqual({ ...w.__cmTakeLabelChanges() }, {});
-  w.__cmSetMeta(M({ label: null }));
-  assert.strictEqual(chip(w).textContent, 'Done');
-});
-
-test('Clear removes your label', () => {
-  const w = page();
-  w.__cmSetMeta(M({ label: 'todo' }));
-  chip(w).dispatchEvent(new w.MouseEvent('click', { bubbles: true, cancelable: true }));
-  w.document.querySelector('.cm-menu [data-label="clear"]').dispatchEvent(new w.MouseEvent('click', { bubbles: true, cancelable: true }));
-  assert.strictEqual(chip(w).dataset.kind, 'add');
-  assert.deepStrictEqual({ ...w.__cmTakeLabelChanges() }, { local_a: null });
 });
 
 test('missing branch shows model only; values are text, not HTML', () => {
@@ -190,14 +141,14 @@ function pageWithRuntime() {
 }
 const RUNTIME = await pageCode('core/page/runtime.ts');
 
-test('disposing the cards removes every card line, menu, timer and hook it added', () => {
+test('disposing the cards removes every card line, timer and hook it added', () => {
   const { w } = pageWithRuntime();
   w.__cmSetMeta(META);
   assert.ok(w.document.querySelector('.cm-top'));
   const state = w.__cmState;
   assert.ok(state.relist && state.ticker);
   assert.strictEqual(w.__cinnamon.dispose('sidebar-cards'), 'cinnamon:disposed');
-  assert.strictEqual(w.document.querySelectorAll('.cm-top, .cm-bottom, .cm-menu, [data-cm-card]').length, 0);
+  assert.strictEqual(w.document.querySelectorAll('.cm-top, .cm-bottom, [data-cm-card]').length, 0);
   assert.strictEqual(state.relist, undefined);
   assert.strictEqual(state.ticker, undefined);
   assert.strictEqual(state.observer, null);
@@ -219,4 +170,78 @@ test('a redraw queued before the cards were taken out does not bring them back',
   w.__cinnamon.dispose('sidebar-cards');
   await tick(w);
   assert.strictEqual(w.document.querySelectorAll('.cm-top, .cm-bottom').length, 0);
+});
+
+// ---- every kind of session: cloud rows, and the app's own Running status (local, SSH and cloud alike) ----
+// Shaped like the app's rows (Nov 2026): the status is a hidden "Running" next to the title and a pulse icon.
+const runningBits = `<span data-find-omitted data-session-status> Running</span>`;
+const pulse = `<span data-row-decoration><span aria-hidden="true"><span role="img" aria-label="Running"><span><span data-cds="Pulse"></span></span></span></span></span>`;
+const appRow = (key, title, { place = '', running = false } = {}) => `
+  <div data-row-key="code:${key}">
+    <div><div data-row>
+      <button data-row-main-button><span data-row-label="iconless"><span dir="auto"><span><span>${title}${place ? `<span data-find-omitted> ${place}</span>` : ''}${running ? runningBits : ''}</span></span></span></span><span></span></button>
+      ${running ? pulse : ''}
+      <div data-row-controls><button aria-label="More options">…</button></div>
+    </div></div>
+  </div>`;
+function listPage(rows) {
+  const dom = new JSDOM(`<body><div data-testid="sidebar-recents">${rows.join('')}</div></body>`, { runScripts: 'outside-only', pretendToBeVisual: true });
+  dom.window.eval(SRC);
+  open.push(dom.window);
+  return dom.window;
+}
+const top = (w, key) => w.document.querySelector(`[data-row-key="code:${key}"] .cm-top`);
+
+test('a cloud session gets a card, with the place the app shows for it', () => {
+  const w = listPage([appRow('session_01AbC', 'Test', { place: 'Cloud' })]);
+  w.__cmSetMeta({});
+  assert.ok(top(w, 'session_01AbC'), 'a card');
+  assert.match(top(w, 'session_01AbC').textContent, /Cloud/);
+});
+
+test('a session the app shows as Running is Working, even with no data from its transcript (SSH, cloud)', () => {
+  const w = listPage([appRow('session_01AbC', 'Test', { place: 'Cloud', running: true }), appRow('local_ssh', 'On a remote host', { running: true })]);
+  w.__cmSetMeta({ local_ssh: { folder: 'acme', branch: 'main', rel: '2d', model: 'Opus 5.5', working: null, state: null, summary: null, label: null } });
+  assert.match(top(w, 'session_01AbC').querySelector('.cm-working').textContent, /Working 0s/);
+  assert.match(top(w, 'local_ssh').querySelector('.cm-working').textContent, /Working/);
+  assert.strictEqual(top(w, 'local_ssh').querySelector('.cm-time'), null);
+});
+
+test('Working counts from the prompt time when the transcript has it', () => {
+  const w = listPage([appRow('local_a', 'A', { running: true })]);
+  w.__cmSetMeta({ local_a: { folder: 'acme', branch: null, rel: '1h', model: null, working: Date.now() - 42_000, state: null, summary: null, label: null } });
+  assert.match(top(w, 'local_a').querySelector('.cm-working').textContent, /Working 4[12]s/);
+});
+
+test('Working keeps counting from when it started, across redraws, and stops when the app does', async () => {
+  const w = listPage([appRow('session_01AbC', 'Test', { place: 'Cloud', running: true })]);
+  w.__cmSetMeta({});
+  const since = Number(top(w, 'session_01AbC').querySelector('.cm-working').dataset.since);
+  await new Promise((r) => setTimeout(r, 30));
+  w.__cmSetMeta({});
+  assert.strictEqual(Number(top(w, 'session_01AbC').querySelector('.cm-working').dataset.since), since, 'same start');
+  // the app says it finished
+  w.document.querySelector('[data-session-status]').remove();
+  w.document.querySelector('[data-row-decoration]').remove();
+  await tick(w);
+  assert.strictEqual(top(w, 'session_01AbC').querySelector('.cm-working'), null);
+});
+
+test('the place text the app adds is not mistaken for the running status', () => {
+  const w = listPage([appRow('session_01AbC', 'remote-box', { place: 'acme · Offline' })]);
+  w.__cmSetMeta({});
+  assert.match(top(w, 'session_01AbC').textContent, /acme · Offline/);
+  assert.strictEqual(top(w, 'session_01AbC').querySelector('.cm-working'), null);
+});
+
+test('an unread response is not Working, although the app uses the same pulsing dot for it', () => {
+  const unread = `<div data-row-key="code:local_u"><div><div data-row>
+      <button data-row-main-button><span data-row-label="iconless"><span dir="auto"><span><span>Done thing<span data-find-omitted data-session-status> Unread response</span></span></span></span></span><span></span></button>
+      <span data-row-decoration><span aria-hidden="true"><span role="img" aria-label="Unread response"><span><span data-cds="Pulse"></span></span></span></span></span>
+      <div data-row-controls><button aria-label="More options">…</button></div>
+    </div></div></div>`;
+  const w = listPage([unread]);
+  w.__cmSetMeta({ local_u: { folder: 'acme', branch: null, rel: '3m', model: null, working: null, summary: null } });
+  assert.strictEqual(top(w, 'local_u').querySelector('.cm-working'), null);
+  assert.match(top(w, 'local_u').textContent, /3m/);
 });

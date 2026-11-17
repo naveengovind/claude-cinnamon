@@ -7,8 +7,9 @@ Not affiliated with or endorsed by Anthropic.
   Glass (see-through, blurred desktop behind), Ember (a slow-drifting orange sun and stars behind see-through
   panels), or any theme you write as a small JSON file.
 - **Extensions**, switched on and off in *Settings → Appearance → Extensions*:
-  - **Sidebar cards**: t3-style session cards with folder, branch, model and age, a live *Working* timer, the app's
-    status (Needs you / Blocked / Failed / Review) and your own labels (To do / In progress / Done).
+  - **Sidebar cards**: t3-style session cards with folder, branch, model and age, and a live *Working* timer, for
+    every Code session: on this Mac, over SSH and in the cloud (a cloud session shows where it runs). *Working*
+    follows the app's own Running status, so it's right for all three.
   - **Full width**: adds *Full* to *Settings → Appearance → Transcript width*.
   - Install more from GitHub: `cinnamon ext install owner/repo`.
 - **Re-applies itself every time Claude starts.** Claude.app itself is never modified.

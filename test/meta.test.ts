@@ -22,12 +22,12 @@ function fixture() {
 test('readSessions reads code sessions keyed by file stem', () => {
   const s = readSessions(fixture());
   assert.deepStrictEqual(Object.keys(s).sort(), ['local_a', 'local_b']);
-  assert.deepStrictEqual(s.local_a, { folder: 'acme', branch: 'claude/test-3cda1d', time: 1000, model: 'claude-opus-5-5', working: null, state: null, summary: null });
+  assert.deepStrictEqual(s.local_a, { folder: 'acme', branch: 'claude/test-3cda1d', time: 1000, model: 'claude-opus-5-5', working: null, summary: null });
 });
 
 test('readSessions falls back to cwd and worktreeName', () => {
   const s = readSessions(fixture());
-  assert.deepStrictEqual(s.local_b, { folder: 'scratch', branch: 'wt-name', time: 2000, model: null, working: null, state: null, summary: null });
+  assert.deepStrictEqual(s.local_b, { folder: 'scratch', branch: 'wt-name', time: 2000, model: null, working: null, summary: null });
 });
 
 test('readSessions returns {} for a missing root', () => {
@@ -41,7 +41,7 @@ test('valid JSON with unexpected types never breaks the other sessions', () => {
   fs.writeFileSync(path.join(dir, 'local_t.json'), JSON.stringify({ cwd: 42, originCwd: ['x'], model: { id: 'opus' }, branch: 7, lastActivityAt: '5' }));
   const s = readSessions(root);
   assert.strictEqual(s.local_n, undefined);
-  assert.deepStrictEqual(s.local_t, { folder: '', branch: null, time: null, model: null, working: null, state: null, summary: null });
+  assert.deepStrictEqual(s.local_t, { folder: '', branch: null, time: null, model: null, working: null, summary: null });
   assert.ok(s.local_a && s.local_b);
   const { payload } = require('../extensions/sidebar-cards/meta');
   assert.doesNotThrow(() => payload(root, Date.now()));
@@ -130,29 +130,13 @@ test('a turn with no log writes for 15 minutes is not working', () => {
 });
 
 // ---- the app's own after-turn status ----
-test('app status: attention states map to chips, completed maps to none', () => {
-  const { appState } = require('../extensions/sidebar-cards/meta');
-  const pts = (status_category, needs_action = '') => ({ postTurnSummary: { status_category, needs_action, status_detail: 'one line' } });
-  assert.strictEqual(appState(pts('needs_input')), 'needs');
-  assert.strictEqual(appState(pts('awaiting_permission')), 'needs');
-  assert.strictEqual(appState(pts('blocked')), 'blocked');
-  assert.strictEqual(appState(pts('failed')), 'failed');
-  assert.strictEqual(appState(pts('review_ready')), 'review');
-  assert.strictEqual(appState(pts('completed')), null);
-  assert.strictEqual(appState(pts('completed', 'Approve the deploy')), 'needs');
-  assert.strictEqual(appState({ interruptedAwaitingPerson: { at: 1 } }), 'needs');
-  assert.strictEqual(appState({}), null);
-});
-
-test('payload carries working, app state, summary and your label', () => {
+test('payload carries working and the app\'s one-line summary', () => {
   const { payload } = require('../extensions/sidebar-cards/meta');
   const root = fixture();
   fs.writeFileSync(path.join(root, 'acct', 'org', 'local_s.json'), JSON.stringify({ cwd: '/tmp/s', lastActivityAt: 1, postTurnSummary: { status_category: 'blocked', status_detail: 'waiting on CI' } }));
-  const p = payload(root, Date.now(), { labels: { local_a: { label: 'doing', setAt: 1 } } });
-  assert.strictEqual(p.local_s.state, 'blocked');
+  const p = payload(root, Date.now());
   assert.strictEqual(p.local_s.summary, 'waiting on CI');
-  assert.strictEqual(p.local_s.label, null);
-  assert.strictEqual(p.local_a.label, 'doing');
+  assert.strictEqual(p.local_s.state, undefined, 'no status chips');
   assert.strictEqual(p.local_a.working, null);
 });
 
@@ -169,8 +153,8 @@ test('relTime buckets', () => {
 test('payload is what the page renders: rel time and short model', () => {
   const { payload } = require('../extensions/sidebar-cards/meta');
   const p = payload(fixture(), 2000 + 8 * 86400e3);
-  assert.deepStrictEqual(p.local_a, { folder: 'acme', branch: 'claude/test-3cda1d', rel: '8d', model: 'Opus 5.5', working: null, state: null, summary: null, label: null });
-  assert.deepStrictEqual(p.local_b, { folder: 'scratch', branch: 'wt-name', rel: '8d', model: null, working: null, state: null, summary: null, label: null });
+  assert.deepStrictEqual(p.local_a, { folder: 'acme', branch: 'claude/test-3cda1d', rel: '8d', model: 'Opus 5.5', working: null, summary: null });
+  assert.deepStrictEqual(p.local_b, { folder: 'scratch', branch: 'wt-name', rel: '8d', model: null, working: null, summary: null });
 });
 
 test('shortModel', () => {
@@ -178,3 +162,17 @@ test('shortModel', () => {
   assert.strictEqual(shortModel('claude-sonnet-4-5-20250929'), 'Sonnet 4.5');
   assert.strictEqual(shortModel(null), null);
 });
+
+test('an SSH session reads the copy of its transcript the app keeps (projects/ssh-<id>/<id>.jsonl)', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cm-ssh-'));
+  const projects = path.join(root, 'projects');
+  const dir = path.join(root, 'sessions', 'acct', 'org');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'local_s.json'), JSON.stringify({ cwd: '/home/me/code/remote', cliSessionId: 'cli-s', lastActivityAt: 1 }));
+  const log = path.join(projects, 'ssh-cli-s', 'cli-s.jsonl');
+  fs.mkdirSync(path.dirname(log), { recursive: true });
+  fs.writeFileSync(log, [{ gitBranch: 'feature/remote' }].map((e) => JSON.stringify(e)).join('\n') + '\n');
+  const s = readSessions(path.join(root, 'sessions'), { projectsRoot: projects });
+  assert.strictEqual(s.local_s.branch, 'feature/remote');
+});
+

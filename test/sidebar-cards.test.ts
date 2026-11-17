@@ -40,26 +40,6 @@ test('a view gets the session data when it is ready', async () => {
   assert.strictEqual(pushes(f.view).length, 1);
 });
 
-test('labels set in the page are saved in the extension data folder and pushed back', async () => {
-  const f = fakeCtx({ labelChanges: { local_x: 'done' } });
-  const dir = path.join(f.ctx.appDataDir, 'claude-code-sessions', 'acct', 'org');
-  fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(path.join(dir, 'local_x.json'), JSON.stringify({ cwd: '/tmp/proj', lastActivityAt: Date.now() }));
-  load().activate(f.ctx);
-  const collect = f.intervals.find((i) => i.ms === 2000);
-  await collect.fn();
-  const saved = JSON.parse(fs.readFileSync(path.join(f.ctx.dataDir, 'labels.json'), 'utf8'));
-  assert.strictEqual(saved.local_x.label, 'done');
-  assert.ok(pushes(f.view).some((s) => s.includes('"label":"done"')));
-});
-
-test('no label changes means no write', async () => {
-  const f = fakeCtx();
-  load().activate(f.ctx);
-  await f.intervals.find((i) => i.ms === 2000).fn();
-  assert.strictEqual(fs.existsSync(path.join(f.ctx.dataDir, 'labels.json')), false);
-});
-
 test('the data is refreshed every 6 seconds for the Working timers', async () => {
   const f = fakeCtx();
   load().activate(f.ctx);

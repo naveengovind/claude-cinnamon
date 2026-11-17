@@ -144,3 +144,12 @@ Answers are only ever written into the responses folder and are pruned after 10 
 kinds are answered with an error, and `"screenshots": false` in config.json turns it off. The cinnamon skill uses it
 to look at every visible change it makes. Any process running as you could also ask for a picture this way; it can
 already read Claude's data on disk, so this adds little, and the switch is there for anyone who wants it off.
+
+## Sidebar cards for every session (Nov 16 2026)
+Cards go on every Code row (`code:local_…` for this Mac and SSH, `code:session_…` for cloud). Data comes from the
+app's session files and Claude Code's log, or, for an SSH session, the copy of its log the app keeps in
+`~/.claude/projects/ssh-<id>/` (branch); a session with no file here gets the place the app shows (Cloud, an
+environment). *Working* follows the app's own status: the row's `[data-session-status]` / status icon labelled
+"Running" (not the pulsing dot, which also marks an unread response), timed from the log's last prompt when there
+is one and otherwise from when the app first showed it running (kept in localStorage). The status chips and the
+label picker were removed as clutter: the app shows its own status.
