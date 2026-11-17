@@ -16,6 +16,26 @@
 :is([data-cm-theme-row], [data-cm-ext-row]) [data-settings-control] {
   position: relative;
 }
+/* The rows' dropdown: a popover like the app's own (its surface, border and shadow follow the theme) */
+.cm-menu {
+  position: fixed;
+  z-index: 2147483647;
+  min-width: 132px;
+  padding: 4px;
+  border-radius: 8px;
+  background: var(--cds-surface-popover, #2f2f2f);
+  color: var(--cds-text-primary, #e8e8e8);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.35), 0 0 0 1px var(--cds-border-strong, rgb(255 255 255 / 0.12));
+  font-size: 13px;
+  line-height: 18px;
+}
+.cm-menu-item {
+  padding: 5px 8px;
+  border-radius: 5px;
+  cursor: pointer;
+  user-select: none;
+}
+.cm-menu-item:hover { background: var(--df-hover, rgb(255 255 255 / 0.07)); }
 .cm-menu.cm-menu-anchored {
   position: absolute;
   top: calc(100% + 4px);

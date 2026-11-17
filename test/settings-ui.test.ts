@@ -1,5 +1,7 @@
 import { test, afterEach } from 'bun:test';
 import assert from 'node:assert';
+import fs from 'node:fs';
+import path from 'node:path';
 import { JSDOM } from 'jsdom';
 import { pageCode } from './helpers';
 
@@ -207,5 +209,18 @@ test('every row anchors its menu to itself (its control area is positioned)', as
   for (const r of [row(w), extRow(w)]) {
     const control = r.querySelector('[data-settings-control]');
     assert.strictEqual(control.style.position, 'relative', r.getAttribute('aria-label'));
+  }
+});
+
+// The Settings rows' dropdown is styled by the core page CSS alone: it once borrowed the sidebar cards' .cm-menu rules,
+// and lost its background when those went (or whenever the cards were off).
+test('the Settings dropdown has its own menu styles: background, border, items', () => {
+  const css = fs.readFileSync(path.join(import.meta.dir, '..', 'core', 'page', 'settings-ui.css'), 'utf8');
+  const rule = (sel) => { const m = new RegExp(`(^|\\n)${sel.replace(/[.[\]]/g, '\\$&')}\\s*\\{([^}]*)\\}`).exec(css); return m ? m[2] : ''; };
+  assert.match(rule('.cm-menu'), /background:\s*var\(--cds-surface-popover/);
+  assert.match(rule('.cm-menu'), /box-shadow/);
+  assert.match(rule('.cm-menu-item'), /padding/);
+  for (const f of fs.readdirSync(path.join(import.meta.dir, '..', 'extensions', 'sidebar-cards')).filter((f) => f.endsWith('.css'))) {
+    assert.doesNotMatch(fs.readFileSync(path.join(import.meta.dir, '..', 'extensions', 'sidebar-cards', f), 'utf8'), /\.cm-menu/, `${f} must not style the Settings menu`);
   }
 });
