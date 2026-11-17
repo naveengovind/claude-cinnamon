@@ -298,3 +298,11 @@ test('screenshot says what to do when nothing answers', () => {
   assert.match(r.stdout + r.stderr, /cinnamon (status|apply)/);
   assert.deepStrictEqual(fs.readdirSync(path.join(h, 'state', 'requests')), [], 'an unanswered request is taken back');
 });
+
+test('a refused backdrop is named by theme <id> and doctor', () => {
+  const h = home();
+  fs.mkdirSync(path.join(h, 'themes'), { recursive: true });
+  fs.writeFileSync(path.join(h, 'themes', 'bd.json'), JSON.stringify({ name: 'Bd', dark: { background: '#111' }, backdrop: { svg: '<svg onload="x()"></svg>' } }));
+  assert.match(run(h, 'theme', 'bd').out, /not applied: backdrop: svg may not have scripts/);
+  assert.match(run(h, 'doctor').out, /theme bd: backdrop: svg may not have scripts/);
+});

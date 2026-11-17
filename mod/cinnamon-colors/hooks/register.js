@@ -1,17 +1,20 @@
-// Cinnamon colors: a Claude Code mod that paints the Claude desktop app's Code tab with the color scheme picked in
-// Cinnamon, through the app's own theme API ($.theme.set). Cinnamon does the color work: it turns the picked theme
-// into the app's color data and writes it to look.json in this folder as { id, colors }, or { id: null } when the
-// scheme is one only Cinnamon can paint (Default, Glass). This mod passes that on and follows changes. The desktop app
-// copies local plugins to the SSH hosts its Code sessions run on, so the look travels with the mod there. While the app paints a mod theme it marks the page (data-cds-theme="mod-palette"), and Cinnamon's own
-// colors step aside there, so the two never fight.
+// Cinnamon colors: a Claude Code mod that hands the theme picked in Cinnamon to the Claude apps through Claude Code's
+// own theme API ($.theme.set), which the desktop app's Code tab and the mobile app draw. Cinnamon does the work: it
+// turns the picked theme into look.json in this folder:
+//   { id, colors?, backdrop?, overrideColorScheme?, scene?: { name, svg, alt } }
+// `colors` is the app's palette, `backdrop` what goes behind the conversation (a still ground, or a scene this mod
+// draws from `scene.svg` at the Backdrop render site), or { id: null } when the theme is one only Cinnamon can paint.
+// This mod passes it on and follows changes. Where the app paints the current look, Cinnamon's own colors and backdrop
+// step aside, so the two never fight.
 //
-// Installed by `cinnamon install` into ~/.claude/skills/cinnamon-colors (a plugin there loads in every session) and
-// removed by `cinnamon uninstall`. Where nothing draws themes (the terminal, VS Code, a host without Cinnamon's
-// files) it does nothing visible.
+// Installed by `cinnamon install` into ~/.claude/skills/cinnamon-colors (a plugin there loads in every local Claude
+// Code session) and removed by `cinnamon uninstall`. Where nothing draws themes (the terminal, VS Code) it does
+// nothing visible.
 
 const EVERY_MS = 2000;
 
 let shown = null; // the look id the app drew for this session
+let scene = null; // { name, svg, alt } of the current look, for the Backdrop render site
 let timer = null;
 
 async function readLook($) {
@@ -28,19 +31,26 @@ async function sync($) {
   if (!surfaces.some((s) => s === 'desktop' || s === 'mobile')) return;
   const look = await readLook($);
   if (look === undefined) return;
-  const id = look && typeof look.id === 'string' && look.colors ? look.id : null;
+  const id = look && typeof look.id === 'string' && (look.colors || look.backdrop) ? look.id : null;
   if (id) {
+    scene = look.scene && typeof look.scene.svg === 'string' ? look.scene : null;
     if (id === shown) return;
-    const set = await $.theme.set({ colors: look.colors });
+    const attrs = {};
+    if (look.colors) attrs.colors = look.colors;
+    if (look.backdrop) attrs.backdrop = look.backdrop;
+    if (look.overrideColorScheme === 'light' || look.overrideColorScheme === 'dark') attrs.overrideColorScheme = look.overrideColorScheme;
+    const set = await $.theme.set(attrs);
     if (set.isDrawn === true) {
       shown = id;
       await $.store.set('painted', id);
+      if (scene) $.ui.invalidate('ui.render');
     }
     return;
   }
-  // The person picked a scheme only Cinnamon paints. The app keeps a mod theme until it is cleared, so clear the one
+  // The person picked a theme only Cinnamon paints. The app keeps a mod theme until it is cleared, so clear the one
   // this mod set (in this session or an earlier one), and never another mod's.
   shown = null;
+  scene = null;
   if (await $.store.get('painted')) {
     await $.theme.clear();
     await $.store.delete('painted');
@@ -58,5 +68,14 @@ export const register = (on) => {
     if (timer) timer.cancel();
     timer = $.clock.every(EVERY_MS, () => tick($));
     return next(e);
+  });
+
+  // The look's live scene: an SVG (animated with CSS inside it), drawn behind the conversation by the desktop and
+  // mobile apps under their glass.
+  on('ui.render', { component: 'Backdrop' }, async ($, e, next) => {
+    const name = e.props.scene ?? e.props.id;
+    if (e.props.plugin !== $.plugin.name || !scene || name !== scene.name) return next(e);
+    const { Svg } = $.ui.resolve(e);
+    return Svg({ source: scene.svg, alt: scene.alt || 'Theme backdrop' });
   });
 };

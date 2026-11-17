@@ -1,7 +1,36 @@
 {
   "name": "Ember",
-  "description": "Hot orange haze: a slow-drifting sun and twinkling stars glowing behind see-through panels",
-  "codeTab": false,
+  "description": "Hot orange haze: a slow-drifting sun and twinkling stars glowing behind see-through panels (also in the Code tab and the Claude mobile app)",
+  "overrideColorScheme": "dark",
+  "backdrop": {
+    "svg": "ember.svg",
+    "glass": {
+      "blur": 16,
+      "tint": "#1a0902",
+      "opacity": 0.5
+    },
+    "alt": "A slow-drifting orange sun and twinkling stars"
+  },
+  "codeTab": {
+    "roles": {
+      "accent": "#ff7a1a",
+      "danger": "#ff5a4a",
+      "success": "#7fd18b"
+    },
+    "dark": {
+      "gray": {
+        "anchors": {
+          "surface-0": "#170700",
+          "surface-1": "#1a0902",
+          "surface-2": "#2a1004",
+          "surface-3": "#2c1104",
+          "text-primary": "#fff2e6",
+          "text-secondary": "#ffcfa6",
+          "text-muted": "#f2c29c"
+        }
+      }
+    }
+  },
   "dark": {
     "background": "transparent",
     "background-deep": "#12060080",
@@ -30,32 +59,5 @@
       "--cds-bg-user-message": "#ff7a1a26"
     }
   },
-  "light": {
-    "background": "transparent",
-    "background-deep": "#ffe6cf99",
-    "frame": "transparent",
-    "panel": "#fff1e4a6",
-    "sidebar": "#ffe4ccc7",
-    "text-sidebar": "#3a1503",
-    "raised": "#fff6eef0",
-    "popover": "#fff6eef2",
-    "code-background": "#fff8f2d9",
-    "text": "#2a0e00",
-    "text-secondary": "#5c2a0a",
-    "text-muted": "#7a3d14",
-    "placeholder": "#94532a",
-    "border": "#c2560f33",
-    "border-faint": "#c2560f1f",
-    "hover": "#ff7a1a1f",
-    "selected": "#ff7a1a33",
-    "accent": "#e85d00",
-    "accent-hover": "#c94f00",
-    "button": "#e85d00",
-    "button-hover": "#c94f00",
-    "button-text": "#fff8f2",
-    "vars": {
-      "--cds-bg-user-message": "#ff7a1a24"
-    }
-  },
-  "css": "/* one veil over the sun (the first background layer), so text reads anywhere; the surfaces add no coat */\n@keyframes ember-drift { 0% { transform: translate3d(-6%, -4%, 0) scale(1); } 50% { transform: translate3d(5%, 3%, 0) scale(1.12); } 100% { transform: translate3d(-2%, 6%, 0) scale(0.96); } }\n@keyframes ember-hue { 0%, 100% { filter: blur(30px) hue-rotate(0deg) saturate(1.1); } 50% { filter: blur(30px) hue-rotate(-14deg) saturate(1.4); } }\n@keyframes ember-twinkle { 0%, 100% { opacity: 0.35; } 50% { opacity: 0.9; } }\n@keyframes ember-stars { from { background-position: 0 0, 0 0, 0 0; } to { background-position: -400px 200px, -260px 260px, -180px 90px; } }\nbody { background: #170700 !important; }\n[data-mode=\"light\"] body { background: #ff8a2a !important; }\nbody::before { content: \"\"; position: fixed; inset: -25%; z-index: -1; pointer-events: none; background: linear-gradient(#1a090280, #1a090280), radial-gradient(circle at 68% 30%, #ffb15c 0%, #ff7a1a 9%, #ff5e00aa 18%, transparent 34%), radial-gradient(ellipse at 20% 80%, #ff4d0066 0%, transparent 45%), radial-gradient(ellipse at 85% 85%, #ffa03055 0%, transparent 40%), repeating-radial-gradient(circle at 68% 30%, transparent 0 46px, #ff8a3d14 47px 49px, transparent 50px 96px), linear-gradient(160deg, #2a0c00 0%, #170700 55%, #3a1200 100%); animation: ember-drift 46s ease-in-out infinite alternate, ember-hue 18s ease-in-out infinite; }\n[data-mode=\"light\"] body::before { background: linear-gradient(#fff3e8a6, #fff3e8a6), radial-gradient(circle at 68% 30%, #fff4d6 0%, #ffd27a 8%, #ffb04055 20%, transparent 36%), radial-gradient(ellipse at 20% 80%, #ff5a0088 0%, transparent 45%), repeating-radial-gradient(circle at 68% 30%, transparent 0 46px, #ffffff22 47px 49px, transparent 50px 96px), linear-gradient(160deg, #ff9a3c 0%, #ff7a1a 50%, #f25c05 100%); }\nbody::after { content: \"\"; position: fixed; inset: 0; z-index: -1; pointer-events: none; background-image: radial-gradient(1.5px 1.5px at 20px 30px, #fff2e6 50%, transparent 51%), radial-gradient(1px 1px at 140px 90px, #ffd2a8 50%, transparent 51%), radial-gradient(1.2px 1.2px at 75px 160px, #ffffff 50%, transparent 51%); background-size: 210px 190px, 170px 230px, 260px 210px; animation: ember-twinkle 5s ease-in-out infinite, ember-stars 120s linear infinite; }\n[data-mode=\"light\"] body::after { opacity: 0.5; }\n@media (prefers-reduced-motion: reduce) { body::before, body::after { animation: none !important; } }\n/* message box: drop the stacked footer bands */\n.sticky.bottom-0.pointer-events-none, [class*=\"approval-dock\"] { background: transparent !important; }\n.epitaxy-prompt .bg-surface-3, .bg-surface-3.rounded-composer { box-shadow: inset 0 0 0 1px #ff8a3d33, 0 8px 30px #00000040 !important; }"
+  "css": "body { background: #170700 !important; }\n.epitaxy-prompt .bg-surface-3, .bg-surface-3.rounded-composer { box-shadow: inset 0 0 0 1px #ff8a3d33, 0 8px 30px #00000040 !important; }"
 }

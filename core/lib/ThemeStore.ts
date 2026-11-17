@@ -2,6 +2,7 @@
 // overrides the same id. Used by the CLI and the main process. No Electron.
 import fs from 'node:fs';
 import path from 'node:path';
+import { Backdrop } from './Backdrop';
 import { CodeTabLook, type Look } from './CodeTabLook';
 import { Config } from './Config';
 import { ThemeEngine, type Theme, type WindowOptions } from './ThemeEngine';
@@ -58,8 +59,12 @@ export class ThemeStore {
     const themes = this.list();
     const want = config.read().theme;
     const found = themes.find((t) => t.id === want && !t.error);
-    const { look, reason } = found ? CodeTabLook.fromTheme(found.id, found.theme) : { look: null, reason: undefined };
-    const { css, errors } = found ? ThemeEngine.css(found.theme, look ? { yieldKeys: CodeTabLook.KEYS } : {}) : { css: '', errors: [] as string[] };
+    const bd = found ? Backdrop.resolve(found.theme, path.dirname(found.file), found.id) : { backdrop: null, errors: [] as string[] };
+    const { look, reason } = found ? CodeTabLook.fromTheme(found.id, found.theme, bd.backdrop) : { look: null, reason: undefined };
+    const { css, errors } = found
+      ? ThemeEngine.css(found.theme, { ...(look?.colors ? { yieldKeys: CodeTabLook.KEYS } : {}), backdrop: bd.backdrop })
+      : { css: '', errors: [] as string[] };
+    errors.push(...bd.errors);
     return {
       current: found ? found.id : 'default',
       css,

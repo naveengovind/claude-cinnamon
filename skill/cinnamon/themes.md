@@ -67,19 +67,38 @@ see-through. Everything else is up to the theme:
 When you finish a see-through theme, look at it with `{{CINNAMON}} screenshot` (SKILL.md, "Look at your work"):
 the message box area with text behind it, the sidebar edge, and text over the brightest part of the backdrop.
 
-## The Code tab
+## Reach: the Code tab and the Claude mobile app
 
-The Code tab's main colors go through Claude Code's own theme API: Cinnamon converts the theme and its
-`cinnamon-colors` mod hands it to the app in local Code sessions, and Cinnamon still paints the rest (sidebar,
-popovers, borders, hover, buttons, code panels, `vars`, `css`). What carries over: `background-deep`,
-`background`, `raised`, `panel`, `text`, `text-secondary`, `text-muted`, `accent`, `danger`, `success`, as
-six-digit or three-digit hex only. The app refuses text that's too faint; Cinnamon then leaves that color to the app
-(`{{CINNAMON}} doctor` lists which). Optional:
-- `"codeTab": false` keeps the Code tab entirely Cinnamon's.
-- `"codeTab": { "dark": { "gray": { "anchors": { "surface-0": "#…", "surface-1": "#…", "surface-2": "#…",
-  "surface-3": "#…", "text-primary": "#…", "text-secondary": "#…", "text-muted": "#…" } } }, "roles": { "accent":
-  "#…" } }` sets the app's own palette input yourself (`surface-0` darkest, each later surface as light or lighter).
-- Themes with `window` (glass) are always Cinnamon's.
+Claude Code's own theme API reaches places Cinnamon can't: the desktop app's Code tab and the Claude mobile app
+(for sessions running on this Mac, opened from the phone). Cinnamon's `cinnamon-colors` mod hands each theme to it,
+and Cinnamon paints everything else. Two parts of a theme travel that way, so write them in the API's shapes:
+
+1. **The palette.** These keys go to the app: `background-deep`, `background`, `raised`, `panel`, `text`,
+   `text-secondary`, `text-muted`, `accent`, `danger`, `success`, as hex only. The app refuses text that's too faint,
+   so Cinnamon drops such colors and leaves them to the app (`{{CINNAMON}} doctor` lists them). Cinnamon still paints
+   the rest everywhere: sidebar, popovers, borders, hover, buttons, code panels, `vars` and `css`. When the theme's
+   own colors aren't hex (a see-through theme), give the palette yourself:
+   `"codeTab": { "roles": { "accent": "#…" }, "dark": { "gray": { "anchors": { "surface-0": "#…", "surface-1": "#…",
+   "surface-2": "#…", "surface-3": "#…", "text-primary": "#…", "text-secondary": "#…", "text-muted": "#…" } } } }`
+   (`surface-0` darkest, each later surface as light or lighter). `"codeTab": false` keeps the palette Cinnamon's.
+2. **The backdrop**, what goes behind the conversation. One definition draws everywhere: the app draws it in the Code
+   tab and on the phone, and Cinnamon draws the same thing behind the rest of the desktop app.
+   - A live scene: `"backdrop": { "svg": "scene.svg", "glass": { "blur": 16, "tint": "#1a0902", "opacity": 0.5 },
+     "alt": "…" }`. The SVG is a file next to the theme (or inline markup), at most 131,072 characters. Give it a
+     `viewBox` and `preserveAspectRatio="xMidYMid slice"` so it fills any window or phone, animate with CSS in its own
+     `<style>`, and add a `prefers-reduced-motion` rule. No scripts, event handlers, foreign content or links outside
+     itself (they're refused). `glass` is the veil the app lays over the scene for readable text: the desktop app
+     frosts its panels with it, and the phone and Cinnamon draw it as one veil. `"glass": false` turns it off.
+   - A still ground: `{ "color": "#…" }`, `{ "gradient": { "stops": ["#…", "#…"], "angle": 160, "shape": "radial" } }`,
+     `{ "vector": { "viewBox": 24, "paths": ["M…"], "color": "#…", "size": [24, 24], "repeat": true } }`, or
+     `{ "image": { "source": "bg.jpg" } }` (a PNG or JPEG next to the theme, at most 1 MiB, about 2560 wide). Colors
+     here may also be the app's names, like `surface-0`, which follow its mode.
+   - `"overrideColorScheme": "dark"` (or `"light"`) tells the phone the look is made for one mode.
+
+So: give every theme a palette the app takes, and a backdrop when it has a picture, a gradient or motion. Put the
+picture in `backdrop`, not in `css` (`body::before`): `css` stays on the desktop, `backdrop` goes everywhere.
+`{{ROOT}}/themes/ember.json` with `ember.svg` is the example. Themes with `window` (Glass) keep their palette
+Cinnamon's, since the window material is macOS's, but can still have a backdrop.
 
 ## Check
 

@@ -1,6 +1,7 @@
 // cinnamon theme [list] | <id> | install <source> | remove <id>
 import fs from 'node:fs';
 import path from 'node:path';
+import { Backdrop } from '../lib/Backdrop';
 import { Config } from '../lib/Config';
 import { ThemeEngine, type Theme } from '../lib/ThemeEngine';
 import { ThemeStore } from '../lib/ThemeStore';
@@ -32,8 +33,10 @@ export class ThemeCommands {
     if (id !== 'default' && !this.store.list().some((t) => t.id === id && !t.error)) return this.out.fail(`no theme "${id}" (see: cinnamon theme list)`);
     this.config.write({ theme: id });
     this.out.say(this.out.green(`✓ theme: ${id}`));
-    const theme = this.store.list().find((t) => t.id === id)?.theme;
-    for (const p of ThemeEngine.problems(theme)) this.out.say(this.out.red(`  not applied: ${p}`));
+    const entry = this.store.list().find((t) => t.id === id);
+    const theme = entry?.theme;
+    const backdrop = entry ? Backdrop.resolve(theme, path.dirname(entry.file), id).errors : [];
+    for (const p of [...ThemeEngine.problems(theme), ...backdrop]) this.out.say(this.out.red(`  not applied: ${p}`));
     for (const n of ThemeEngine.notes(theme)) this.out.say(this.out.yellow(`  note: ${n}`));
     this.out.liveNote();
     return 0;

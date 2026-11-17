@@ -6,6 +6,8 @@
 // Keys are the names in TOKENS; each sets every app variable listed for it. A missing key, or a missing mode
 // section, leaves Claude's own color. Values that could escape a declaration are rejected.
 
+import type { ResolvedBackdrop } from './Backdrop';
+
 export type ModeName = 'dark' | 'light';
 export type ModeSection = Record<string, unknown> & { vars?: Record<string, unknown> };
 export interface Theme {
@@ -28,6 +30,8 @@ export interface ThemeCssOptions {
    * panels…), `vars` and extra css stay Cinnamon's everywhere: the look can't express them.
    */
   yieldKeys?: ReadonlySet<string>;
+  /** The theme's backdrop (core/lib/Backdrop.ts), which Cinnamon draws behind the page in the modes the theme has. */
+  backdrop?: ResolvedBackdrop | null;
 }
 /** Set on the root by Cinnamon's page code while the app paints the current look through Claude Code's theme API. */
 export const MOD_PAINTED = '[data-cinnamon-code-tab="mod"]';
@@ -203,6 +207,7 @@ export class ThemeEngine {
       }
       if (sys) css += `@media (prefers-color-scheme: ${m.system}) {\n${sys}}\n`;
     }
+    if (opts.backdrop) css += ThemeEngine.backdropCss(theme, opts.backdrop.layers);
     if (theme && typeof theme.css === 'string' && theme.css.trim()) {
       // a theme can't load or report anything elsewhere: no escapes, @import, @font-face, image functions, non-data: urls
       const extra = theme.css;
@@ -210,6 +215,22 @@ export class ThemeEngine {
       else css += `${extra}\n`;
     }
     return { css, errors };
+  }
+
+  /**
+   * The backdrop, behind everything on the page, in the modes the theme has (all of them when it has none). Where the
+   * app draws the backdrop itself (the Code tab, through the mod), its layer covers this one.
+   */
+  private static backdropCss(theme: Theme | null | undefined, layers: string): string {
+    const decls = `content: "";\n  position: fixed;\n  inset: 0;\n  z-index: -1;\n  pointer-events: none;\n  background: ${layers} !important;`;
+    const modes = (['dark', 'light'] as const).filter((m) => theme?.[m]);
+    if (!modes.length) return `body::before {\n  ${decls}\n}\n`;
+    let css = '';
+    for (const m of modes) {
+      css += `:root[data-mode="${m}"] body::before {\n  ${decls}\n}\n`;
+      css += `@media (prefers-color-scheme: ${m}) {\n:root[data-mode="system"] body::before {\n  ${decls}\n}\n}\n`;
+    }
+    return css;
   }
 
   /** `keep` picks the keys (`vars` counts as the key "vars"). */

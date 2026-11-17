@@ -126,6 +126,10 @@ Also:
 - `"vars": { "--cds-…": "…" }` inside a mode sets any of the app's CSS variables directly;
 - `"css": "…"` adds extra CSS. So that a theme can never load or report anything elsewhere, it may not use
   backslash escapes, `@import`, `@font-face`, `image-set()`/`image()`/`cross-fade()`, or `url()` except `data:` URLs;
+- `"backdrop": { … }` puts a picture, gradient or animated SVG scene behind the conversation. It's written in the
+  shapes of Claude Code's theme API, so the same backdrop is drawn by the Claude apps themselves in the Code tab and
+  in the Claude mobile app (through the `cinnamon-colors` mod), and by Cinnamon everywhere else. See
+  [Code tab colors](#code-tab-colors) and `themes/ember.json` with its `ember.svg`.
 - `"window": { "vibrancy": "under-window" }` gives the window a macOS glass material while the theme is on (see
   `themes/glass.json`); Claude's own material comes back when you switch away.
 - See-through colors stack: the app paints a color again on layers that cover each other, so a see-through
@@ -134,6 +138,9 @@ Also:
   `background` is see-through, Cinnamon clears the strips the app repaints it on around the message box.
 
 ## Code tab colors
+
+(and the Claude mobile app)
+
 
 Claude Code mods can paint the desktop app's Code tab through Claude Code's own theme API, so Cinnamon doesn't do
 that part itself. When you pick a color scheme, Cinnamon turns it into the app's color data (with `makeColors`, the

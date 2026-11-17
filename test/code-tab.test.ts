@@ -142,3 +142,55 @@ test('the look\'s print names app variables and values the page can compare', ()
   assert.strictEqual(CodeTabLook.print(null), null);
 });
 
+
+// ---- backdrops: one definition for the app (Code tab, phone) and Cinnamon (everywhere else) ----
+const SCENE = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect width="10" height="10" fill="#f80"/></svg>';
+
+test('a theme with only a backdrop (no palette) still has a look for the app', () => {
+  const d = fs.mkdtempSync(path.join(os.tmpdir(), 'cm-bd-'));
+  fs.writeFileSync(path.join(d, 'sun.json'), JSON.stringify({ name: 'Sun', codeTab: false, dark: { background: 'transparent' }, backdrop: { svg: SCENE, glass: { tint: '#000000', opacity: 0.5 } } }));
+  const cfg = path.join(d, 'config.json');
+  fs.writeFileSync(cfg, JSON.stringify({ theme: 'sun' }));
+  const r = new ThemeStore([d]).resolve(new Config(cfg));
+  assert.ok(r.look, 'a look');
+  assert.strictEqual(r.look!.colors, null, 'no palette');
+  assert.deepStrictEqual(r.look!.backdrop!.api, { scene: 'cinnamon-sun', glass: { tint: '#000000', opacity: 0.5 } });
+  assert.match(r.css, /:root\[data-mode="dark"\] body::before \{[^}]*background: linear-gradient\(rgba\(0, 0, 0, 0\.5\)/, 'Cinnamon draws it too, in the theme\'s mode');
+  assert.doesNotMatch(r.css, /cinnamon-code-tab/, 'no palette, so nothing steps aside');
+});
+
+test('the look file carries the backdrop and scene for the mod, and the picture is copied next to it', () => {
+  const d = fs.mkdtempSync(path.join(os.tmpdir(), 'cm-bd-'));
+  const png = Buffer.from('89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000d4944415478da6364f8cf00000301010018dd8db40000000049454e44ae426082', 'hex');
+  fs.writeFileSync(path.join(d, 'bg.png'), png);
+  const { Backdrop } = require('../core/lib/Backdrop');
+  const bd = Backdrop.resolve({ backdrop: { image: { source: 'bg.png' } } }, d, 'pic').backdrop;
+  const look = CodeTabLook.fromTheme('pic', { codeTab: false }, bd).look;
+  const mod = fs.mkdtempSync(path.join(os.tmpdir(), 'cm-mod-'));
+  CodeTabLook.write(path.join(mod, 'look.json'), look);
+  const saved = JSON.parse(fs.readFileSync(path.join(mod, 'look.json'), 'utf8'));
+  assert.deepStrictEqual(saved.backdrop, { image: { source: 'assets/backdrop.png' } });
+  assert.strictEqual(saved.colors, undefined);
+  assert.ok(fs.readFileSync(path.join(mod, 'assets', 'backdrop.png')).equals(png), 'the app reads the picture from the mod\'s folder');
+  const s = CodeTabLook.fromTheme('s', { codeTab: false }, Backdrop.resolve({ backdrop: { svg: SCENE } }, d, 's').backdrop).look;
+  CodeTabLook.write(path.join(mod, 'look.json'), s);
+  assert.deepStrictEqual(JSON.parse(fs.readFileSync(path.join(mod, 'look.json'), 'utf8')).scene, { name: 'cinnamon-s', svg: SCENE, alt: '' });
+});
+
+test('a palette and a backdrop go together, and a change to either is a new look', () => {
+  const { Backdrop } = require('../core/lib/Backdrop');
+  const a = CodeTabLook.fromTheme('codex', codex, Backdrop.resolve({ backdrop: { color: '#000000' } }, os.tmpdir(), 'codex').backdrop).look!;
+  const b = CodeTabLook.fromTheme('codex', codex, Backdrop.resolve({ backdrop: { color: '#111111' } }, os.tmpdir(), 'codex').backdrop).look!;
+  assert.ok(a.colors && a.backdrop);
+  assert.notStrictEqual(a.id, b.id);
+});
+
+test('a refused backdrop is reported by the store and paints nothing', () => {
+  const d = fs.mkdtempSync(path.join(os.tmpdir(), 'cm-bd-'));
+  fs.writeFileSync(path.join(d, 'bad.json'), JSON.stringify({ name: 'Bad', dark: { background: '#111111' }, backdrop: { svg: '<svg><script>x()</script></svg>' } }));
+  const cfg = path.join(d, 'config.json');
+  fs.writeFileSync(cfg, JSON.stringify({ theme: 'bad' }));
+  const r = new ThemeStore([d]).resolve(new Config(cfg));
+  assert.ok(r.errors.some((e) => /backdrop: svg may not have scripts/.test(e)));
+  assert.doesNotMatch(r.css, /body::before/);
+});

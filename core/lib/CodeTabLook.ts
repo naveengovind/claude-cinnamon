@@ -1,27 +1,34 @@
-// The Code tab's colors, handed to Claude Code's own theme API. Claude Code mods can paint the desktop app's Code tab
-// ($.theme.set), so Cinnamon leaves that to its small mod (mod/cinnamon-colors) and only paints what mods can't. This
-// turns a Cinnamon theme into the color data the app paints (through makeColors, the design system's own builder
-// that Claude Code ships for mods) and writes it where the mod reads it. Pure apart from `write`. No Electron.
+// The look handed to Claude Code's own theme API ($.theme.set), which the desktop app's Code tab and the mobile app
+// draw: so Cinnamon leaves that to its small mod (mod/cinnamon-colors) and only paints what mods can't. A look is the
+// theme's palette (the color data the app paints, made with makeColors, the design system's own builder that Claude
+// Code ships for mods) and its backdrop (core/lib/Backdrop.ts), either or both; this writes it where the mod reads it.
+// Pure apart from `write`. No Electron.
 //
 // A theme maps itself the way its keys already map to the app's variables (ThemeEngine.TOKENS): background-deep →
 // surface-0 (or background when absent), background → surface-1, raised → surface-2, panel → surface-3,
 // text / text-secondary / text-muted, and accent / danger / success as roles. Only hex
 // colors carry over. The app refuses a whole theme whose text fails its contrast bar, so anchors are dropped (in the
 // order below) until it paints; the design system fills a dropped one in. A theme can give its own makeColors input
-// as "codeTab": { … }, or opt out with "codeTab": false. A theme with a window material (Glass) has no look: mods
-// can't make the window see-through, so Cinnamon keeps painting it everywhere.
+// as "codeTab": { … }, or opt out with "codeTab": false. A theme with a window material (Glass) has no palette: mods
+// can't make the window see-through, so Cinnamon keeps painting its colors everywhere. A backdrop goes to the app
+// whatever the palette does.
 import fs from 'node:fs';
 import path from 'node:path';
+import type { ResolvedBackdrop } from './Backdrop';
 import type { Theme } from './ThemeEngine';
 import { makeColors, type Anchors, type MakeColorsDefinition, type Mode, type Roles } from './vendor/make-colors.js';
 
 export interface Look {
-  /** `<theme id>:<hash of the colors>`: the mod sets the theme again when it changes. */
+  /** `<theme id>:<hash of what the app gets>`: the mod sets the theme again when it changes. */
   id: string;
-  /** What `$.theme.set({ colors })` takes. */
+  /** What `$.theme.set({ colors })` takes, or null: no palette (the app keeps its own colors). */
   colors: unknown;
-  /** Anchors left to the design system so the app would paint the theme. */
+  /** Anchors left to the design system so the app would paint the palette. */
   dropped: string[];
+  /** What goes behind the conversation, or null. */
+  backdrop?: ResolvedBackdrop | null;
+  /** The mode a one-mode look is made for (`"overrideColorScheme"` in the theme). */
+  overrideColorScheme?: 'light' | 'dark';
 }
 export interface LookResult { look: Look | null; reason?: string }
 
@@ -59,8 +66,21 @@ export class CodeTabLook {
   /** In the mod's own folder (~/.claude/skills/cinnamon-colors/look.json), where the mod reads it. */
   static readonly FILE = 'look.json';
 
-  /** The theme's Code-tab look, or null and why. */
-  static fromTheme(id: string, theme: Theme | null | undefined): LookResult {
+  /** The theme's look for the app: its palette and its backdrop, either or both; or null and why. */
+  static fromTheme(id: string, theme: Theme | null | undefined, backdrop: ResolvedBackdrop | null = null): LookResult {
+    const p = CodeTabLook.palette(id, theme);
+    if (!p.look && !backdrop) return p;
+    const colors = p.look ? p.look.colors : null;
+    const scheme = theme?.overrideColorScheme === 'light' || theme?.overrideColorScheme === 'dark' ? theme.overrideColorScheme : undefined;
+    const sig = JSON.stringify([colors, backdrop?.api ?? null, backdrop?.scene?.svg ?? null, backdrop?.asset ? fs.statSync(backdrop.asset.from).size : null, scheme ?? null]);
+    return {
+      look: { id: `${id}:${hash(sig)}`, colors, dropped: p.look ? p.look.dropped : [], backdrop, ...(scheme ? { overrideColorScheme: scheme } : {}) },
+      ...(p.look ? {} : { reason: `no palette: ${p.reason}` }),
+    };
+  }
+
+  /** The theme's palette for the app (its colors), or null and why. */
+  private static palette(id: string, theme: Theme | null | undefined): LookResult {
     if (!theme) return { look: null, reason: 'no theme' };
     if (theme.window !== undefined) return { look: null, reason: 'it uses a window material, which only Cinnamon can paint' };
     if (theme.codeTab === false) return { look: null, reason: 'the theme opts out ("codeTab": false)' };
@@ -132,9 +152,24 @@ export class CodeTabLook {
     return Object.keys(out).length ? out : null;
   }
 
-  /** Writes what the mod reads (temp file + rename, so it never reads half a file). True when the file changed. */
+  /**
+   * Writes what the mod reads (temp file + rename, so it never reads half a file), and copies a backdrop picture into
+   * the mod's folder, where the app reads it. True when the file changed.
+   */
   static write(file: string, look: Look | null): boolean {
-    const text = JSON.stringify(look ? { id: look.id, colors: look.colors } : { id: null }) + '\n';
+    const out: Record<string, unknown> = { id: look ? look.id : null };
+    if (look?.colors) out.colors = look.colors;
+    if (look?.backdrop) {
+      out.backdrop = look.backdrop.api;
+      if (look.backdrop.scene) out.scene = look.backdrop.scene;
+      if (look.backdrop.asset) {
+        const to = path.join(path.dirname(file), look.backdrop.asset.to);
+        fs.mkdirSync(path.dirname(to), { recursive: true });
+        fs.copyFileSync(look.backdrop.asset.from, to);
+      }
+    }
+    if (look?.overrideColorScheme) out.overrideColorScheme = look.overrideColorScheme;
+    const text = JSON.stringify(out) + '\n';
     try { if (fs.readFileSync(file, 'utf8') === text) return false; } catch {}
     fs.mkdirSync(path.dirname(file), { recursive: true });
     const tmp = `${file}.${Date.now()}.tmp`;

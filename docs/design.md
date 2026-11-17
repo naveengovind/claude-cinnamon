@@ -153,3 +153,14 @@ environment). *Working* follows the app's own status: the row's `[data-session-s
 "Running" (not the pulsing dot, which also marks an unread response), timed from the log's last prompt when there
 is one and otherwise from when the app first showed it running (kept in localStorage). The status chips and the
 label picker were removed as clutter: the app shows its own status.
+
+## Backdrops and the mobile app (Nov 16 2026)
+Claude Code's theme API (`$.theme.set({ colors, backdrop })`) is drawn by the desktop app's Code tab and by the Claude
+mobile app, so a theme's look should travel through it as far as it can. `core/lib/Backdrop.ts` reads a theme's
+`backdrop` (a live `svg` scene with `glass`, or a still `color` / `gradient` / `vector` / `image` ground, all in the
+API's shapes) into two forms: what the mod hands the app (with the scene's SVG, which the mod draws at the Backdrop
+render site, and a picture copied into the mod's folder), and a CSS background Cinnamon paints behind the page
+(`body::before`, in the theme's modes; a scene's glass becomes one veil, as the phone draws it). A look is now a palette
+and/or a backdrop. The app draws its backdrop above Cinnamon's in the Code tab (`.dframe-root[data-engine-backdrop-on]`),
+so the two never show at once there. SVG scenes may not script, handle events, embed foreign content or link outside
+themselves.

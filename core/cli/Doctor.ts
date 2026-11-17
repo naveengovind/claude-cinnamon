@@ -2,6 +2,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { Backdrop } from '../lib/Backdrop';
 import { Config } from '../lib/Config';
 import { ExtensionCatalog } from '../lib/ExtensionCatalog';
 import { ThemeEngine } from '../lib/ThemeEngine';
@@ -55,7 +56,7 @@ export class Doctor {
     } catch {}
     for (const t of new ThemeStore([paths.bundledThemes, paths.themes]).list()) {
       if (t.error) this.check(false, `theme ${t.id}: ${t.error}`);
-      else for (const p of ThemeEngine.problems(t.theme)) this.check(false, `theme ${t.id}: ${p}`, `edit ${t.file}`);
+      else for (const p of [...ThemeEngine.problems(t.theme), ...Backdrop.resolve(t.theme, path.dirname(t.file), t.id).errors]) this.check(false, `theme ${t.id}: ${p}`, `edit ${t.file}`);
     }
     const recorded = ExtensionCatalog.recordedErrors(paths.user);
     for (const e of new ExtensionCatalog({ bundled: paths.bundledExtensions, user: paths.extensions }).list()) {
