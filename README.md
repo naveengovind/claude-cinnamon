@@ -11,6 +11,8 @@ Not affiliated with or endorsed by Anthropic.
     every Code session: on this Mac, over SSH and in the cloud (a cloud session shows where it runs). *Working*
     follows the app's own Running status, so it's right for all three.
   - **Full width**: adds *Full* to *Settings → Appearance → Transcript width*.
+  - **UFO critter** (off until you switch it on): a little pixel alien flying a saucer around the window. It runs
+    from your pointer and now and then beams up a passing cow. Clicks pass through.
   - Install more from GitHub: `cinnamon ext install owner/repo`.
 - **Re-applies itself every time Claude starts.** Claude.app itself is never modified.
 - **Works alongside Claude Code mods.** Claude Code's own [mods](https://code.claude.com/docs/en/plugins/mods/overview)

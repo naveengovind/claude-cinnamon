@@ -1,0 +1,6 @@
+{
+  "name": "Demo mask",
+  "description": "For screenshots: swaps the sidebar's chat, session, folder and account names for made-up ones",
+  "version": "1.0.0",
+  "page": ["page.ts"]
+}

@@ -1,0 +1,8 @@
+{
+  "name": "UFO critter",
+  "description": "A little orange pixel alien flying a saucer around the window. It runs from your pointer and now and then beams up a passing cow. Clicks pass through.",
+  "version": "1.0.0",
+  "page": ["page.ts"],
+  "css": ["ufo.css"],
+  "enabledByDefault": false
+}
