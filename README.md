@@ -65,7 +65,7 @@ From the terminal:
 | Command | |
 | --- | --- |
 | `cinnamon status` | what is installed and applied |
-| `cinnamon theme` / `cinnamon theme <id>` | list themes / use one (`default` = Claude's own colors) |
+| `cinnamon theme` / `cinnamon theme <id>` | list themes / use one (`default` = Claude's own colors; a first install starts on `ember`) |
 | `cinnamon theme install <source>` / `cinnamon theme remove <id>` | add themes from GitHub, git or a folder / remove one |
 | `cinnamon ext` / `cinnamon ext enable\|disable <id>` | list extensions / switch one |
 | `cinnamon ext install <source>` / `cinnamon ext remove <id>` | add / remove an extension |

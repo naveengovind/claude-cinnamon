@@ -54,6 +54,9 @@ export class Installer {
   private readonly log: (line: string) => void;
   private readonly sleep: (ms: number) => void;
 
+  /** The theme a first install starts on. */
+  static readonly FIRST_THEME = 'ember';
+
   constructor(private readonly o: InstallerOptions) {
     this.run = o.run || runCommand;
     this.log = o.log || ((l) => console.log(l));
@@ -202,6 +205,9 @@ ${o.binary ? `    <key>CINNAMON_BIN</key><string>${xml(o.binary)}</string>` : ` 
     const { o } = this;
     if (!this.buildHelper(rebuild)) return 1;
     for (const d of [path.join(o.userDir, 'logs'), path.join(o.userDir, 'themes'), path.join(o.userDir, 'extensions'), path.dirname(this.plist)]) fs.mkdirSync(d, { recursive: true });
+    // A first install starts on Ember; a config already there (a reinstall, an update) keeps the person's pick.
+    const config = path.join(o.userDir, 'config.json');
+    if (!fs.existsSync(config)) fs.writeFileSync(config, `${JSON.stringify({ theme: Installer.FIRST_THEME }, null, 2)}\n`);
     this.writeLaunchScript();
     fs.writeFileSync(this.plist, this.plistText());
     if (this.run('plutil', ['-lint', this.plist]).status !== 0) { fs.rmSync(this.plist, { force: true }); this.log(`Could not write a valid login item (${this.plist}).`); return 1; }

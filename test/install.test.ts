@@ -186,3 +186,17 @@ test('uninstall removes the skill Cinnamon installed', () => {
   s.inst.uninstall();
   assert.ok(!fs.existsSync(s.inst.skillDir));
 });
+
+test('a first install starts on the Ember theme', () => {
+  const s = setup();
+  s.inst.install();
+  assert.strictEqual(JSON.parse(fs.readFileSync(path.join(s.userDir, 'config.json'), 'utf8')).theme, 'ember');
+});
+
+test('reinstalling keeps the theme the person picked', () => {
+  const s = setup();
+  fs.mkdirSync(s.userDir, { recursive: true });
+  fs.writeFileSync(path.join(s.userDir, 'config.json'), '{"theme":"codex"}\n');
+  s.inst.install();
+  assert.strictEqual(JSON.parse(fs.readFileSync(path.join(s.userDir, 'config.json'), 'utf8')).theme, 'codex');
+});
