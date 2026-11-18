@@ -16,6 +16,8 @@ import { Compiler } from '../main/Compiler';
 import { signature, wrap } from '../main/ExtensionHost';
 import { FileWatcher } from '../main/FileWatcher';
 import type { CompiledEntry, SharedState } from '../main/types';
+import { GEN_DIR } from './BrowserSetup';
+import { coreScript, extensionScript, GenFiles } from './GenFiles';
 import { Decoder, framesFor } from './NativeMessaging';
 import type { HostState, ToHost, WebExtension, WebExtSummary } from './protocol';
 
@@ -73,8 +75,11 @@ export class BrowserHost {
   private watchState = { watchers: [] } as unknown as SharedState;
   private status: BrowserStatus;
   private queue: Promise<unknown> = Promise.resolve();
+  /** The page code, as files in the extension's folder (claude.ai's policy refuses code from strings). */
+  private readonly gen: GenFiles;
 
   constructor(private readonly o: BrowserHostOptions) {
+    this.gen = new GenFiles(o.extensionDir, GEN_DIR);
     this.themeDirs = o.themeDirs ?? [path.join(o.root, 'themes'), path.join(o.userDir, 'themes')];
     this.roots = o.extRoots ?? { bundled: path.join(o.root, 'extensions'), user: path.join(o.userDir, 'extensions') };
     this.config = new Config(path.join(o.userDir, 'config.json'));
@@ -121,16 +126,20 @@ export class BrowserHost {
         try { css.push(fs.readFileSync(f, 'utf8')); } catch (err) { errs.push(`${e.id}: css file ${path.relative(e.dir, f)} ${(err as Error).message || err}`); }
       }
       if (errs.length) errors[e.id] = errs;
-      extensions.push({ id: e.id, sig: signature(page), code: page.map((c) => wrap(e.id, c)).join('\n;\n'), css: css.join('\n') });
+      const sig = signature(page);
+      const file = page.length ? this.gen.write(`ext-${e.id}`, extensionScript(e.id, sig, page.map((c) => wrap(e.id, c)).join('\n;\n'))) : '';
+      extensions.push({ id: e.id, sig, file, css: css.join('\n') });
     }
     this.status.errors = errors;
     for (const err of theme.errors) this.log('theme:', err);
     const settings = cfg.settings && typeof cfg.settings === 'object' && !Array.isArray(cfg.settings) ? cfg.settings as Record<string, unknown> : {};
+    const coreFile = this.gen.write('core', coreScript(this.core.js));
+    this.gen.prune([coreFile, ...extensions.map((x) => x.file).filter(Boolean)]);
     return {
       type: 'state',
       version: this.o.version,
       extensionVersion: this.folderVersion(),
-      core: this.core,
+      core: { file: coreFile, css: this.core.css },
       theme: { id: theme.current, css: theme.window ? `${theme.css}\n${GLASS_GROUND}` : theme.css, themes: theme.themes },
       extensions,
       extList,

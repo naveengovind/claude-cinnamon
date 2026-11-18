@@ -105,7 +105,6 @@ export class Doctor {
       this.note(`browser extension ${s.extensionVersion} reloads into ${s.folderVersion} when it next connects`);
     }
     if (s.problem) this.check('browser-page-code', false, `browser: ${s.problem}`);
-    else if (s.userScripts === false) this.note('browser: user scripts are off for the extension (fine while claude.ai allows its page code)');
     for (const [id, errs] of Object.entries(s.errors || {})) for (const e of errs) this.check(`browser-ext:${id}`, false, `extension ${id} in the browser: ${e.split('\n')[0]}`);
   }
 }

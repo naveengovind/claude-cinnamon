@@ -136,7 +136,6 @@ struct BrowserStepsView: View {
       .padding(8)
       .background(RoundedRectangle(cornerRadius: 6).fill(Color.primary.opacity(0.06)))
       .padding(.leading, 26)
-      step(3, "Click **Details** on *Cinnamon for Claude* and turn on **Allow User Scripts** if you see it. Color schemes work without it; extensions need it on some pages.")
       Text("Then open claude.ai: Settings → Appearance has Cinnamon's rows, just like the desktop app. Updates come with Cinnamon's own updates; nothing to do in the browser.")
         .font(.callout)
         .foregroundStyle(.secondary)

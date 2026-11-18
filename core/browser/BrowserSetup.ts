@@ -3,7 +3,9 @@
 //   <your folder>/browser/extension/   the Cinnamon extension, built from browser/: load it once from the browser's
 //                                      extensions page → Developer mode → Load unpacked. Updates rebuild this folder in
 //                                      place and the extension reloads itself, so it never goes through a web store.
+//                                      Its gen/ folder holds the page code the host writes for it (BrowserHost).
 //   <your folder>/browser/cinnamon-host  what the browser starts for the extension: runs `cinnamon browser-host`
+//   <your folder>/browser/browsers.json  which browsers Cinnamon is set up in (two can read the same host manifest)
 //   …/NativeMessagingHosts/local.claude_cinnamon.json  tells each browser picked with --browser (Chrome, Arc, Brave,
 //                                      Edge, Chromium, Vivaldi) where that program is, for this extension only
 import { createHash } from 'node:crypto';
@@ -13,26 +15,36 @@ import { EXTENSION_ID, HOST_NAME } from './protocol';
 
 const shQuote = (s: string): string => `'${s.replace(/'/g, `'\\''`)}'`;
 
-/** A Chromium browser Cinnamon can be set up in: its id (for `--browser`), its app, where it keeps its user data under
- *  ~/Library/Application Support (native messaging hosts go in its NativeMessagingHosts folder) and its extensions page. */
-export interface BrowserInfo { id: string; name: string; app: string; support: string; extensionsUrl: string }
+/**
+ * A Chromium browser Cinnamon can be set up in: its id (for `--browser`), its app, its user data folder under
+ * ~/Library/Application Support (`support`), the folder whose NativeMessagingHosts it reads (`nativeMessaging`), and
+ * its extensions page.
+ */
+export interface BrowserInfo { id: string; name: string; app: string; support: string; nativeMessaging: string; extensionsUrl: string }
 
-/** In this order: the first installed one is the default when Chrome isn't installed. Ids are stable (scripts use them). */
+/**
+ * In this order: the first installed one is the default when Chrome isn't installed. Ids are stable (scripts use them).
+ * Chromium looks for native messaging hosts in <its user data folder>/NativeMessagingHosts, and Brave, Edge, Chromium and
+ * Vivaldi each have their own. Arc is the odd one: it reads Google Chrome's folder, not its own. Seen in Arc 1.173.1:
+ * connectNative("local.claude_cinnamon") said "Specified native messaging host not found." with the manifest in
+ * Arc/User Data/NativeMessagingHosts (and in Arc/NativeMessagingHosts), and Arc started the host at once with the same
+ * manifest in Google/Chrome/NativeMessagingHosts.
+ */
 export const BROWSERS: readonly BrowserInfo[] = [
-  { id: 'chrome', name: 'Google Chrome', app: 'Google Chrome', support: 'Google/Chrome', extensionsUrl: 'chrome://extensions' },
-  { id: 'arc', name: 'Arc', app: 'Arc', support: 'Arc/User Data', extensionsUrl: 'arc://extensions' },
-  { id: 'brave', name: 'Brave', app: 'Brave Browser', support: 'BraveSoftware/Brave-Browser', extensionsUrl: 'brave://extensions' },
-  { id: 'edge', name: 'Microsoft Edge', app: 'Microsoft Edge', support: 'Microsoft Edge', extensionsUrl: 'edge://extensions' },
-  { id: 'chromium', name: 'Chromium', app: 'Chromium', support: 'Chromium', extensionsUrl: 'chrome://extensions' },
-  { id: 'vivaldi', name: 'Vivaldi', app: 'Vivaldi', support: 'Vivaldi', extensionsUrl: 'chrome://extensions' },
+  { id: 'chrome', name: 'Google Chrome', app: 'Google Chrome', support: 'Google/Chrome', nativeMessaging: 'Google/Chrome', extensionsUrl: 'chrome://extensions' },
+  { id: 'arc', name: 'Arc', app: 'Arc', support: 'Arc/User Data', nativeMessaging: 'Google/Chrome', extensionsUrl: 'arc://extensions' },
+  { id: 'brave', name: 'Brave', app: 'Brave Browser', support: 'BraveSoftware/Brave-Browser', nativeMessaging: 'BraveSoftware/Brave-Browser', extensionsUrl: 'brave://extensions' },
+  { id: 'edge', name: 'Microsoft Edge', app: 'Microsoft Edge', support: 'Microsoft Edge', nativeMessaging: 'Microsoft Edge', extensionsUrl: 'edge://extensions' },
+  { id: 'chromium', name: 'Chromium', app: 'Chromium', support: 'Chromium', nativeMessaging: 'Chromium', extensionsUrl: 'chrome://extensions' },
+  { id: 'vivaldi', name: 'Vivaldi', app: 'Vivaldi', support: 'Vivaldi', nativeMessaging: 'Vivaldi', extensionsUrl: 'chrome://extensions' },
 ];
 
-/** A browser on this Mac: whether its app is installed and whether Cinnamon's host is registered in it. */
+/** A browser on this Mac: whether its app is installed and whether Cinnamon is set up in it. */
 export interface BrowserState extends BrowserInfo {
   installed: boolean;
-  /** Cinnamon's host manifest is in the browser's NativeMessagingHosts folder. */
+  /** Cinnamon is set up in this browser: on record, and its host manifest is where the browser reads it. */
   registered: boolean;
-  /** Where that manifest goes. */
+  /** The host manifest the browser reads (Arc's is Chrome's). */
   hostManifest: string;
   /** The app's path, when installed. */
   appPath: string | null;
@@ -64,8 +76,13 @@ export interface BrowserSetupOptions {
   binary?: string | null;
   /** Where apps are looked for; default /Applications and ~/Applications. */
   applications?: string[];
+  /** URL match patterns the extension works on; default claude.ai (a test build points it elsewhere). */
+  matches?: string[];
   log?: (line: string) => void;
 }
+
+/** The folder of page code the host writes into the extension (kept when the extension is rebuilt). */
+export const GEN_DIR = 'gen';
 
 export class BrowserSetup {
   private readonly log: (line: string) => void;
@@ -74,16 +91,36 @@ export class BrowserSetup {
   get dir(): string { return path.join(this.o.userDir, 'browser'); }
   get extensionDir(): string { return path.join(this.dir, 'extension'); }
   get hostScript(): string { return path.join(this.dir, 'cinnamon-host'); }
+  get registryFile(): string { return path.join(this.dir, 'browsers.json'); }
   get manifestName(): string { return `${HOST_NAME}.json`; }
+  private get support(): string { return path.join(this.o.home, 'Library', 'Application Support'); }
 
-  /** Every supported browser, with whether it is installed here and whether Cinnamon's host is registered in it. */
+  /** The browsers on record, or null for a setup from before the record (0.4.0). */
+  private registry(): string[] | null {
+    try {
+      const r = JSON.parse(fs.readFileSync(this.registryFile, 'utf8')) as { browsers?: unknown };
+      return Array.isArray(r.browsers) ? r.browsers.filter((x): x is string => typeof x === 'string') : null;
+    } catch { return null; }
+  }
+
+  private writeRegistry(ids: readonly string[]): void {
+    fs.mkdirSync(this.dir, { recursive: true });
+    fs.writeFileSync(this.registryFile, `${JSON.stringify({ browsers: [...ids] }, null, 2)}\n`);
+  }
+
+  /** Where a browser's own NativeMessagingHosts folder would hold the manifest (where 0.4.0 put it, Arc's included). */
+  private ownManifest(b: BrowserInfo): string { return path.join(this.support, b.support, 'NativeMessagingHosts', this.manifestName); }
+
+  /** Every supported browser, with whether it is installed here and whether Cinnamon is set up in it. */
   browsers(): BrowserState[] {
-    const support = path.join(this.o.home, 'Library', 'Application Support');
     const appDirs = this.o.applications ?? ['/Applications', path.join(this.o.home, 'Applications')];
+    const record = this.registry();
     return BROWSERS.map((b) => {
       const appPath = appDirs.map((d) => path.join(d, `${b.app}.app`)).find((p) => fs.existsSync(p)) ?? null;
-      const hostManifest = path.join(support, b.support, 'NativeMessagingHosts', this.manifestName);
-      return { ...b, installed: !!appPath, registered: BrowserSetup.isOurs(hostManifest), hostManifest, appPath };
+      const hostManifest = path.join(this.support, b.nativeMessaging, 'NativeMessagingHosts', this.manifestName);
+      // before the record: a browser was set up when its own folder had the manifest
+      const registered = record ? record.includes(b.id) && BrowserSetup.isOurs(hostManifest) : BrowserSetup.isOurs(this.ownManifest(b));
+      return { ...b, installed: !!appPath, registered, hostManifest, appPath };
     });
   }
 
@@ -117,10 +154,14 @@ export class BrowserSetup {
       if (!r.success) throw new Error(`could not build the browser extension (${name}):\n${r.logs.join('\n')}`);
       out[`${name}.js`] = await r.outputs[0]!.text();
     }
-    const manifest = JSON.parse(fs.readFileSync(path.join(src, 'manifest.json'), 'utf8')) as Record<string, unknown>;
+    const manifest = JSON.parse(fs.readFileSync(path.join(src, 'manifest.json'), 'utf8')) as Record<string, any>;
+    if (this.o.matches) {
+      manifest.host_permissions = this.o.matches;
+      for (const cs of manifest.content_scripts) cs.matches = this.o.matches;
+    }
     manifest.version = extensionVersion(this.o.version, JSON.stringify([out, manifest]));
     out['manifest.json'] = `${JSON.stringify(manifest, null, 2)}\n`;
-    fs.mkdirSync(this.extensionDir, { recursive: true });
+    fs.mkdirSync(path.join(this.extensionDir, GEN_DIR), { recursive: true });
     // the manifest last: the host reads its version to tell the running extension to reload
     for (const [f, text] of Object.entries(out).sort(([a], [b]) => (a === 'manifest.json' ? 1 : b === 'manifest.json' ? -1 : 0))) {
       const file = path.join(this.extensionDir, f);
@@ -128,7 +169,7 @@ export class BrowserSetup {
       fs.writeFileSync(tmp, text);
       fs.renameSync(tmp, file);
     }
-    for (const f of fs.readdirSync(this.extensionDir)) if (!(f in out)) fs.rmSync(path.join(this.extensionDir, f), { recursive: true, force: true });
+    for (const f of fs.readdirSync(this.extensionDir)) if (!(f in out) && f !== GEN_DIR) fs.rmSync(path.join(this.extensionDir, f), { recursive: true, force: true });
     return manifest.version as string;
   }
 
@@ -158,22 +199,37 @@ exec ${run} browser-host "$@"
     };
   }
 
-  /** The host program, and its manifest in each of these browsers (rewritten each time: paths change with updates). */
+  /**
+   * Sets Cinnamon up in exactly these browsers: the host program, its manifest where each reads it, and the record.
+   * Manifests 0.4.0 left where a browser doesn't read them (Arc's own folder) go.
+   */
   writeHost(ids: readonly string[]): string[] {
     fs.mkdirSync(this.dir, { recursive: true });
     fs.writeFileSync(this.hostScript, this.hostScriptText(), { mode: 0o755 });
     fs.chmodSync(this.hostScript, 0o755);
-    const written: string[] = [];
-    for (const b of this.browsers()) {
-      if (!ids.includes(b.id)) continue;
-      fs.mkdirSync(path.dirname(b.hostManifest), { recursive: true });
-      fs.writeFileSync(b.hostManifest, `${JSON.stringify(this.hostManifest(), null, 2)}\n`);
-      written.push(b.id);
+    const all = this.browsers();
+    const picked = all.filter((b) => ids.includes(b.id));
+    for (const file of new Set(picked.map((b) => b.hostManifest))) {
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      fs.writeFileSync(file, `${JSON.stringify(this.hostManifest(), null, 2)}\n`);
     }
-    return written;
+    this.removeStrayManifests(new Set(picked.map((b) => b.hostManifest)));
+    this.writeRegistry(picked.map((b) => b.id));
+    return picked.map((b) => b.id);
   }
 
-  /** Builds the extension and registers the host in this browser (and again in any it is registered in already). */
+  /** Cinnamon's manifests in a browser's own folder that no browser set up reads (only Arc's, today). */
+  private removeStrayManifests(keep: Set<string>): string[] {
+    const removed: string[] = [];
+    for (const b of BROWSERS) {
+      const own = this.ownManifest(b);
+      if (own === path.join(this.support, b.nativeMessaging, 'NativeMessagingHosts', this.manifestName) || keep.has(own)) continue;
+      if (BrowserSetup.isOurs(own)) { fs.rmSync(own, { force: true }); removed.push(own); }
+    }
+    return removed;
+  }
+
+  /** Builds the extension and sets it up in this browser (and again in any it is set up in already). */
   async install(id: string): Promise<{ version: string; browsers: string[] }> {
     const version = await this.build();
     const ids = [id, ...this.browsers().filter((b) => b.registered && b.id !== id).map((b) => b.id)];
@@ -189,19 +245,25 @@ exec ${run} browser-host "$@"
   }
 
   /**
-   * Unregisters the host from these browsers. `all`: from every one, and the extension folder and host program go too
-   * (as they do once no browser is left). Only Cinnamon's own manifests are removed. Returns what was removed.
+   * Takes Cinnamon out of these browsers. A manifest two browsers read (Chrome's, which Arc reads too) stays while one
+   * of them is still set up. `all`, or once no browser is left: the extension folder and host program go too. Only
+   * Cinnamon's own manifests are removed. Returns what was removed.
    */
   uninstall(ids: readonly string[] | 'all'): string[] {
+    const all = this.browsers();
+    const leaving = all.filter((b) => b.registered && (ids === 'all' || ids.includes(b.id)));
+    const staying = all.filter((b) => b.registered && !leaving.includes(b));
     const removed: string[] = [];
-    for (const b of this.browsers()) {
-      if (!b.registered || (ids !== 'all' && !ids.includes(b.id))) continue;
-      fs.rmSync(b.hostManifest, { force: true });
-      removed.push(b.hostManifest);
+    for (const file of new Set(leaving.map((b) => b.hostManifest))) {
+      if (staying.some((b) => b.hostManifest === file) || !BrowserSetup.isOurs(file)) continue;
+      fs.rmSync(file, { force: true });
+      removed.push(file);
     }
-    if ((ids === 'all' || !this.browsers().some((b) => b.registered)) && fs.existsSync(this.dir)) {
-      fs.rmSync(this.dir, { recursive: true, force: true });
-      removed.push(this.dir);
+    removed.push(...this.removeStrayManifests(new Set(staying.map((b) => b.hostManifest))));
+    if (ids === 'all' || !staying.length) {
+      if (fs.existsSync(this.dir)) { fs.rmSync(this.dir, { recursive: true, force: true }); removed.push(this.dir); }
+    } else {
+      this.writeRegistry(staying.map((b) => b.id));
     }
     return removed;
   }

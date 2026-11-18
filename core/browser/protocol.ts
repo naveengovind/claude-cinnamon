@@ -10,8 +10,11 @@ export const DISPOSED = 'cinnamon:disposed';
 /** The tag core/browser/page.ts puts on messages from the page, for the content script. */
 export const TO_HOST = 'cinnamon:to-host';
 
-/** An enabled extension that can run in a browser: its page code (already wrapped for the runtime) and its CSS. */
-export interface WebExtension { id: string; sig: string; code: string; css: string }
+/**
+ * An enabled extension that can run in a browser: its page code, as a file in the extension's folder that runs it once
+ * per document (core/browser/GenFiles.ts; '' when it has none), and its CSS.
+ */
+export interface WebExtension { id: string; sig: string; file: string; css: string }
 
 /** An extension as the Settings rows list it. `unavailable`: why it can't run in a browser. */
 export interface WebExtSummary { id: string; name: string; description: string; bundled: boolean; enabled: boolean; error?: string; unavailable?: string }
@@ -23,8 +26,8 @@ export interface HostState {
   version: string;
   /** The version of the extension folder on disk: the extension reloads itself when it runs an older one. */
   extensionVersion: string | null;
-  /** Cinnamon's own page code (channel, runtime, Settings rows) and its CSS. */
-  core: { js: string; css: string };
+  /** Cinnamon's own page code (channel, runtime, Settings rows), as a file in the extension's folder, and its CSS. */
+  core: { file: string; css: string };
   theme: { id: string; css: string; themes: { id: string; name: string; description: string; error?: string }[] };
   extensions: WebExtension[];
   extList: WebExtSummary[];

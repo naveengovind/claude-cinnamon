@@ -73,8 +73,8 @@ Settings for extensions live in `config.json` under `"settings": { "<extension i
 
 If the user also wants Cinnamon on claude.ai in a browser, `{{CINNAMON}} browser list` shows which supported browsers
 are installed (chrome, arc, brave, edge, chromium, vivaldi). `{{CINNAMON}} browser install --browser <id>` (the one
-they use; default Chrome) builds a small local extension in `{{USER_DIR}}/browser/extension` and prints three
-one-time steps they do on that browser's extensions page (Developer mode, Load unpacked, Allow User Scripts). Ask
+they use; default Chrome) builds a small local extension in `{{USER_DIR}}/browser/extension` and prints the two
+one-time steps they do on that browser's extensions page (Developer mode, Load unpacked). Ask
 before running it: it opens the browser.
 After that, everything you do here reaches the browser too, live: themes, extensions and settings are the same files
 and the same config. Extensions with a main part (the sidebar cards) are desktop-only; a Glass theme gets a dark

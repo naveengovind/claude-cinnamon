@@ -254,10 +254,11 @@ cinnamon browser install --browser arc     # or chrome, brave, edge, chromium, v
 ```
 
 That builds a small extension into `~/.config/claude-cinnamon/browser/extension` and opens the browser's extensions
-page (arc://extensions, chrome://extensions, …), where you do three things once: turn on **Developer mode**, click
-**Load unpacked** and pick that folder (its path is on the clipboard), then open the extension's **Details** and turn
-on **Allow User Scripts** if it's there (Chrome 138 and later; it lets extensions run on claude.ai whatever the page
-allows). Then claude.ai's *Settings → Appearance* has the same Color scheme and Extensions rows as the desktop app.
+page (arc://extensions, chrome://extensions, …), where you do two things once: turn on **Developer mode**, then click
+**Load unpacked** and pick that folder (its path is on the clipboard). Then claude.ai's *Settings → Appearance* has
+the same Color scheme and Extensions rows as the desktop app. (Cinnamon's page code runs from files inside the
+extension, so claude.ai's Content-Security-Policy doesn't stand in its way, and no "Allow User Scripts" switch is
+needed.)
 Run `install --browser <id>` again for each other browser you use; they share the one folder.
 
 - **Live, both ways.** The extension talks to the `cinnamon` command on your Mac (Chrome's native messaging), which

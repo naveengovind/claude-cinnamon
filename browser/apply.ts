@@ -1,13 +1,42 @@
 // What the extension's background does to one claude.ai document, worked out without Chrome: which CSS to insert and
-// remove, which extensions to take out and run, and the snippets it runs in the page (the MAIN world). The document
-// itself records which extension code runs in it (window.__cinnamonBrowser.ran, core/browser/page.ts), and the snippet
-// that runs an extension checks and marks that in the same step, so code never runs twice in one document.
-import { DISPOSED, type HostState, type WebExtension } from '../core/browser/protocol';
-
-const q = (s: string): string => JSON.stringify(s);
+// remove, which extensions to take out and run, and the small functions it runs in the page (the MAIN world) through
+// chrome.scripting.executeScript({ func, args }). Those are the extension's own code, not strings evaluated in the
+// page, so claude.ai's Content-Security-Policy (no 'unsafe-eval') doesn't refuse them. Cinnamon's page code itself
+// arrives as files of the extension's (core/browser/GenFiles.ts), which guard themselves to run once per document.
+// Each function here must stand alone: Chrome sends its source, not its closure.
+import type { HostState, WebExtension } from '../core/browser/protocol';
 
 /** In the page: the extensions running in this document (id → signature), or null when Cinnamon isn't in it yet. */
-export const PROBE = '(() => { const b = window.__cinnamonBrowser; return b ? JSON.stringify(b.ran) : null; })()';
+export function probe(): string | null {
+  const b = (window as unknown as { __cinnamonBrowser?: { ran: Record<string, string> } }).__cinnamonBrowser;
+  return b ? JSON.stringify(b.ran) : null;
+}
+
+/** In the page: takes an extension out through its clean-up; anything but `disposed` means the tab must be reloaded. */
+export function disposeInPage(id: string, disposed: string): string | false {
+  const w = window as unknown as { __cinnamon?: { dispose(id: string): string | false }; __cinnamonBrowser?: { ran: Record<string, string> } };
+  const r = w.__cinnamon ? w.__cinnamon.dispose(id) : false;
+  if (r === disposed && w.__cinnamonBrowser) delete w.__cinnamonBrowser.ran[id];
+  return r || false;
+}
+
+/** In the page: the settings, theme list and extension list for the runtime and the Settings rows. */
+export function pageState(settings: unknown, themes: unknown, extList: unknown): boolean {
+  const w = window as unknown as {
+    __cinnamon?: { setSettings(s: unknown): void; setLook?(p: unknown): void };
+    __cmSetThemes?: (d: unknown) => void;
+    __cmSetExtensions?: (d: unknown) => void;
+  };
+  if (w.__cinnamon) { w.__cinnamon.setSettings(settings); if (w.__cinnamon.setLook) w.__cinnamon.setLook(null); }
+  if (w.__cmSetThemes) w.__cmSetThemes(themes);
+  if (w.__cmSetExtensions) w.__cmSetExtensions(extList);
+  return true;
+}
+
+/** The arguments pageState takes for this state. */
+export function pageStateArgs(state: HostState): [unknown, unknown, unknown] {
+  return [state.settings, { current: state.theme.id, themes: state.theme.themes }, state.extList];
+}
 
 /** The CSS a document should have, by key: Cinnamon's own, the theme's and each extension's. */
 export function desiredCss(state: HostState): Record<string, string> {
@@ -31,26 +60,19 @@ export function cssPlan(current: Record<string, string>, desired: Record<string,
 export function scriptPlan(ran: Record<string, string>, exts: readonly WebExtension[]): { dispose: string[]; run: WebExtension[] } {
   const want = new Map(exts.map((e) => [e.id, e.sig]));
   const dispose = Object.entries(ran).filter(([id, sig]) => want.get(id) !== sig).map(([id]) => id);
-  const run = exts.filter((e) => ran[e.id] !== e.sig && e.code.trim());
+  const run = exts.filter((e) => ran[e.id] !== e.sig && e.file);
   return { dispose, run };
 }
 
-/** In the page: runs an extension's code unless this document already runs that version of it. */
-export function runSnippet(e: WebExtension): string {
-  return `(() => { const b = window.__cinnamonBrowser; if (!b || b.ran[${q(e.id)}] === ${q(e.sig)}) return 'skip'; b.ran[${q(e.id)}] = ${q(e.sig)};
-${e.code}
-;return 'ran'; })()`;
-}
-
-/** In the page: takes an extension out through its clean-up; anything but DISPOSED means the tab must be reloaded. */
-export function disposeSnippet(id: string): string {
-  return `(() => { const r = window.__cinnamon ? window.__cinnamon.dispose(${q(id)}) : false; if (r === ${q(DISPOSED)} && window.__cinnamonBrowser) delete window.__cinnamonBrowser.ran[${q(id)}]; return r || false; })()`;
-}
-
-/** In the page: the settings, theme list and extension list for the runtime and the Settings rows. */
-export function pageStateSnippet(state: HostState): string {
-  const themes = JSON.stringify({ current: state.theme.id, themes: state.theme.themes });
-  return `(() => { const c = window.__cinnamon; if (c) { c.setSettings(${JSON.stringify(state.settings)}); if (c.setLook) c.setLook(null); }
-if (window.__cmSetThemes) window.__cmSetThemes(${themes});
-if (window.__cmSetExtensions) window.__cmSetExtensions(${JSON.stringify(state.extList)}); return true; })()`;
+/** Whether a URL is one the extension works on, by its manifest's match patterns (scheme and host; any port). */
+export function matchesAny(url: string, patterns: readonly string[]): boolean {
+  let u: URL;
+  try { u = new URL(url); } catch { return false; }
+  return patterns.some((p) => {
+    const m = /^(\*|https?):\/\/([^/]+)\//.exec(p);
+    if (!m) return false;
+    const [, scheme, host] = m;
+    if (scheme !== '*' && `${scheme}:` !== u.protocol) return false;
+    return host === '*' || host === u.hostname || (host!.startsWith('*.') && u.hostname.endsWith(host!.slice(1)));
+  });
 }

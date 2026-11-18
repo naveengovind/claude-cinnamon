@@ -6,14 +6,15 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import vm from 'node:vm';
-import { cssPlan, desiredCss, disposeSnippet, PROBE, runSnippet, scriptPlan } from '../browser/apply';
+import { cssPlan, desiredCss, disposeInPage, matchesAny, pageState, pageStateArgs, probe, scriptPlan } from '../browser/apply';
+import { coreScript, extensionScript } from '../core/browser/GenFiles';
 import { BrowserHost, DESKTOP_ONLY, GLASS_GROUND } from '../core/browser/BrowserHost';
 import { BROWSERS, BrowserSetup, extensionIdOf, extensionVersion } from '../core/browser/BrowserSetup';
 import { BrowserCommands } from '../core/cli/BrowserCommands';
 import { Output } from '../core/cli/Output';
 import { Paths } from '../core/cli/Paths';
 import { ChunkJoiner, Decoder, frame, framesFor, MAX_TO_BROWSER } from '../core/browser/NativeMessaging';
-import { EXTENSION_ID, HOST_NAME, type HostState } from '../core/browser/protocol';
+import { DISPOSED, EXTENSION_ID, HOST_NAME, type HostState } from '../core/browser/protocol';
 import { ROOT } from './helpers';
 
 const tmp = (p: string) => fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), p)));
@@ -105,17 +106,41 @@ function hostSetup() {
   return { base, root, user, host, written, states, config, setConfig, opened, extDir };
 }
 
-test('the state has the theme\'s CSS, the core page code and the enabled extensions, wrapped for the runtime', async () => {
+test('the state has the theme\'s CSS and names the page code as files the host wrote into the extension\'s gen/ folder', async () => {
   const h = hostSetup();
   h.setConfig({ theme: 'codex' });
   const s = await h.host.state();
   assert.strictEqual(s.theme.id, 'codex');
   assert.match(s.theme.css, /#111111/);
-  assert.deepStrictEqual(s.core, { js: '/*CORE*/', css: '.core{}' });
+  assert.strictEqual(s.core.css, '.core{}');
+  assert.match(s.core.file, /^gen\/core-[0-9a-f]{16}\.js$/);
+  assert.match(fs.readFileSync(path.join(h.extDir, s.core.file), 'utf8'), /\/\*CORE\*\//);
   assert.deepStrictEqual(s.extensions.map((e) => e.id), ['ufo']);
-  assert.match(s.extensions[0]!.code, /window\.__cinnamon\.api\("ufo"\)/);
-  assert.match(s.extensions[0]!.code, /\/\*UFO\*\//);
-  assert.strictEqual(s.extensions[0]!.css, '.ufo{}');
+  const ufo = s.extensions[0]!;
+  assert.match(ufo.file, /^gen\/ext-ufo-[0-9a-f]{16}\.js$/);
+  const code = fs.readFileSync(path.join(h.extDir, ufo.file), 'utf8');
+  assert.match(code, /window\.__cinnamon\.api\("ufo"\)/);
+  assert.match(code, /\/\*UFO\*\//);
+  assert.ok(code.includes(`b.ran["ufo"] === ${JSON.stringify(ufo.sig)}`), 'guarded by its signature');
+  assert.strictEqual(ufo.css, '.ufo{}');
+  assert.deepStrictEqual(Object.keys(s).sort(), ['core', 'extList', 'extensionVersion', 'extensions', 'settings', 'theme', 'type', 'version']);
+  assert.deepStrictEqual(Object.keys(ufo).sort(), ['css', 'file', 'id', 'sig']);
+  assert.ok(!JSON.stringify(s).includes('/*UFO*/'), 'no code travels in the message');
+});
+
+test('a changed extension gets a new file; files no state names any more are removed (the one before is kept)', async () => {
+  const h = hostSetup();
+  const first = (await h.host.state()).extensions[0]!.file;
+  fs.writeFileSync(path.join(h.root, 'extensions', 'ufo', 'p.js'), '/*UFO v2*/');
+  const second = (await h.host.state()).extensions[0]!.file;
+  assert.notStrictEqual(second, first);
+  assert.ok(fs.existsSync(path.join(h.extDir, first)), 'a tab may still be using the previous state');
+  fs.writeFileSync(path.join(h.root, 'extensions', 'ufo', 'p.js'), '/*UFO v3*/');
+  const third = (await h.host.state()).extensions[0]!.file;
+  assert.ok(!fs.existsSync(path.join(h.extDir, first)));
+  assert.ok(fs.existsSync(path.join(h.extDir, second)) && fs.existsSync(path.join(h.extDir, third)));
+  const names = fs.readdirSync(path.join(h.extDir, 'gen'));
+  assert.ok(names.every((n) => n.endsWith('.js')), 'no temp files left');
 });
 
 test('an extension with a main part is listed as desktop-only and its code is not sent', async () => {
@@ -215,24 +240,32 @@ test('a file change sends the new state (theme edited on disk)', async () => {
 });
 
 // ---- what the extension does in a page ----
-const STATE = (exts: { id: string; sig: string; code: string; css: string }[]): HostState => ({
-  type: 'state', version: '1', extensionVersion: null, core: { js: '', css: '.core{}' },
+const STATE = (exts: { id: string; sig: string; file: string; css: string }[]): HostState => ({
+  type: 'state', version: '1', extensionVersion: null, core: { file: 'gen/core-x.js', css: '.core{}' },
   theme: { id: 'codex', css: '.theme{}', themes: [] }, extensions: exts, extList: [], settings: {},
 });
 
 test('CSS: changed and new keys go in, then the old text comes out; nothing for an unchanged key', () => {
-  const desired = desiredCss(STATE([{ id: 'a', sig: '1', code: '', css: '.a{}' }, { id: 'b', sig: '1', code: '', css: '' }]));
+  const desired = desiredCss(STATE([{ id: 'a', sig: '1', file: '', css: '.a{}' }, { id: 'b', sig: '1', file: '', css: '' }]));
   assert.deepStrictEqual(desired, { core: '.core{}', theme: '.theme{}', 'ext:a': '.a{}' });
   const plan = cssPlan({ core: '.core{}', theme: '.old{}', 'ext:gone': '.g{}' }, desired);
   assert.deepStrictEqual(plan.insert, [['theme', '.theme{}'], ['ext:a', '.a{}']]);
   assert.deepStrictEqual(plan.remove, [['theme', '.old{}'], ['ext:gone', '.g{}']]);
 });
 
-test('extensions: changed or turned-off ones are taken out, new or changed ones run', () => {
-  const exts = [{ id: 'a', sig: '2', code: 'x', css: '' }, { id: 'b', sig: '1', code: 'y', css: '' }, { id: 'c', sig: '1', code: 'z', css: '' }];
+test('extensions: changed or turned-off ones are taken out, new or changed ones with page code run', () => {
+  const exts = [{ id: 'a', sig: '2', file: 'gen/a.js', css: '' }, { id: 'b', sig: '1', file: 'gen/b.js', css: '' }, { id: 'c', sig: '1', file: 'gen/c.js', css: '' }, { id: 'cssonly', sig: '0', file: '', css: '.x{}' }];
   const plan = scriptPlan({ a: '1', b: '1', gone: '1' }, exts);
   assert.deepStrictEqual(plan.dispose, ['a', 'gone']);
   assert.deepStrictEqual(plan.run.map((e) => e.id), ['a', 'c']);
+});
+
+test('the extension works on the pages its manifest matches (any port), and no others', () => {
+  assert.ok(matchesAny('https://claude.ai/new', ['https://claude.ai/*']));
+  assert.ok(!matchesAny('https://claude.ai.evil.example/', ['https://claude.ai/*']));
+  assert.ok(!matchesAny('http://claude.ai/', ['https://claude.ai/*']));
+  assert.ok(matchesAny('http://127.0.0.1:8123/x', ['http://127.0.0.1/*']));
+  assert.ok(!matchesAny('not a url', ['https://claude.ai/*']));
 });
 
 function fakePage() {
@@ -240,29 +273,56 @@ function fakePage() {
   vm.runInContext('var window = globalThis; window.__cinnamonBrowser = { ran: {} }; window.count = 0;', ctx);
   return ctx;
 }
+/** Runs one of the extension's page functions the way executeScript({ func, args }) does: its source, called. */
+const inPage = (ctx: vm.Context, fn: (...a: any[]) => unknown, ...args: unknown[]) => vm.runInContext(`(${fn.toString()})(...${JSON.stringify(args)})`, ctx);
 
-test('an extension\'s code runs once per document, even when asked twice', () => {
+test('an extension\'s file runs once per document, even when injected twice; a new version runs', () => {
   const page = fakePage();
-  const snippet = runSnippet({ id: 'ufo', sig: 's1', code: 'window.count++;', css: '' });
-  assert.strictEqual(vm.runInContext(snippet, page), 'ran');
-  assert.strictEqual(vm.runInContext(snippet, page), 'skip');
+  const v1 = extensionScript('ufo', 's1', 'window.count++;');
+  vm.runInContext(v1, page);
+  vm.runInContext(v1, page);
   assert.strictEqual(vm.runInContext('window.count', page), 1);
-  assert.strictEqual(vm.runInContext(PROBE, page), '{"ufo":"s1"}');
-  assert.strictEqual(vm.runInContext(runSnippet({ id: 'ufo', sig: 's2', code: 'window.count++;', css: '' }), page), 'ran', 'a new version runs');
+  assert.strictEqual(inPage(page, probe), '{"ufo":"s1"}');
+  vm.runInContext(extensionScript('ufo', 's2', 'window.count++;'), page);
+  assert.strictEqual(vm.runInContext('window.count', page), 2);
+});
+
+test('Cinnamon\'s own page code runs once per document', () => {
+  const ctx = vm.createContext({});
+  vm.runInContext('var window = globalThis; window.n = 0;', ctx);
+  const core = coreScript('window.n++;');
+  vm.runInContext(core, ctx);
+  vm.runInContext(core, ctx);
+  assert.strictEqual(vm.runInContext('window.n', ctx), 1);
 });
 
 test('the probe says when Cinnamon isn\'t in a document yet', () => {
   const ctx = vm.createContext({});
   vm.runInContext('var window = globalThis;', ctx);
-  assert.strictEqual(vm.runInContext(PROBE, ctx), null);
+  assert.strictEqual(inPage(ctx, probe), null);
 });
 
 test('taking an extension out forgets it only when its clean-up ran', () => {
   const page = fakePage();
   vm.runInContext('window.__cinnamonBrowser.ran = { a: "1", b: "1" }; window.__cinnamon = { dispose: (id) => id === "a" ? "cinnamon:disposed" : false };', page);
-  assert.strictEqual(vm.runInContext(disposeSnippet('a'), page), 'cinnamon:disposed');
-  assert.strictEqual(vm.runInContext(disposeSnippet('b'), page), false);
-  assert.strictEqual(vm.runInContext(PROBE, page), '{"b":"1"}');
+  assert.strictEqual(inPage(page, disposeInPage, 'a', DISPOSED), 'cinnamon:disposed');
+  assert.strictEqual(inPage(page, disposeInPage, 'b', DISPOSED), false);
+  assert.strictEqual(inPage(page, probe), '{"b":"1"}');
+});
+
+test('the page state reaches the runtime and the Settings rows', () => {
+  const ctx = vm.createContext({});
+  vm.runInContext('var window = globalThis; window.got = {}; window.__cinnamon = { setSettings: (s) => { window.got.settings = s; }, setLook: (l) => { window.got.look = l; } }; window.__cmSetThemes = (t) => { window.got.themes = t; }; window.__cmSetExtensions = (e) => { window.got.exts = e; };', ctx);
+  const s = { ...STATE([]), settings: { ufo: { speed: 2 } }, extList: [{ id: 'ufo', name: 'UFO', description: '', bundled: true, enabled: true }] };
+  assert.strictEqual(inPage(ctx, pageState, ...pageStateArgs(s)), true);
+  assert.deepStrictEqual(JSON.parse(vm.runInContext('JSON.stringify(window.got)', ctx)), {
+    settings: { ufo: { speed: 2 } }, look: null, themes: { current: 'codex', themes: [] }, exts: s.extList,
+  });
+});
+
+test('nothing the extension runs in a page is a string to evaluate', () => {
+  const bg = fs.readFileSync(path.join(ROOT, 'browser', 'background.ts'), 'utf8').replace(/\/\/.*$/gm, ''); // code, not comments
+  assert.doesNotMatch(bg, /\beval\b|new Function|code:/);
 });
 
 // ---- cinnamon browser install / list / uninstall ----
@@ -280,12 +340,12 @@ function setupIn(apps: string[] = ['Google Chrome']) {
   return { base, home, user, applications, setup };
 }
 
-test('every supported browser has a stable id, its own NativeMessagingHosts folder and extensions page', () => {
+test('every supported browser has a stable id, the NativeMessagingHosts folder it reads, and its extensions page', () => {
   assert.deepStrictEqual(BROWSERS.map((b) => b.id), ['chrome', 'arc', 'brave', 'edge', 'chromium', 'vivaldi']);
   const s = setupIn([]);
   const by = Object.fromEntries(s.setup.browsers().map((b) => [b.id, b]));
   assert.strictEqual(by.chrome!.hostManifest, NMH(s.home, 'Google/Chrome'));
-  assert.strictEqual(by.arc!.hostManifest, NMH(s.home, 'Arc/User Data'));
+  assert.strictEqual(by.arc!.hostManifest, NMH(s.home, 'Google/Chrome'), 'Arc reads Chrome\'s folder, not its own');
   assert.strictEqual(by.brave!.hostManifest, NMH(s.home, 'BraveSoftware/Brave-Browser'));
   assert.strictEqual(by.edge!.hostManifest, NMH(s.home, 'Microsoft Edge'));
   assert.strictEqual(by.chromium!.hostManifest, NMH(s.home, 'Chromium'));
@@ -305,9 +365,9 @@ test('the default browser is Chrome when installed, else the first one found; no
 });
 
 test('install builds the extension folder with everything its manifest names, and registers the host in that browser only', async () => {
-  const s = setupIn(['Google Chrome', 'Arc']);
-  const { version, browsers } = await s.setup.install('arc');
-  assert.deepStrictEqual(browsers, ['arc']);
+  const s = setupIn(['Google Chrome', 'Brave Browser']);
+  const { version, browsers } = await s.setup.install('brave');
+  assert.deepStrictEqual(browsers, ['brave']);
   const dir = s.setup.extensionDir;
   const m = JSON.parse(fs.readFileSync(path.join(dir, 'manifest.json'), 'utf8'));
   assert.strictEqual(m.version, version);
@@ -316,18 +376,55 @@ test('install builds the extension folder with everything its manifest names, an
   assert.ok(fs.existsSync(path.join(dir, m.background.service_worker)));
   for (const cs of m.content_scripts) for (const js of cs.js) assert.ok(fs.existsSync(path.join(dir, js)), js);
   assert.ok(m.permissions.includes('nativeMessaging'));
-  const hostManifest = JSON.parse(fs.readFileSync(NMH(s.home, 'Arc/User Data'), 'utf8'));
+  const hostManifest = JSON.parse(fs.readFileSync(NMH(s.home, 'BraveSoftware/Brave-Browser'), 'utf8'));
   assert.strictEqual(hostManifest.name, HOST_NAME);
   assert.strictEqual(hostManifest.path, s.setup.hostScript);
   assert.deepStrictEqual(hostManifest.allowed_origins, [`chrome-extension://${EXTENSION_ID}/`]);
   assert.ok(!fs.existsSync(NMH(s.home, 'Google/Chrome')), 'Chrome was not picked');
+  assert.ok(fs.statSync(path.join(dir, 'gen')).isDirectory(), 'the folder the host writes page code into');
   const script = fs.readFileSync(s.setup.hostScript, 'utf8');
   assert.match(script, /browser-host/);
   assert.ok(script.includes(`CINNAMON_HOME='${s.user}'`));
   assert.ok(fs.statSync(s.setup.hostScript).mode & 0o100, 'executable');
   // a second browser keeps the first
-  assert.deepStrictEqual((await s.setup.install('chrome')).browsers, ['chrome', 'arc']);
-  assert.deepStrictEqual(s.setup.browsers().filter((b) => b.registered).map((b) => b.id), ['chrome', 'arc']);
+  assert.deepStrictEqual((await s.setup.install('chrome')).browsers, ['chrome', 'brave']);
+  assert.deepStrictEqual(s.setup.browsers().filter((b) => b.registered).map((b) => b.id), ['chrome', 'brave']);
+});
+
+test('Arc gets the host manifest in Chrome\'s folder (the one it reads); only Arc counts as set up', async () => {
+  const s = setupIn(['Google Chrome', 'Arc']);
+  await s.setup.install('arc');
+  assert.strictEqual(JSON.parse(fs.readFileSync(NMH(s.home, 'Google/Chrome'), 'utf8')).path, s.setup.hostScript);
+  assert.ok(!fs.existsSync(NMH(s.home, 'Arc/User Data')), 'nothing in the folder Arc doesn\'t read');
+  assert.deepStrictEqual(s.setup.browsers().filter((b) => b.registered).map((b) => b.id), ['arc']);
+});
+
+test('Chrome and Arc share one manifest: taking Cinnamon out of one leaves it for the other', async () => {
+  const s = setupIn(['Google Chrome', 'Arc']);
+  await s.setup.install('chrome');
+  await s.setup.install('arc');
+  assert.deepStrictEqual(s.setup.uninstall(['arc']), [], 'Chrome still reads it');
+  assert.ok(fs.existsSync(NMH(s.home, 'Google/Chrome')));
+  assert.deepStrictEqual(s.setup.browsers().filter((b) => b.registered).map((b) => b.id), ['chrome']);
+  await s.setup.install('arc');
+  assert.deepStrictEqual(s.setup.uninstall(['chrome']), []);
+  assert.deepStrictEqual(s.setup.browsers().filter((b) => b.registered).map((b) => b.id), ['arc']);
+  assert.deepStrictEqual(s.setup.uninstall(['arc']), [NMH(s.home, 'Google/Chrome'), s.setup.dir], 'the last one takes it');
+});
+
+test('a 0.4.0 setup for Arc (manifest in Arc\'s own folder) moves to Chrome\'s folder on refresh', async () => {
+  const s = setupIn(['Google Chrome', 'Arc']);
+  await s.setup.install('arc');
+  // as 0.4.0 left it: no record, the manifest only in Arc's own folder
+  fs.rmSync(s.setup.registryFile);
+  fs.rmSync(NMH(s.home, 'Google/Chrome'));
+  fs.mkdirSync(path.dirname(NMH(s.home, 'Arc/User Data')), { recursive: true });
+  fs.writeFileSync(NMH(s.home, 'Arc/User Data'), JSON.stringify(s.setup.hostManifest()));
+  assert.deepStrictEqual(s.setup.browsers().filter((b) => b.registered).map((b) => b.id), ['arc']);
+  await s.setup.refresh();
+  assert.ok(fs.existsSync(NMH(s.home, 'Google/Chrome')));
+  assert.ok(!fs.existsSync(NMH(s.home, 'Arc/User Data')), 'the useless copy goes');
+  assert.deepStrictEqual(s.setup.browsers().filter((b) => b.registered).map((b) => b.id), ['arc']);
 });
 
 test('the standalone binary\'s host runs the binary itself', () => {
@@ -339,32 +436,35 @@ test('the standalone binary\'s host runs the binary itself', () => {
   assert.ok(text.includes(`exec '${bin}' browser-host`));
 });
 
-test('refresh rebuilds only a browser part that is set up, in place, re-registering the same browsers', async () => {
-  const s = setupIn(['Google Chrome', 'Arc']);
+test('refresh rebuilds only a browser part that is set up, in place, re-registering the same browsers and keeping gen/', async () => {
+  const s = setupIn(['Google Chrome', 'Brave Browser']);
   assert.strictEqual(await s.setup.refresh(), null);
   assert.ok(!fs.existsSync(s.setup.extensionDir));
-  await s.setup.install('arc');
+  await s.setup.install('brave');
   fs.writeFileSync(path.join(s.setup.extensionDir, 'stale.js'), '');
-  fs.writeFileSync(NMH(s.home, 'Arc/User Data'), JSON.stringify({ name: HOST_NAME, path: '/old/place' }));
+  fs.writeFileSync(path.join(s.setup.extensionDir, 'gen', 'core-1.js'), '');
+  fs.writeFileSync(NMH(s.home, 'BraveSoftware/Brave-Browser'), JSON.stringify({ name: HOST_NAME, path: '/old/place' }));
   assert.match((await s.setup.refresh())!, /^0\.3\.4\./);
   assert.ok(!fs.existsSync(path.join(s.setup.extensionDir, 'stale.js')), 'files from an older build go');
-  assert.strictEqual(JSON.parse(fs.readFileSync(NMH(s.home, 'Arc/User Data'), 'utf8')).path, s.setup.hostScript);
+  assert.ok(fs.existsSync(path.join(s.setup.extensionDir, 'gen', 'core-1.js')), 'the host\'s page code stays');
+  assert.strictEqual(JSON.parse(fs.readFileSync(NMH(s.home, 'BraveSoftware/Brave-Browser'), 'utf8')).path, s.setup.hostScript);
   assert.ok(!fs.existsSync(NMH(s.home, 'Google/Chrome')));
 });
 
 test('uninstall from one browser keeps the others; the last one, or all, takes the folder too; another program\'s file stays', async () => {
-  const s = setupIn(['Google Chrome', 'Arc', 'Brave Browser']);
+  const s = setupIn(['Google Chrome', 'Arc', 'Brave Browser', 'Microsoft Edge']);
   await s.setup.install('chrome');
-  await s.setup.install('arc');
-  const brave = NMH(s.home, 'BraveSoftware/Brave-Browser');
-  fs.mkdirSync(path.dirname(brave), { recursive: true });
-  fs.writeFileSync(brave, JSON.stringify({ name: 'something.else' }));
-  assert.deepStrictEqual(s.setup.uninstall(['arc']), [NMH(s.home, 'Arc/User Data')]);
+  await s.setup.install('brave');
+  const edge = NMH(s.home, 'Microsoft Edge');
+  fs.mkdirSync(path.dirname(edge), { recursive: true });
+  fs.writeFileSync(edge, JSON.stringify({ name: 'something.else' }));
+  assert.deepStrictEqual(s.setup.uninstall(['brave']), [NMH(s.home, 'BraveSoftware/Brave-Browser')]);
   assert.ok(fs.existsSync(s.setup.dir), 'Chrome still has it');
   assert.deepStrictEqual(s.setup.uninstall(['chrome']), [NMH(s.home, 'Google/Chrome'), s.setup.dir]);
-  assert.ok(fs.existsSync(brave));
   await s.setup.install('arc');
-  assert.deepStrictEqual(s.setup.uninstall('all'), [NMH(s.home, 'Arc/User Data'), s.setup.dir]);
+  await s.setup.install('brave');
+  assert.deepStrictEqual(s.setup.uninstall('all'), [NMH(s.home, 'Google/Chrome'), NMH(s.home, 'BraveSoftware/Brave-Browser'), s.setup.dir]);
+  assert.ok(fs.existsSync(edge), 'not Cinnamon\'s');
 });
 
 // ---- the cinnamon browser command ----

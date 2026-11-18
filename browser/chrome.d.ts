@@ -26,13 +26,13 @@ declare namespace chrome {
   namespace scripting {
     interface Target { tabId: number; frameIds?: number[] }
     interface InjectionResult { result?: unknown; frameId?: number }
-    function executeScript(o: { target: Target; world?: 'MAIN' | 'ISOLATED'; func: (...args: any[]) => unknown; args?: unknown[]; injectImmediately?: boolean }): Promise<InjectionResult[]>;
+    function executeScript(o: { target: Target; world?: 'MAIN' | 'ISOLATED'; func?: (...args: any[]) => unknown; args?: unknown[]; files?: string[]; injectImmediately?: boolean }): Promise<InjectionResult[]>;
     function insertCSS(o: { target: Target; css: string; origin?: 'AUTHOR' | 'USER' }): Promise<void>;
     function removeCSS(o: { target: Target; css: string; origin?: 'AUTHOR' | 'USER' }): Promise<void>;
   }
   /** Present only when the person allowed user scripts for this extension (Developer mode, or Chrome 138+'s toggle). */
   namespace userScripts {
-    function execute(o: { target: scripting.Target; world?: 'MAIN' | 'USER_SCRIPT'; js: { code: string }[]; injectImmediately?: boolean }): Promise<scripting.InjectionResult[]>;
+    function execute(o: { target: scripting.Target; world?: 'MAIN' | 'USER_SCRIPT'; js: ({ code: string } | { file: string })[]; injectImmediately?: boolean }): Promise<scripting.InjectionResult[]>;
   }
   namespace storage {
     interface Area { get(key: string): Promise<Record<string, unknown>>; set(items: Record<string, unknown>): Promise<void> }

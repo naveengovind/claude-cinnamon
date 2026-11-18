@@ -79,8 +79,6 @@ ${out.bold(`One-time setup in ${b.name}`)} (${b.extensionsUrl}${open ? ', openin
   1. Turn on ${out.bold('Developer mode')}.
   2. Click ${out.bold('Load unpacked')} and pick this folder (press ⌘⇧G in the picker and paste it):
        ${setup.extensionDir}
-  3. Open ${out.bold('Details')} on Cinnamon for Claude and turn on ${out.bold('Allow User Scripts')} if it's there, so
-     extensions run on claude.ai whatever the page allows (themes work without it).
 Then open claude.ai: Settings → Appearance has Cinnamon's rows, as in the desktop app. Themes, extensions and settings
 are shared with the desktop app. ${out.dim(`(extension id ${EXTENSION_ID})`)}
 Updates come with ${out.bold('cinnamon update')}; the extension reloads itself, no store involved.`);
@@ -133,7 +131,7 @@ Updates come with ${out.bold('cinnamon update')}; the extension reloads itself, 
     const where = setup.browsers().filter((b) => b.registered).map((b) => b.name).join(', ') || out.yellow('no browser');
     const s = BrowserHost.readStatus(this.paths.user);
     if (!s.connected) return `${where}: ${out.yellow('never connected; load the folder as an unpacked extension (cinnamon browser install)')}`;
-    const extra = s.problem ? out.yellow(` · ${s.problem}`) : s.userScripts === false ? out.dim(' · user scripts off') : '';
+    const extra = s.problem ? out.yellow(` · ${s.problem}`) : '';
     return `${where}: extension ${s.extensionVersion ?? '?'}, last connected ${new Date(s.connected).toLocaleString()}${extra}`;
   }
 
