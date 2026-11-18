@@ -245,3 +245,52 @@ test('an unread response is not Working, although the app uses the same pulsing 
   assert.strictEqual(top(w, 'local_u').querySelector('.cm-working'), null);
   assert.match(top(w, 'local_u').textContent, /3m/);
 });
+
+// ---- the data comes from the page itself: the desktop app's bridge and claude.ai's API ----
+function fedPage({ bridge, cloud }: { bridge?: unknown[]; cloud?: unknown } = {}) {
+  const dom = new JSDOM(`<body><div data-testid="sidebar-recents">${row('a', 'Title A')}
+    <div data-row-key="code:session_XYZ"><div><div data-row><button data-row-main-button><span data-row-label>Cloud one</span></button></div></div></div>
+  </div></body>`, { runScripts: 'outside-only', pretendToBeVisual: true });
+  const w = dom.window;
+  const calls: string[] = [];
+  if (bridge) w['claude.web'] = { LocalSessions: { getAll: async () => bridge } };
+  if (cloud) w.fetch = async (url: string) => { calls.push(url); return { ok: true, status: 200, json: async () => cloud }; };
+  w.eval(RUNTIME);
+  w.eval(`(() => { const cinnamon = window.__cinnamon.api('sidebar-cards'); window.__cinnamon.reset('sidebar-cards'); ${SRC}\n })();`);
+  open.push(w);
+  return { w, calls };
+}
+const settle = async (w) => { for (let i = 0; i < 4; i++) await new Promise((r) => setTimeout(r, 0)); await tick(w); };
+
+test('cards are filled from the desktop app\'s bridge and claude.ai\'s session API, with no main part', async () => {
+  const { w, calls } = fedPage({
+    bridge: [{ sessionId: 'local_a', originCwd: '/work/demo-app', branch: 'feature/cards', model: 'claude-opus-5-5', lastActivityAt: Date.now() - 2 * 3600e3 }],
+    cloud: { data: [{ id: 'cse_XYZ', worker_status: 'idle', last_event_at: new Date(Date.now() - 5 * 60e3).toISOString(), config: { model: 'claude-sonnet-4-5', sources: [{ type: 'git_repository', url: 'https://github.com/acme/docs-site', revision: 'main' }] } }] },
+  });
+  await settle(w);
+  assert.match(btn(w, 'a').querySelector('.cm-top').textContent, /demo-app.*2h/);
+  assert.match(btn(w, 'a').querySelector('.cm-bottom').textContent, /feature\/cards.*Opus 5\.5/);
+  const cloud = w.document.querySelector('[data-row-key="code:session_XYZ"] [data-row-main-button]');
+  assert.match(cloud.querySelector('.cm-top').textContent, /docs-site.*5m/);
+  assert.match(cloud.querySelector('.cm-bottom').textContent, /main.*Sonnet 4\.5/);
+  assert.strictEqual(calls.length, 1);
+});
+
+test('in a browser (no bridge) with the API refusing, the cards still show what the rows show', async () => {
+  const { w } = fedPage({ cloud: { data: [] } });
+  w.fetch = async () => ({ ok: false, status: 401, json: async () => ({}) });
+  await settle(w);
+  assert.ok(btn(w, 'a').querySelector('.cm-top'), 'a card all the same');
+  assert.strictEqual(btn(w, 'a').querySelector('.cm-bottom'), null);
+});
+
+test('taking the cards out stops the feed: no more reads or requests', async () => {
+  let reads = 0;
+  const { w, calls } = fedPage({ bridge: [], cloud: { data: [] } });
+  w['claude.web'].LocalSessions.getAll = async () => { reads++; return []; };
+  await settle(w);
+  w.__cinnamon.dispose('sidebar-cards');
+  const before = { reads, calls: calls.length };
+  await new Promise((r) => setTimeout(r, 3500)); // past one bridge interval
+  assert.deepStrictEqual({ reads, calls: calls.length }, before);
+});

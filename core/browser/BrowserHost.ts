@@ -4,7 +4,7 @@
 // changes, and saves what the page asks for (a theme pick, an extension switched on or off, a setting). The desktop
 // app, if it is running, picks the same changes up from the same files.
 //
-// In a browser there is no main process: an extension with a main part (the sidebar cards) is listed as desktop-only,
+// In a browser there is no main process: an extension with a main part (none of the built-in ones) is listed as desktop-only,
 // and a theme with a window material (Glass) gets a dark ground behind its see-through panels instead.
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';

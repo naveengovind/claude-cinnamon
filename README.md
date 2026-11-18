@@ -8,8 +8,9 @@ Not affiliated with or endorsed by Anthropic.
   panels), or any theme you write as a small JSON file.
 - **Extensions**, switched on and off in *Settings → Appearance → Extensions*:
   - **Sidebar cards**: t3-style session cards with folder, branch, model and age, and a live *Working* timer, for
-    every Code session: on this Mac, over SSH and in the cloud (a cloud session shows where it runs). *Working*
-    follows the app's own Running status, so it's right for all three.
+    every Code session: on this Mac, over SSH and in the cloud, in the desktop app and in your browser. The data comes
+    from the page itself (the app's own session list, and claude.ai for cloud sessions), never from files on disk.
+    *Working* follows the app's own Running status, so it's right for all three.
   - **Full width**: adds *Full* to *Settings → Appearance → Transcript width*.
   - **UFO critter** (off until you switch it on): a little pixel alien flying a saucer around the window. It runs
     from your pointer and now and then beams up a passing cow. Clicks pass through.
@@ -239,8 +240,8 @@ const timer = setInterval(() => { /* … */ }, 1000);
 cinnamon.onDispose(() => { badge.remove(); clearInterval(timer); });
 ```
 
-Built-in extensions may also have a `main` part (`.ts` or `.cjs`) that runs in Claude's main process (the sidebar
-cards use one to read session files). Extensions installed from elsewhere run in the page only: a `main` entry is
+Built-in extensions may also have a `main` part (`.ts` or `.cjs`) that runs in Claude's main process (none of the
+built-in ones uses one now). Extensions installed from elsewhere run in the page only: a `main` entry is
 ignored, and their TypeScript may only import files inside the extension.
 
 ## Claude in Chrome
@@ -266,8 +267,9 @@ Run `install --browser <id>` again for each other browser you use; they share th
   everywhere, and editing a theme or extension reloads it in place.
 - **Updates without clicks.** `cinnamon update` rebuilds the folder, and the extension reloads itself into the new
   version the next time it connects.
-- **What differs in a browser.** Extensions with a main part (the sidebar cards) run only in the desktop app; they're
-  listed as such. A Glass theme gets a dark ground, since a browser tab can't be see-through. `cinnamon screenshot`
+- **What differs in a browser.** Everything built in runs in a browser too, the sidebar cards included: they get their
+  data from claude.ai itself (cloud sessions) and, in the desktop app, from the app's own session list. An extension
+  with a main part (none of the built-in ones has one) runs only in the desktop app and is listed as such. A Glass theme gets a dark ground, since a browser tab can't be see-through. `cinnamon screenshot`
   sees only the desktop app.
 - `cinnamon browser status` (and `doctor`) say whether the extension is connected. `cinnamon browser uninstall
   --browser <id>` takes it out of one browser; `cinnamon browser uninstall` (or `--all`) removes the folder and every

@@ -1,8 +1,11 @@
 {
   "name": "Sidebar cards",
-  "description": "t3-style session cards: folder, branch, model and age, and a live Working timer, for sessions on this Mac, over SSH and in the cloud",
-  "version": "1.0.0",
-  "page": ["page.ts"],
-  "css": ["cards.css"],
-  "main": "main.ts"
+  "description": "t3-style session cards: folder, branch, model and age, and a live Working timer, for local, SSH and cloud sessions, in the desktop app and in your browser",
+  "version": "2.0.0",
+  "page": [
+    "page.ts"
+  ],
+  "css": [
+    "cards.css"
+  ]
 }

@@ -1,15 +1,20 @@
 /// <reference path="../../types/cinnamon.d.ts" />
-// Sidebar session cards. Runs inside the claude.ai page (an extension's page code).
+// Sidebar session cards. Runs inside the claude.ai page (an extension's page code), in the desktop app and in a
+// browser alike: it has no main part and reads no files.
 // Adds a context line (.cm-top: folder · age or Working timer) and a detail line (.cm-bottom: branch · model) to each
-// code-session row (on this Mac, SSH and cloud). It creates, updates and removes only its own `cm-` nodes; on app nodes it only sets data-cm-card. The main part (main.ts) sends
-// the data it reads from session files via __cmSetMeta; a session with none here (cloud) gets the place the app shows.
-// Working follows the app's own Running status (any kind of session), or a turn running in the session's log, timed
-// from the log's prompt when there is one and otherwise from when the app first showed it running.
+// code-session row (local, SSH and cloud). It creates, updates and removes only its own `cm-` nodes; on app nodes it
+// only sets data-cm-card. The data comes from sources.ts (the desktop app's own bridge for its sessions, claude.ai's
+// API for cloud ones); a session with none gets the place the app shows on its row.
+// Working follows the app's own Running status (any kind of session), or a turn the session reports running, timed
+// from that turn's start when known and otherwise from when the app first showed it running.
+import { SessionFeed, type Card, type Cards, type FeedHost } from './sources';
 
-interface Card { folder?: string; branch?: string | null; rel?: string; model?: string | null; working?: number | null; summary?: string | null }
 interface Line { sig: string; build(): HTMLElement }
 interface CardsState {
+  /** Set by hand through __cmSetMeta (tests, debugging); wins over the feed. */
   meta: Record<string, Card>;
+  /** From the sources (sources.ts). */
+  fed?: Cards;
   observer: MutationObserver | null;
   list: Element | null;
   queued: boolean;
@@ -139,7 +144,7 @@ class CardDecorator {
       if (!card.hasAttribute('data-cm-card')) card.setAttribute('data-cm-card', '');
       const id = r.getAttribute('data-row-key')!.slice('code:'.length);
       const app = appRow(r);
-      const m = { ...(this.state.meta[id] || EMPTY) };
+      const m = { ...(this.state.meta[id] || this.state.fed?.[id] || EMPTY) };
       if (!m.folder) m.folder = app.place;
       m.working = this.workingSince(id, app.running, m.working);
       this.place(button, 'cm-top', this.topLine(m), true);
@@ -221,6 +226,9 @@ class CardDecorator {
     delete win.__cmStats;
   }
 
+  /** Data from the sources: redraws when it changes. */
+  readonly fed = (cards: Cards): void => { this.state.fed = cards; this.schedule(); };
+
   start(): void {
     const { state, win } = this;
     state.disposed = false;
@@ -250,7 +258,9 @@ class CardDecorator {
   const state = (win.__cmState ??= { meta: {}, observer: null, list: null, queued: false });
   const cards = new CardDecorator(state, win);
   cards.start();
-  if (typeof cinnamon !== 'undefined') cinnamon.onDispose(() => cards.dispose()); // hot-reloadable
+  const feed = new SessionFeed(win as unknown as FeedHost, cards.fed);
+  feed.start();
+  if (typeof cinnamon !== 'undefined') cinnamon.onDispose(() => { feed.stop(); cards.dispose(); }); // hot-reloadable
 }
 
 export {}; // a module: its names stay its own (Bun wraps it for the page)

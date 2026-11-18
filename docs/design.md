@@ -146,12 +146,17 @@ to look at every visible change it makes. Any process running as you could also 
 already read Claude's data on disk, so this adds little, and the switch is there for anyone who wants it off.
 
 ## Sidebar cards for every session (Nov 16 2026)
-Cards go on every Code row (`code:local_…` for this Mac and SSH, `code:session_…` for cloud). Data comes from the
-app's session files and Claude Code's log, or, for an SSH session, the copy of its log the app keeps in
-`~/.claude/projects/ssh-<id>/` (branch); a session with no file here gets the place the app shows (Cloud, an
-environment). *Working* follows the app's own status: the row's `[data-session-status]` / status icon labeled
-"Running" (not the pulsing dot, which also marks an unread response), timed from the log's last prompt when there
-is one and otherwise from when the app first showed it running (kept in localStorage). The status chips and the
+Cards go on every Code row (`code:local_…` for this computer and SSH, `code:session_…` for cloud). Since Nov 18 2026
+the data comes only from what the page itself can reach, in TypeScript (`extensions/sidebar-cards/sources.ts`), so the
+cards work in the desktop app and on claude.ai in a browser, on any platform: the desktop app's own bridge,
+`window['claude.web'].LocalSessions.getAll()` (folder, branch, model, times, `turnRunning`; an SSH session's
+`remoteTarget.remoteCwd`), polled every 3 s while visible; and claude.ai's own API, `GET /v1/code/sessions` with
+`anthropic-version: 2023-06-01` (ids `cse_<x>` ↔ rows `code:session_<x>`; repository and revision in
+`config.sources`), every 30 s while visible, backing off after errors and pausing while signed out. Nothing reads
+files and there's no main part. A session neither source knows gets the place the app shows on its row. *Working*
+follows the app's own status: the row's `[data-session-status]` / status icon labeled "Running" (not the pulsing
+dot, which also marks an unread response), or a turn the source reports running, timed from that turn's start when
+known and otherwise from when the app first showed it running (kept in localStorage). The status chips and the
 label picker were removed as clutter: the app shows its own status.
 
 ## Backdrops and the mobile app (Nov 16 2026)
