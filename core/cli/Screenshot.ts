@@ -13,14 +13,8 @@ interface Answer { ok?: boolean; png?: string; width?: number; height?: number; 
 export class Screenshot {
   constructor(private readonly paths: Paths, private readonly out: Output) {}
 
-  async run(args: string[]): Promise<number> {
-    const { out } = this;
-    const flag = (name: string) => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : undefined; };
-    const target = flag('--out');
-    const width = flag('--width') ? Number(flag('--width')) : 1600;
-    if (!Number.isFinite(width) || width < 200) return out.fail('--width takes a number of pixels (200 or more)');
-    const timeout = Number(process.env.CINNAMON_SCREENSHOT_TIMEOUT_MS) || 15_000;
-
+  /** One request to the Cinnamon in Claude, and its answer (null: none came in time; the request is taken back). */
+  private async ask(width: number, timeout: number): Promise<Answer | null> {
     const state = path.join(this.paths.user, 'state');
     const reqDir = path.join(state, 'requests');
     const resDir = path.join(state, 'responses');
@@ -31,21 +25,41 @@ export class Screenshot {
     const tmp = `${reqFile}.tmp`;
     fs.writeFileSync(tmp, JSON.stringify({ id, type: 'screenshot', width }) + '\n', { mode: 0o600 });
     fs.renameSync(tmp, reqFile);
-
     const resFile = path.join(resDir, `${id}.json`);
     const end = Date.now() + timeout;
-    let answer: Answer | null = null;
     while (Date.now() < end) {
-      try { answer = JSON.parse(fs.readFileSync(resFile, 'utf8')) as Answer; break; } catch {}
+      try {
+        const answer = JSON.parse(fs.readFileSync(resFile, 'utf8')) as Answer;
+        fs.rmSync(resFile, { force: true });
+        return answer;
+      } catch {}
       await new Promise((r) => setTimeout(r, 100));
     }
-    if (!answer) {
-      fs.rmSync(reqFile, { force: true });
-      const why = HelperClient.claudePid() ? 'Cinnamon isn\'t running inside Claude, or is older than 0.3.2' : 'Claude isn\'t running';
-      return out.fail(`no picture: ${why}. See: cinnamon status (cinnamon apply re-injects it).`);
+    fs.rmSync(reqFile, { force: true });
+    return null;
+  }
+
+  async run(args: string[]): Promise<number> {
+    const { out } = this;
+    const flag = (name: string) => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : undefined; };
+    const target = flag('--out');
+    const width = flag('--width') ? Number(flag('--width')) : 1600;
+    if (!Number.isFinite(width) || width < 200) return out.fail('--width takes a number of pixels (200 or more)');
+    const timeout = Number(process.env.CINNAMON_SCREENSHOT_TIMEOUT_MS) || 15_000;
+
+    // A capture taken while the page is changing (a load, a route change) can fail; it's tried again a few times.
+    const retryMs = Number(process.env.CINNAMON_SCREENSHOT_RETRY_MS) || 1500;
+    let answer: Answer | null = null;
+    for (let attempt = 0; attempt < 4; attempt++) {
+      if (attempt) await new Promise((r) => setTimeout(r, retryMs));
+      answer = await this.ask(width, timeout);
+      if (!answer) {
+        const why = HelperClient.claudePid() ? 'Cinnamon isn\'t running inside Claude, or is older than 0.3.2' : 'Claude isn\'t running';
+        return out.fail(`no picture: ${why}. See: cinnamon status (cinnamon apply re-injects it).`);
+      }
+      if (answer.ok || !/capture failed/.test(answer.error || '')) break;
     }
-    fs.rmSync(resFile, { force: true });
-    if (!answer.ok || !answer.png) return out.fail(`no picture: ${answer.error || 'unknown error'}`);
+    if (!answer?.ok || !answer.png) return out.fail(`no picture: ${answer?.error || 'unknown error'}`);
     let file = answer.png;
     if (target) {
       const dest = path.resolve(target);

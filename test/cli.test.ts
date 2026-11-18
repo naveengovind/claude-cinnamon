@@ -291,6 +291,39 @@ test('screenshot asks the Cinnamon in Claude for a picture and saves it where as
   assert.match(text, /shot\.png/);
 });
 
+test('screenshot tries again when a capture fails while the page is changing', async () => {
+  const h = home();
+  const out = path.join(h, 'shot.png');
+  const { spawn } = await import('node:child_process');
+  const p = spawn(BIN, ['screenshot', '--out', out], { env: { ...process.env, PATH: `${path.dirname(process.execPath)}:${process.env.PATH}`, CINNAMON_HOME: h, CINNAMON_NO_APPLY: '1', NO_COLOR: '1', CINNAMON_SCREENSHOT_TIMEOUT_MS: '8000', CINNAMON_SCREENSHOT_RETRY_MS: '50' } });
+  let text = '';
+  p.stdout.on('data', (d) => { text += d; });
+  p.stderr.on('data', (d) => { text += d; });
+  const reqDir = path.join(h, 'state', 'requests');
+  const resDir = path.join(h, 'state', 'responses');
+  const answered = new Set();
+  const answer = async (reply) => {
+    for (let i = 0; i < 100; i++) {
+      await new Promise((r) => setTimeout(r, 50));
+      let f; try { f = fs.readdirSync(reqDir).find((x) => x.endsWith('.json') && !answered.has(x)); } catch {}
+      if (!f) continue;
+      answered.add(f);
+      const req = JSON.parse(fs.readFileSync(path.join(reqDir, f), 'utf8'));
+      fs.rmSync(path.join(reqDir, f));
+      fs.mkdirSync(resDir, { recursive: true });
+      fs.writeFileSync(path.join(resDir, `${req.id}.png`), 'PNG');
+      fs.writeFileSync(path.join(resDir, `${req.id}.json`), JSON.stringify(reply(req)));
+      return true;
+    }
+    return false;
+  };
+  assert.ok(await answer(() => ({ ok: false, error: 'capture failed: UnknownVizError' })), 'first request');
+  assert.ok(await answer((req) => ({ ok: true, png: path.join(resDir, `${req.id}.png`), width: 1600, height: 1000 })), 'a second request');
+  const code = await new Promise((r) => p.on('close', r));
+  assert.strictEqual(code, 0, text);
+  assert.strictEqual(fs.readFileSync(out, 'utf8'), 'PNG');
+});
+
 test('screenshot says what to do when nothing answers', () => {
   const h = home();
   const r = spawnSync(BIN, ['screenshot'], { encoding: 'utf8', env: { ...process.env, PATH: `${path.dirname(process.execPath)}:${process.env.PATH}`, CINNAMON_HOME: h, CINNAMON_NO_APPLY: '1', NO_COLOR: '1', CINNAMON_SCREENSHOT_TIMEOUT_MS: '600' } });

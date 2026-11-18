@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cinnamon for Claude</title>
+<meta name="description" content="Themes and extensions for the Claude desktop app on macOS. Claude.app itself is never modified.">
+<meta property="og:title" content="Cinnamon for Claude">
+<meta property="og:description" content="Themes and extensions for the Claude desktop app on macOS.">
+<meta property="og:image" content="shots/ember-code.jpg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Young+Serif&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bark: #2b1611;      /* cinnamon bark: the page */
+    --bark-deep: #1f0f0b;
+    --stick: #4a2519;     /* rolled stick: raised surfaces */
+    --cassia: #c6622c;    /* ground cinnamon: the one warm accent */
+    --sugar: #f6eadb;     /* text */
+    --sugar-dim: #cdb8a4;
+    --cardamom: #a9bf9f;  /* the cool counterpoint: links, focus */
+    --page: var(--bark);
+    --page-deep: var(--bark-deep);
+    --raised: var(--stick);
+    --measure: 34rem;
+    --serif: "Young Serif", Georgia, serif;
+    --sans: "Atkinson Hyperlegible", system-ui, sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, monospace;
+  }
+  /* the page takes on the look you pick in the window */
+  body[data-look="codex"] { --page: #1c1c1c; --page-deep: #141414; --raised: #2c2c2c; --cassia: #d07a45; }
+  * { box-sizing: border-box; }
+  html { background: var(--page-deep); }
+  body {
+    margin: 0; color: var(--sugar); background: var(--page);
+    font: 1.0625rem/1.6 var(--sans);
+    transition: background-color .6s ease;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--cardamom); text-underline-offset: .18em; }
+  a:hover { color: var(--sugar); }
+  :focus-visible { outline: 2px solid var(--cardamom); outline-offset: 3px; border-radius: 4px; }
+  h1, h2, h3 { font-family: var(--serif); font-weight: 400; line-height: 1.1; margin: 0; }
+  p { margin: 0 0 1em; }
+  code { font-family: var(--mono); font-size: .88em; }
+  .wrap { width: min(72rem, 100% - 2.5rem); margin-inline: auto; }
+
+  /* --- top --- */
+  header.top { display: flex; justify-content: space-between; align-items: center; padding: 1.4rem 0; }
+  .mark { display: flex; gap: .6rem; align-items: center; font-family: var(--serif); font-size: 1.3rem; color: var(--sugar); text-decoration: none; }
+  .mark svg { width: 1.6rem; height: 1.6rem; }
+  header.top nav { display: flex; gap: 1.4rem; font-size: .95rem; }
+  header.top nav a { color: var(--sugar-dim); text-decoration: none; }
+  header.top nav a:hover { color: var(--sugar); }
+
+  /* --- hero --- */
+  .hero { display: grid; grid-template-columns: minmax(0, 25rem) minmax(0, 1fr); gap: 3.5rem; align-items: center; padding: 3rem 0 5rem; }
+  .hero h1 { font-size: clamp(2.6rem, 5.4vw, 4.4rem); letter-spacing: -.01em; }
+  .hero .lede { margin-top: 1.4rem; font-size: 1.15rem; color: var(--sugar-dim); max-width: var(--measure); }
+  .install-card { margin-top: 2rem; background: var(--page-deep); border: 1px solid color-mix(in srgb, var(--sugar) 14%, transparent); border-radius: 10px; padding: 1rem 1.1rem; transition: background-color .6s ease; }
+  .install-card pre { margin: 0; font: .95rem/1.7 var(--mono); white-space: pre-wrap; color: var(--sugar); }
+  .install-card pre .p { color: var(--cassia); user-select: none; }
+  .install-card .row { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-top: .7rem; font-size: .85rem; color: var(--sugar-dim); }
+  button.copy { font: 600 .85rem var(--sans); color: var(--page-deep); background: var(--sugar); border: 0; border-radius: 6px; padding: .45rem .8rem; cursor: pointer; }
+  button.copy:hover { background: #fff; }
+
+  /* the window: the memorable thing */
+  .stage { position: relative; }
+  .window { border-radius: 12px; overflow: hidden; background: #000; box-shadow: 0 40px 80px -30px rgba(0,0,0,.7), 0 0 0 1px rgba(255,255,255,.08); }
+  .window .bar { display: flex; align-items: center; gap: .45rem; padding: .6rem .8rem; background: color-mix(in srgb, var(--page-deep) 80%, #000); }
+  .window .bar i { width: .72rem; height: .72rem; border-radius: 50%; background: #ff5f57; }
+  .window .bar i:nth-child(2) { background: #febc2e; } .window .bar i:nth-child(3) { background: #28c840; }
+  .window .bar span { margin-left: auto; margin-right: auto; font-size: .78rem; color: var(--sugar-dim); transform: translateX(-1.2rem); }
+  .window .shots { position: relative; aspect-ratio: 4 / 3; }
+  .window img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: top left; opacity: 0; transition: opacity .5s ease; }
+  .window img.on { opacity: 1; }
+  .looks { display: flex; gap: .5rem; margin-top: 1rem; flex-wrap: wrap; }
+  .looks button { font: 400 .95rem var(--sans); color: var(--sugar-dim); background: transparent; border: 1px solid color-mix(in srgb, var(--sugar) 22%, transparent); border-radius: 999px; padding: .4rem .95rem; cursor: pointer; }
+  .looks button[aria-pressed="true"] { color: var(--page-deep); background: var(--sugar); border-color: var(--sugar); }
+  .looks .caption { flex-basis: 100%; margin-top: .4rem; font-size: .9rem; color: var(--sugar-dim); min-height: 1.5em; }
+
+  /* --- sections --- */
+  section.block { padding: 4.5rem 0; border-top: 1px solid color-mix(in srgb, var(--sugar) 10%, transparent); }
+  section.block > .wrap > h2 { font-size: clamp(1.9rem, 3.4vw, 2.6rem); max-width: 22ch; }
+  section.block .intro { margin-top: 1rem; color: var(--sugar-dim); max-width: var(--measure); }
+
+  .themes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2rem; margin-top: 2.6rem; }
+  .theme h3 { font-size: 1.45rem; margin-bottom: .5rem; }
+  .theme p { color: var(--sugar-dim); font-size: .98rem; }
+  .swatch { display: flex; height: 2.2rem; border-radius: 6px; overflow: hidden; margin-bottom: 1rem; }
+  .swatch b { flex: 1; }
+
+  .split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: 3rem; align-items: start; margin-top: 2.6rem; }
+  .split img { width: 100%; border-radius: 10px; box-shadow: 0 0 0 1px rgba(255,255,255,.08); }
+  dl.exts { margin: 0; }
+  dl.exts dt { font-family: var(--serif); font-size: 1.3rem; margin-top: 1.6rem; }
+  dl.exts dt:first-child { margin-top: 0; }
+  dl.exts dd { margin: .35rem 0 0; color: var(--sugar-dim); max-width: var(--measure); }
+  dl.exts dd code { color: var(--sugar); }
+
+  ol.steps { list-style: none; counter-reset: step; padding: 0; margin: 2.4rem 0 0; display: grid; gap: 1.8rem; max-width: 46rem; }
+  ol.steps li { counter-increment: step; display: grid; grid-template-columns: 3rem 1fr; gap: 1rem; }
+  ol.steps li::before { content: counter(step); font-family: var(--serif); font-size: 1.9rem; line-height: 1; color: var(--cassia); }
+  ol.steps h3 { font-size: 1.25rem; margin-bottom: .4rem; }
+  ol.steps p { color: var(--sugar-dim); margin: 0; }
+  pre.cmd { margin: .7rem 0 0; padding: .8rem 1rem; background: var(--page-deep); border-radius: 8px; font: .9rem/1.7 var(--mono); overflow-x: auto; transition: background-color .6s ease; }
+
+  .ask { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 3rem; margin-top: 2.4rem; }
+  .ask blockquote { margin: 0; font-family: var(--serif); font-size: 1.35rem; line-height: 1.35; }
+  .ask blockquote p { margin: 0 0 .9rem; padding-left: 1rem; border-left: 3px solid var(--cassia); }
+  .ask .note { color: var(--sugar-dim); }
+
+  .facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2rem 3rem; margin-top: 2.4rem; }
+  .facts h3 { font-size: 1.2rem; margin-bottom: .4rem; }
+  .facts p { color: var(--sugar-dim); font-size: .98rem; margin: 0; }
+
+  footer { padding: 3rem 0 4rem; color: var(--sugar-dim); font-size: .9rem; border-top: 1px solid color-mix(in srgb, var(--sugar) 10%, transparent); }
+  footer .wrap { display: flex; justify-content: space-between; gap: 2rem; flex-wrap: wrap; }
+
+  @media (max-width: 860px) {
+    .hero, .split, .ask, .facts { grid-template-columns: minmax(0, 1fr); }
+    .hero { gap: 2.5rem; padding-top: 1.5rem; }
+    .themes { grid-template-columns: minmax(0, 1fr); }
+    header.top nav { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    body, .install-card, pre.cmd, .window img { transition: none; }
+  }
+</style>
+</head>
+<body data-look="ember">
+<div class="wrap">
+  <header class="top">
+    <a class="mark" href="#">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><rect x="5" y="4" width="9" height="24" rx="4.5" fill="#c6622c"/><rect x="17" y="4" width="9" height="24" rx="4.5" fill="#8a3d1c"/><path d="M8 9c2 1 2 3 0 4m0 4c2 1 2 3 0 4M20 9c2 1 2 3 0 4m0 4c2 1 2 3 0 4" stroke="#f6eadb" stroke-opacity=".55" stroke-width="1.4" fill="none" stroke-linecap="round"/></svg>
+      Cinnamon
+    </a>
+    <nav aria-label="Sections">
+      <a href="#themes">Themes</a>
+      <a href="#extensions">Extensions</a>
+      <a href="#install">Install</a>
+      <a href="https://github.com/naveengovind/claude-cinnamon">GitHub</a>
+    </nav>
+  </header>
+
+  <main>
+  <div class="hero">
+    <div>
+      <h1>Your own look for the Claude app</h1>
+      <p class="lede">Cinnamon adds themes and small extensions to the Claude desktop app on your Mac. Pick them in Claude's own Settings, or just ask Claude to make one.</p>
+      <div class="install-card">
+        <pre id="brew"><span class="p">$ </span>brew install naveengovind/tap/cinnamon
+<span class="p">$ </span>cinnamon install</pre>
+        <div class="row"><span>macOS 13 or later. Free and open source.</span><button class="copy" data-copy="brew" type="button">Copy</button></div>
+      </div>
+    </div>
+
+    <div class="stage">
+      <div class="window">
+        <div class="bar"><i></i><i></i><i></i><span>Claude</span></div>
+        <div class="shots">
+          <img class="on" data-look="ember" src="shots/ember-code.jpg" alt="Claude's Code tab with the Ember theme: a glowing orange sun and faint stars behind the conversation, with sidebar cards showing each session's folder, branch and model">
+          <img data-look="ember-chat" src="shots/ember-chat.jpg" alt="Claude's Chat tab with the Ember theme" loading="lazy">
+          <img data-look="codex" src="shots/codex-code.jpg" alt="Claude's Code tab with the Codex theme: neutral near-black and gray" loading="lazy">
+          <img data-look="ufo" src="shots/ufo.jpg" alt="A small pixel UFO with an orange alien inside, flying across Claude's window" loading="lazy">
+        </div>
+      </div>
+      <div class="looks" role="group" aria-label="Show a look">
+        <button type="button" aria-pressed="true" data-show="ember" data-page="ember" data-caption="Ember in the Code tab. The sun drifts slowly; the sidebar cards are an extension.">Ember</button>
+        <button type="button" aria-pressed="false" data-show="ember-chat" data-page="ember" data-caption="Ember in the Chat tab.">Ember chat</button>
+        <button type="button" aria-pressed="false" data-show="codex" data-page="codex" data-caption="Codex: a quiet neutral dark.">Codex</button>
+        <button type="button" aria-pressed="false" data-show="ufo" data-page="ember" data-caption="The UFO critter extension. It runs from your pointer and sometimes beams up a cow.">UFO critter</button>
+        <p class="caption" aria-live="polite">Ember in the Code tab. The sun drifts slowly; the sidebar cards are an extension.</p>
+      </div>
+    </div>
+  </div>
+  </main>
+</div>
+
+<section class="block" id="themes">
+  <div class="wrap">
+    <h2>Three themes to start, and any you write</h2>
+    <p class="intro">A theme is a small JSON file of colors, with an optional picture or animation behind the conversation. Pick one under Settings → Appearance → Color scheme, and it changes instantly.</p>
+    <div class="themes">
+      <div class="theme">
+        <div class="swatch" aria-hidden="true"><b style="background:#170700"></b><b style="background:#2a1004"></b><b style="background:#ff7a1a"></b><b style="background:#ffcfa6"></b></div>
+        <h3>Ember</h3>
+        <p>A slow orange sun and drifting stars behind frosted panels. The one new installs start with.</p>
+      </div>
+      <div class="theme">
+        <div class="swatch" aria-hidden="true"><b style="background:#111111"></b><b style="background:#1e1e1e"></b><b style="background:#2c2c2c"></b><b style="background:#d6d6d6"></b></div>
+        <h3>Codex</h3>
+        <p>Neutral near-black and grays, for when you'd rather the app disappear.</p>
+      </div>
+      <div class="theme">
+        <div class="swatch" aria-hidden="true"><b style="background:rgba(255,255,255,.08)"></b><b style="background:rgba(255,255,255,.16)"></b><b style="background:rgba(255,255,255,.3)"></b><b style="background:rgba(255,255,255,.55)"></b></div>
+        <h3>Glass</h3>
+        <p>See-through: your desktop shows through the window, blurred, using the Mac's own glass material.</p>
+      </div>
+    </div>
+    <p class="intro" style="margin-top:2.4rem">In the Code tab, Cinnamon hands its colors and backdrop to Claude Code's own mod system, so the app draws them natively.</p>
+  </div>
+</section>
+
+<section class="block" id="extensions">
+  <div class="wrap">
+    <h2>Extensions you switch on in Settings</h2>
+    <div class="split">
+      <dl class="exts">
+        <dt>Sidebar cards</dt>
+        <dd>Every Code session as a card with its folder, branch, model and age, plus a live <em>Working</em> timer. Works for sessions on your Mac, over SSH and in the cloud.</dd>
+        <dt>Full width</dt>
+        <dd>Adds <em>Full</em> to Settings → Appearance → Transcript width, so the conversation can fill the window.</dd>
+        <dt>UFO critter</dt>
+        <dd>A tiny alien in a saucer that wanders the window, runs from your pointer and now and then beams up a passing cow. Off until you turn it on.</dd>
+        <dt>More from GitHub</dt>
+        <dd><code>cinnamon ext install owner/repo</code> adds an extension someone else made.</dd>
+      </dl>
+      <img src="shots/ember-settings.jpg" alt="Claude's Settings, Appearance page, with two rows added by Cinnamon: Color scheme set to Ember, and Extensions showing 4 on" loading="lazy">
+    </div>
+  </div>
+</section>
+
+<section class="block" id="install">
+  <div class="wrap">
+    <h2>Install in a few minutes</h2>
+    <ol class="steps">
+      <li>
+        <div>
+          <h3>Turn on Developer Mode in Claude</h3>
+          <p>In Claude's menu bar: Help → Troubleshooting → Enable Developer Mode.</p>
+        </div>
+      </li>
+      <li>
+        <div>
+          <h3>Install Cinnamon</h3>
+          <p>With Homebrew:</p>
+          <pre class="cmd">brew install naveengovind/tap/cinnamon
+cinnamon install</pre>
+          <p style="margin-top:.9rem">Or without Homebrew:</p>
+          <pre class="cmd">curl -fsSL https://raw.githubusercontent.com/naveengovind/claude-cinnamon/main/install.sh | sh</pre>
+        </div>
+      </li>
+      <li>
+        <div>
+          <h3>Allow the two things macOS asks about</h3>
+          <p>Accessibility, so Cinnamon Helper can turn on Claude's debugger when Claude starts, and control of Google Chrome, so it can close the tab Claude opens when it does. Then Ember is already on.</p>
+        </div>
+      </li>
+    </ol>
+    <p class="intro" style="margin-top:2.2rem">Later, <code>cinnamon update</code> keeps it current, and <code>cinnamon uninstall</code> removes everything it added.</p>
+  </div>
+</section>
+
+<section class="block" id="ask">
+  <div class="wrap">
+    <h2>Or ask Claude to change it</h2>
+    <div class="ask">
+      <blockquote>
+        <p>Make me a warm sepia theme.</p>
+        <p>Add a clock to the corner.</p>
+        <p>Turn off the sidebar cards.</p>
+      </blockquote>
+      <div class="note">
+        <p>Cinnamon installs a Claude Code skill, so Claude in the Code tab or your terminal can write themes and extensions for the app you're using, switch them, and fix them. Changes appear within a second, with no restart.</p>
+        <p>It asks before installing anything from the internet or removing something you made.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="block" id="safe">
+  <div class="wrap">
+    <h2>What it does to your Mac</h2>
+    <div class="facts">
+      <div><h3>Claude.app is never changed</h3><p>Cinnamon loads itself each time Claude starts, through Claude's own Developer menu. Uninstalling leaves Claude exactly as it was.</p></div>
+      <div><h3>Your files stay in one folder</h3><p>Themes, extensions and settings live in <code>~/.config/claude-cinnamon</code>, as plain files you can read and edit.</p></div>
+      <div><h3>Built to survive app updates</h3><p>It hooks onto the app's design tokens and labels, not its internals, and each feature quietly turns off if a future version moves something.</p></div>
+      <div><h3>Not made by Anthropic</h3><p>Cinnamon is an independent open-source project. It isn't affiliated with or endorsed by Anthropic.</p></div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span>Cinnamon is open source on <a href="https://github.com/naveengovind/claude-cinnamon">GitHub</a>.</span>
+    <span>Screenshots use made-up chat names.</span>
+  </div>
+</footer>
+
+<script>
+  // the look switcher: shows a screenshot and tints the page to match
+  const buttons = document.querySelectorAll('.looks button');
+  const caption = document.querySelector('.looks .caption');
+  for (const b of buttons) {
+    b.addEventListener('click', () => {
+      for (const o of buttons) o.setAttribute('aria-pressed', String(o === b));
+      for (const img of document.querySelectorAll('.window img')) img.classList.toggle('on', img.dataset.look === b.dataset.show);
+      document.body.dataset.look = b.dataset.page;
+      caption.textContent = b.dataset.caption;
+    });
+  }
+  // copy buttons
+  for (const c of document.querySelectorAll('button.copy')) {
+    c.addEventListener('click', async () => {
+      const text = document.getElementById(c.dataset.copy).textContent.replace(/^\$ /gm, '');
+      try { await navigator.clipboard.writeText(text); c.textContent = 'Copied'; }
+      catch { c.textContent = 'Select and copy'; }
+      setTimeout(() => { c.textContent = 'Copy'; }, 1800);
+    });
+  }
+</script>
+</body>
+</html>

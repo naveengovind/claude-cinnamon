@@ -5,3 +5,6 @@ build/
 *.tmp
 dist/
 *.bun-build
+
+# local agent worktrees
+.claude/

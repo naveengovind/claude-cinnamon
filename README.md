@@ -3,6 +3,16 @@
 Themes and extensions for the **Claude desktop app on macOS**, in the spirit of Spicetify.
 Not affiliated with or endorsed by Anthropic.
 
+**Website: [naveengovind.github.io/claude-cinnamon](https://naveengovind.github.io/claude-cinnamon/)**
+
+![Claude's Code tab with the Ember theme: an orange sun and faint stars behind the conversation, and sidebar cards](site/shots/ember-code.jpg)
+
+| Codex | UFO critter | Settings → Appearance |
+| --- | --- | --- |
+| ![The Codex theme](site/shots/codex-code.jpg) | ![The UFO critter extension](site/shots/ufo.jpg) | ![Cinnamon's rows in Claude's Settings](site/shots/ember-settings.jpg) |
+
+<sub>Screenshots use made-up chat, folder and account names (`scripts/screenshots.ts`, `tools/demo-mask`).</sub>
+
 - **Color schemes** picked in Claude's own *Settings → Appearance → Color scheme*: Codex (neutral near-black),
   Glass (see-through, blurred desktop behind), Ember (a slow-drifting orange sun and stars behind see-through
   panels), or any theme you write as a small JSON file.
