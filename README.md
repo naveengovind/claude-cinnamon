@@ -118,6 +118,9 @@ Cinnamon.app puts everything above in the menu bar, for anyone who'd rather not 
   Chrome's automation prompt explained, and Claude Code's mod and skill. Below it are any problems `cinnamon doctor`
   finds, *Show Log*, *Open Cinnamon at login* and *Uninstall Cinnamon…*. It opens by itself the first time, until
   Cinnamon is set up.
+- **Use in a Browser…** (also in Setup): the browsers on this Mac that Cinnamon works with (Chrome, Arc, Brave, Edge,
+  Chromium, Vivaldi), each with *Set Up* or *Remove* ([Claude in Chrome](#claude-in-chrome), one browser at a time).
+  After *Set Up* it shows the three clicks left to do in that browser, with the folder to load already copied.
 
 Get it either way:
 

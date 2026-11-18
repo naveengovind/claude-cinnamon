@@ -51,6 +51,8 @@ struct SetupView: View {
         }
         .background(RoundedRectangle(cornerRadius: 8).fill(Color.primary.opacity(0.04)))
 
+        BrowserSection().padding(.top, 4)
+
         if !otherProblems.isEmpty {
           VStack(alignment: .leading, spacing: 6) {
             Text("Other problems").font(.headline)
@@ -88,7 +90,7 @@ struct SetupView: View {
         Toggle("Open Cinnamon at login", isOn: Binding(get: { model.launchAtLogin }, set: { model.setLaunchAtLogin($0) }))
 
         HStack {
-          Button("Check Again") { Task { await model.refresh(); await model.refreshDoctor() } }
+          Button("Check Again") { Task { await model.refresh(); await model.refreshDoctor(); await model.refreshBrowsers() } }
           Button("Show Log") { Task { Windows.showLog(await model.logs()) } }
           Button("Project Page") { NSWorkspace.shared.open(Links.project) }
           Spacer()

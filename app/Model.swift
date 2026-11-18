@@ -19,6 +19,10 @@ final class AppModel: ObservableObject {
   @Published var messageIsError = false
   @Published var cliMissing = false
   @Published var launchAtLogin = false
+  /** Browsers for Claude on the web (`cinnamon browser list --json`). */
+  @Published var browsers: BrowserList?
+  /** After a browser install: the one-time steps to finish it in that browser. */
+  @Published var browserSteps: BrowserSteps?
 
   private var watcher: DispatchSourceFileSystemObject?
   private var watchedDir: String?
@@ -146,6 +150,43 @@ final class AppModel: ObservableObject {
 
   func logs() async -> String { await CLI.run(["logs"]).text }
 
+  // MARK: Claude in a browser
+
+  func refreshBrowsers() async {
+    if CLI.locate() == nil { cliMissing = true; return }
+    browsers = await CLI.json(BrowserList.self, ["browser", "list"])
+  }
+
+  /**
+   * `cinnamon browser install --browser <id>`: builds the extension and lets that browser start Cinnamon. The command
+   * opens the browser's extensions page and copies the folder path; the person finishes there (BrowserSteps).
+   */
+  func installBrowser(_ b: BrowserList.Browser) async {
+    let r = await perform("Setting up \(b.name)…", ["browser", "install", "--browser", b.id])
+    await refreshBrowsers()
+    guard r.ok else { return }
+    // "Updated in place" means it was already loaded and connected: nothing left to do in the browser
+    if r.stdout.contains("Updated in place") {
+      browserSteps = nil
+      message = "\(b.name) is up to date. Open claude.ai to use it."
+      messageIsError = false
+      return
+    }
+    browserSteps = BrowserSteps(browser: b, folder: browsers?.extensionDir ?? "")
+    message = nil
+  }
+
+  func removeBrowser(_ b: BrowserList.Browser) async {
+    await perform("Removing Cinnamon from \(b.name)…", ["browser", "uninstall", "--browser", b.id])
+    if browserSteps?.browser.id == b.id { browserSteps = nil }
+    await refreshBrowsers()
+  }
+
+  func copyToClipboard(_ text: String) {
+    NSPasteboard.general.clearContents()
+    NSPasteboard.general.setString(text, forType: .string)
+  }
+
   func setLaunchAtLogin(_ on: Bool) {
     do {
       if on { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
@@ -171,6 +212,13 @@ final class AppModel: ObservableObject {
     try? p.run()
     NSApp.terminate(nil)
   }
+}
+
+/** What is left to do in the browser after `cinnamon browser install`: shown until the person closes it. */
+struct BrowserSteps: Equatable {
+  let browser: BrowserList.Browser
+  /** The folder to load as an unpacked extension (the command copied it to the clipboard too). */
+  let folder: String
 }
 
 enum Links {

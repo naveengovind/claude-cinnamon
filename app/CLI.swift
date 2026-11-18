@@ -163,6 +163,36 @@ struct ExtensionList: Decodable {
   let extensions: [Ext]
 }
 
+/** `cinnamon browser list --json` (schema 1): the browsers this Mac has, and which run Cinnamon on claude.ai. */
+struct BrowserList: Decodable {
+  struct Browser: Decodable, Identifiable, Hashable {
+    let id: String
+    let name: String
+    /** The browser is on this Mac. */
+    let installed: Bool
+    /** Cinnamon is set up for it (it can start Cinnamon for the extension). */
+    let registered: Bool
+    let extensionsUrl: String
+    let hostManifest: String
+  }
+  let schema: Int
+  let extensionId: String
+  /** The folder a person loads as an unpacked extension. */
+  let extensionDir: String
+  let extensionBuilt: Bool
+  /** The browser `cinnamon browser install` picks without --browser. */
+  let defaultBrowser: String?
+  let browsers: [Browser]
+
+  enum CodingKeys: String, CodingKey {
+    case schema, extensionId, extensionDir, extensionBuilt, browsers
+    case defaultBrowser = "default"
+  }
+
+  var installed: [Browser] { browsers.filter(\.installed) }
+  var missing: [Browser] { browsers.filter { !$0.installed } }
+}
+
 struct DoctorReport: Decodable {
   struct Check: Decodable, Identifiable, Hashable {
     let id: String

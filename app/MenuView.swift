@@ -86,6 +86,7 @@ struct MenuView: View {
       MenuButton("Take Screenshot…", systemImage: "camera") { saveScreenshot() }
         .disabled(!(model.status?.claude.running ?? false))
       MenuButton("Get More Themes and Extensions…", systemImage: "plus.circle") { Windows.showGetMore() }
+      MenuButton("Use in a Browser…", systemImage: "globe") { Windows.showBrowsers() }
       MenuButton("Open Themes Folder", systemImage: "folder") { model.openUserFolder("themes") }
       MenuButton("Check for Updates", systemImage: "arrow.down.circle") { Task { await model.update() } }
       MenuButton("Setup and Help…", systemImage: "gearshape") { Windows.showSetup() }

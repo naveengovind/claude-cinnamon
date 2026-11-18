@@ -116,3 +116,50 @@ test.skipIf(!hasSwift)('the Swift app type-checks for macOS 13', () => {
   assert.strictEqual(r.status, 0, r.stderr);
   assert.doesNotMatch(r.stderr, /warning:/, r.stderr);
 }, 120_000);
+
+// The app reads the CLI's --json through the decoders in app/CLI.swift: compile them with a small driver and feed
+// them what the real command prints (an empty settings folder; nothing is installed or changed).
+const DRIVER = `import Foundation
+@main struct Decode {
+  static func main() {
+    let data = FileHandle.standardInput.readDataToEndOfFile()
+    let d = JSONDecoder()
+    do {
+      switch CommandLine.arguments[1] {
+      case "status": let s = try d.decode(Status.self, from: data); print("theme=\\(s.theme) helper=\\(s.helper.running)")
+      case "theme": let t = try d.decode(ThemeList.self, from: data); print("current=\\(t.current) themes=\\(t.themes.map(\\.id).joined(separator: ","))")
+      case "ext": let e = try d.decode(ExtensionList.self, from: data); print("exts=\\(e.extensions.map { "\\($0.id):\\($0.enabled)" }.joined(separator: ","))")
+      case "doctor": let r = try d.decode(DoctorReport.self, from: data); print("checks=\\(r.checks.count) helper=\\(r.check("helper") != nil)")
+      case "browser":
+        let b = try d.decode(BrowserList.self, from: data)
+        print("schema=\\(b.schema) built=\\(b.extensionBuilt) default=\\(b.defaultBrowser ?? "-") ids=\\(b.browsers.map(\\.id).joined(separator: ",")) split=\\(b.installed.count + b.missing.count) dir=\\(b.extensionDir)")
+      default: exit(2)
+      }
+    } catch { print("ERROR \\(error)"); exit(1) }
+  }
+}
+`;
+
+test.skipIf(!hasSwift)('the app decodes what status, theme list, ext list, doctor and browser list print with --json', () => {
+  const work = fs.mkdtempSync(path.join(os.tmpdir(), 'cm-decode-'));
+  const user = path.join(work, 'user');
+  fs.writeFileSync(path.join(work, 'main.swift'), DRIVER);
+  const exe = path.join(work, 'decode');
+  const c = spawnSync('swiftc', [...AppInstaller.SWIFT_FLAGS, '-o', exe, path.join(REPO, 'app', 'CLI.swift'), path.join(work, 'main.swift')], { encoding: 'utf8' });
+  assert.strictEqual(c.status, 0, c.stderr);
+  const env = { ...process.env, PATH: `${path.dirname(process.execPath)}:${process.env.PATH}`, CINNAMON_HOME: user, CINNAMON_NO_APPLY: '1', NO_COLOR: '1' };
+  const decode = (kind: string, args: string[]) => {
+    const cli = spawnSync(path.join(REPO, 'bin', 'cinnamon'), [...args, '--json'], { encoding: 'utf8', env });
+    const r = spawnSync(exe, [kind], { input: cli.stdout, encoding: 'utf8' });
+    assert.strictEqual(r.status, 0, `${kind}: ${r.stdout}\n${cli.stdout.slice(0, 400)}`);
+    return r.stdout.trim();
+  };
+  assert.match(decode('status', ['status']), /^theme=\S+ helper=(true|false)$/);
+  assert.match(decode('theme', ['theme', 'list']), /current=\S+ themes=default,.*codex/);
+  assert.match(decode('ext', ['ext', 'list']), /full-width:(true|false)/);
+  assert.match(decode('doctor', ['doctor']), /checks=\d+ helper=true/);
+  const browsers = decode('browser', ['browser', 'list']);
+  assert.match(browsers, /^schema=1 built=false default=(chrome|arc|brave|edge|chromium|vivaldi) ids=chrome,arc,brave,edge,chromium,vivaldi split=6 dir=/);
+  assert.ok(browsers.endsWith(path.join(user, 'browser', 'extension')), browsers);
+  assert.ok(!fs.existsSync(path.join(user, 'browser')), 'listing writes nothing');
+}, 180_000);

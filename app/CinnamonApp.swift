@@ -40,7 +40,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
 /**
  * `Cinnamon --snapshot <folder>`: pictures of the menu panel and the Setup window, drawn by the app itself (no Screen
- * Recording permission), for the docs. Writes menu.png and setup.png, then quits.
+ * Recording permission), for the docs. Writes menu.png, setup.png, browsers.png and browser-steps.png (the steps
+ * shown after setting up the first browser on this Mac; nothing is set up for it), then quits.
  */
 @MainActor
 enum Snapshot {
@@ -48,13 +49,22 @@ enum Snapshot {
     let model = AppModel.shared
     await model.refreshDoctor()
     try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+    await model.refreshBrowsers()
     let menu = window(MenuView(), width: 320, height: nil)
-    let setup = window(SetupView(), width: 560, height: 900)
-    try? await Task.sleep(nanoseconds: 1_500_000_000) // let both lay out and draw
+    let setup = window(SetupView(), width: 560, height: 1300)
+    let browsers = window(BrowserWindowView(), width: 520, height: 420)
+    try? await Task.sleep(nanoseconds: 1_500_000_000) // let them lay out and draw
     write(menu, to: folder.appendingPathComponent("menu.png"))
     write(setup, to: folder.appendingPathComponent("setup.png"))
-    menu.close()
-    setup.close()
+    write(browsers, to: folder.appendingPathComponent("browsers.png"))
+    if let b = model.browsers?.installed.first {
+      model.browserSteps = BrowserSteps(browser: b, folder: model.browsers?.extensionDir ?? "")
+      browsers.setContentSize(NSSize(width: 520, height: 760))
+      try? await Task.sleep(nanoseconds: 1_000_000_000)
+      write(browsers, to: folder.appendingPathComponent("browser-steps.png"))
+      model.browserSteps = nil
+    }
+    for w in [menu, setup, browsers] { w.close() }
   }
 
   /** `height` nil: as tall as the view wants (the menu); a scrolling view gets a fixed one. */
@@ -114,6 +124,10 @@ enum Windows {
 
   static func showGetMore() {
     show("get-more", title: "Get More Themes and Extensions", size: NSSize(width: 520, height: 420)) { GetMoreView() }
+  }
+
+  static func showBrowsers() {
+    show("browsers", title: "Claude in Your Browser", size: NSSize(width: 520, height: 560)) { BrowserWindowView() }
   }
 
   static func showLog(_ text: String) {
