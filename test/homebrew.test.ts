@@ -105,6 +105,7 @@ test('the command inside Cinnamon.app belongs to the cask when Homebrew has the 
   assert.strictEqual(Homebrew.caskPrefixOf(inApp, () => false, prefixes), null, 'a downloaded app, not the cask');
   assert.strictEqual(Homebrew.caskPrefixOf('/Users/x/.local/bin/cinnamon', has, prefixes), null);
   assert.strictEqual(Homebrew.caskPrefixOf(null, has, prefixes), null);
+  assert.strictEqual(Homebrew.caskPrefixOf('/tmp/x/Cinnamon.app/Contents/Resources/cinnamon', has, prefixes), null, 'a copy elsewhere is not the cask\'s app');
 });
 
 test('a command inside an app bundle is recognized, so it never replaces itself there', () => {

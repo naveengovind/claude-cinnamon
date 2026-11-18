@@ -2,6 +2,7 @@
 // (<prefix>/Cellar/cinnamon/<version>/bin/cinnamon) that the next upgrade removes, while <prefix>/opt/cinnamon always
 // links to the installed version: the login item names that link, and updates go through brew.
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 
 const CELLAR = /^(.+)\/Cellar\/cinnamon\/[^/]+\/(.+)$/;
@@ -31,7 +32,9 @@ export class Homebrew {
    * `brew upgrade --cask` updates both), or null.
    */
   static caskPrefixOf(file: string | null, exists: (f: string) => boolean = fs.existsSync, prefixes = ['/opt/homebrew', '/usr/local']): string | null {
-    if (!Homebrew.insideApp(file)) return null;
+    const app = Homebrew.insideApp(file);
+    // where the cask puts the app: /Applications, or ~/Applications with --appdir
+    if (!app || !['/Applications/Cinnamon.app', path.join(os.homedir(), 'Applications', 'Cinnamon.app')].includes(app)) return null;
     return prefixes.find((p) => exists(path.join(p, 'Caskroom', 'cinnamon')) && exists(path.join(p, 'bin', 'brew'))) ?? null;
   }
 
