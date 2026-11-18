@@ -170,6 +170,8 @@ function verify(bin: string, arch: Arch, version: string): string {
 
 export async function build(arches: Arch[] = ['arm64', 'x64']): Promise<string[]> {
   console.log(`signing: ${SIGN.describe}`);
+  const notarize = Signing.notarizationProblem(SIGN.identity, SIGN.notaryProfile, process.env);
+  if (notarize) throw new Error(notarize);
   const version = (JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')) as { version: string }).version;
   fs.rmSync(WORK, { recursive: true, force: true });
   fs.rmSync(DIST, { recursive: true, force: true });

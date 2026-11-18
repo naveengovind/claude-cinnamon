@@ -85,7 +85,7 @@ cask "cinnamon" do
     strategy :github_latest
   end
 
-  depends_on macos: ">= :ventura"
+  depends_on macos: :ventura
 
   app "Cinnamon.app"
   binary "#{appdir}/Cinnamon.app/Contents/Resources/cinnamon"

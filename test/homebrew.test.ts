@@ -121,6 +121,7 @@ test('the cask installs Cinnamon.app and links the cinnamon command inside it', 
   assert.match(c, /on_arm do\s+url "https:\/\/github\.com\/owner\/repo\/releases\/download\/v1\.2\.3\/Cinnamon-app-darwin-arm64\.zip"\s+sha256 "a{64}"/);
   assert.match(c, /on_intel do\s+url "https:\/\/github\.com\/owner\/repo\/releases\/download\/v1\.2\.3\/Cinnamon-app-darwin-x64\.zip"\s+sha256 "b{64}"/);
   assert.match(c, /app "Cinnamon\.app"/);
+  assert.match(c, /depends_on macos: :ventura\n/, 'the current form; ">= :ventura" is deprecated');
   assert.match(c, /binary "#\{appdir\}\/Cinnamon\.app\/Contents\/Resources\/cinnamon"/);
   assert.match(c, /uninstall[\s\S]*args:\s+\["uninstall"\]/, 'takes out the login item, mod and skill first');
   if (fs.existsSync('/usr/bin/ruby')) {

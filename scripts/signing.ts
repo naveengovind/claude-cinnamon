@@ -33,6 +33,18 @@ export class Signing {
     return /"(Developer ID Application: [^"]+)"/.exec(list)?.[1] ?? null;
   }
 
+  /**
+   * Why a release signed with `identity` can't be notarized, or null. The notarytool profile lives in the keychain,
+   * which macOS won't read while the screen is locked: then it looks missing, and the release must stop rather than
+   * ship an app that macOS warns about.
+   */
+  static notarizationProblem(identity: string | null, profile: string | null, env: NodeJS.ProcessEnv): string | null {
+    if (!identity || profile || env.CINNAMON_ALLOW_UNNOTARIZED === '1') return null;
+    return `signing with "${identity}" but no notarytool profile could be read. If the Mac's screen is locked, unlock it ` +
+      `(the keychain can't be read while it's locked) and run again; otherwise create one with: xcrun notarytool ` +
+      `store-credentials ${Signing.DEFAULT_PROFILE} … (or set CINNAMON_ALLOW_UNNOTARIZED=1 to release without notarizing)`;
+  }
+
   get distributable(): boolean { return this.identity !== null; }
   get canNotarize(): boolean { return this.identity !== null && !!this.notaryProfile; }
   get describe(): string {
@@ -52,7 +64,12 @@ export class Signing {
   /** Sends a zip of an app to Apple and staples the ticket to the app; throws when Apple rejects it. */
   notarize(zip: string, app: string, run: (cmd: string, args: string[]) => void): void {
     if (!this.canNotarize) return;
-    run('xcrun', ['notarytool', 'submit', zip, '--keychain-profile', this.notaryProfile!, '--wait']);
+    try {
+      run('xcrun', ['notarytool', 'submit', zip, '--keychain-profile', this.notaryProfile!, '--wait']);
+    } catch (e) {
+      const locked = /No Keychain password item/.test(String((e as Error).message));
+      throw new Error(locked ? `notarization couldn't read the ${this.notaryProfile} profile: is the screen locked? Unlock the Mac and run the release again.\n${(e as Error).message}` : String((e as Error).message));
+    }
     run('xcrun', ['stapler', 'staple', app]);
   }
 }

@@ -27,3 +27,11 @@ test('notarization runs only with a Developer ID and a notarytool keychain profi
   assert.strictEqual(new Signing('Developer ID Application: X (Y)', null).canNotarize, false);
   assert.strictEqual(new Signing('Developer ID Application: X (Y)', 'cinnamon-notary').canNotarize, true);
 });
+
+test('a release with a Developer ID stops when notarization is unavailable, unless told to ship it unnotarized', () => {
+  const id = 'Developer ID Application: X (Y)';
+  assert.match(String(Signing.notarizationProblem(id, null, {})), /locked|unlock/i);
+  assert.strictEqual(Signing.notarizationProblem(id, 'cinnamon-notary', {}), null);
+  assert.strictEqual(Signing.notarizationProblem(id, null, { CINNAMON_ALLOW_UNNOTARIZED: '1' }), null);
+  assert.strictEqual(Signing.notarizationProblem(null, null, {}), null, 'ad hoc builds are never notarized');
+});
