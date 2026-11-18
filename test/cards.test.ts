@@ -276,6 +276,16 @@ test('cards are filled from the desktop app\'s bridge and claude.ai\'s session A
   assert.strictEqual(calls.length, 1);
 });
 
+test('data an older version left in the page (from its main part) never hides the feed\'s', async () => {
+  const { w } = fedPage({ bridge: [{ sessionId: 'local_a', originCwd: '/work/demo-app', branch: 'feature/new', lastActivityAt: Date.now() }] });
+  w.__cmState.meta = { local_a: { folder: 'stale', branch: 'old-branch', rel: '9d', model: null, working: null, summary: null } };
+  await settle(w);
+  w.__cmState.fed = { ...w.__cmState.fed }; // redraw with both present
+  w.__cmSetMeta(w.__cmState.meta);
+  assert.match(btn(w, 'a').querySelector('.cm-top').textContent, /demo-app/);
+  assert.match(btn(w, 'a').querySelector('.cm-bottom').textContent, /feature\/new/);
+});
+
 test('in a browser (no bridge) with the API refusing, the cards still show what the rows show', async () => {
   const { w } = fedPage({ cloud: { data: [] } });
   w.fetch = async () => ({ ok: false, status: 401, json: async () => ({}) });

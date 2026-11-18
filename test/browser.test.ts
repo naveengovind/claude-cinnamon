@@ -171,6 +171,13 @@ test('hello sends the state and records the connection for status and doctor', a
   assert.strictEqual(st.userScripts, true);
   await h.host.handle({ type: 'status', userScripts: false, problem: 'claude.ai refused it' });
   assert.strictEqual(BrowserHost.readStatus(h.user).problem, 'claude.ai refused it');
+  await h.host.handle({ type: 'page', msg: { type: 'ext-error', ext: 'ufo', message: 'EvalError from the old version' } });
+  assert.deepStrictEqual(BrowserHost.readStatus(h.user).errors.ufo, ['EvalError from the old version']);
+  // a newly connecting (fixed) extension starts clean: an old version's problem and page errors aren't shown as current
+  await h.host.handle({ type: 'hello', version: '0.4.1.1', userScripts: false });
+  assert.strictEqual(BrowserHost.readStatus(h.user).problem, null);
+  assert.strictEqual(BrowserHost.readStatus(h.user).errors.ufo, undefined);
+  assert.strictEqual(BrowserHost.readStatus(h.user).extensionVersion, '0.4.1.1');
 });
 
 test('the state carries the version of the extension folder on disk, so the extension can update itself', async () => {

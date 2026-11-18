@@ -226,6 +226,53 @@ test('a read still in flight when the feed stops changes nothing', async () => {
   assert.strictEqual(changes.length, 0);
 });
 
+test('a session without a recorded branch gets its folder\'s branch from the app\'s getGitInfo, asked rarely', async () => {
+  const clock = new Clock();
+  const sessions = [
+    { sessionId: 'local_p', cwd: '/work/plain', lastActivityAt: NOW - 60e3 },
+    { sessionId: 'local_q', cwd: '/work/plain', lastActivityAt: NOW - 120e3 },
+    { sessionId: 'local_n', cwd: '/work/not-git', lastActivityAt: NOW },
+    { sessionId: 'local_r', cwd: '/x', remoteTarget: { kind: 'ssh', remoteCwd: '/srv/app' } },
+    { sessionId: 'local_b', cwd: '/work/has-branch', branch: 'main' },
+  ];
+  const asked: string[] = [];
+  const { h } = host({ local: () => sessions, clock });
+  h['claude.web']!.LocalSessions!.getGitInfo = async (cwd: string) => { asked.push(cwd); return cwd === '/work/plain' ? { repo: 'plain', branch: 'feature/git', root: cwd } : null; };
+  const changes: Cards[] = [];
+  const feed = new SessionFeed(h, (c) => changes.push(c), undefined, () => clock.t);
+  feed.start();
+  await flush(); await flush();
+  const c = changes.at(-1)!;
+  assert.strictEqual(c.local_p!.branch, 'feature/git');
+  assert.strictEqual(c.local_q!.branch, 'feature/git');
+  assert.strictEqual(c.local_n!.branch, null, 'not a git folder');
+  assert.strictEqual(c.local_b!.branch, 'main');
+  assert.deepStrictEqual(asked.sort(), ['/work/not-git', '/work/plain'], 'once per folder; never an SSH session or one that has a branch');
+  await clock.advance(60_000);
+  assert.strictEqual(asked.length, 2, 'not again while nothing changed');
+  sessions[0]!.lastActivityAt = NOW + 1;
+  await clock.advance(3000);
+  assert.deepStrictEqual(asked.slice(2), ['/work/plain'], 'again when a session there has new activity');
+  await clock.advance(5 * 60_000);
+  assert.ok(asked.length >= 5, 'and every few minutes');
+  feed.stop();
+});
+
+test('branch lookups are capped per read', async () => {
+  const clock = new Clock();
+  const sessions = Array.from({ length: 10 }, (_, i) => ({ sessionId: `local_${i}`, cwd: `/work/f${i}` }));
+  let asked = 0;
+  const { h } = host({ local: () => sessions, clock });
+  h['claude.web']!.LocalSessions!.getGitInfo = async () => { asked++; return { branch: 'main' }; };
+  const feed = new SessionFeed(h, () => {}, undefined, () => clock.t);
+  feed.start();
+  await flush(); await flush();
+  assert.strictEqual(asked, 4);
+  await clock.advance(3000);
+  assert.strictEqual(asked, 8);
+  feed.stop();
+});
+
 test('unchanged data is not sent again', async () => {
   const clock = new Clock();
   const { h } = host({ local: LOCAL, clock });

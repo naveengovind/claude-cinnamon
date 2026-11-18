@@ -173,6 +173,9 @@ export class BrowserHost {
         this.status.connected = new Date().toISOString();
         this.status.extensionVersion = typeof m.version === 'string' ? m.version : null;
         this.status.userScripts = typeof m.userScripts === 'boolean' ? m.userScripts : null;
+        // a fresh connection (often a newer, fixed extension) reports its own problems: an older one's isn't current
+        // (page errors are rebuilt from scratch by the state push below)
+        this.status.problem = null;
         await this.push(true);
         return;
       case 'status':

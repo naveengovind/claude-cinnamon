@@ -11,7 +11,8 @@ import { SessionFeed, type Card, type Cards, type FeedHost } from './sources';
 
 interface Line { sig: string; build(): HTMLElement }
 interface CardsState {
-  /** Set by hand through __cmSetMeta (tests, debugging); wins over the feed. */
+  /** Set by hand through __cmSetMeta (tests, debugging), or left by an older version that pushed data from a main
+   *  part: used only for rows the feed has nothing for, so stale data never hides the feed's. */
   meta: Record<string, Card>;
   /** From the sources (sources.ts). */
   fed?: Cards;
@@ -144,7 +145,7 @@ class CardDecorator {
       if (!card.hasAttribute('data-cm-card')) card.setAttribute('data-cm-card', '');
       const id = r.getAttribute('data-row-key')!.slice('code:'.length);
       const app = appRow(r);
-      const m = { ...(this.state.meta[id] || this.state.fed?.[id] || EMPTY) };
+      const m = { ...(this.state.fed?.[id] || this.state.meta[id] || EMPTY) };
       if (!m.folder) m.folder = app.place;
       m.working = this.workingSince(id, app.running, m.working);
       this.place(button, 'cm-top', this.topLine(m), true);
@@ -226,8 +227,9 @@ class CardDecorator {
     delete win.__cmStats;
   }
 
-  /** Data from the sources: redraws when it changes. */
-  readonly fed = (cards: Cards): void => { this.state.fed = cards; this.schedule(); };
+  /** Data from the sources: redraws at once when it changes (at most every few seconds; an animation frame would
+   *  wait while the window is hidden or in the background). */
+  readonly fed = (cards: Cards): void => { this.state.fed = cards; this.decorate(); };
 
   start(): void {
     const { state, win } = this;

@@ -65,8 +65,16 @@ export function repoName(url: string | null | undefined): string {
 /** A git revision worth showing: a branch name, not a bare commit hash. */
 const branchOf = (rev: string | null): string | null => (rev && !/^[0-9a-f]{7,40}$/i.test(rev) && rev !== 'HEAD' ? rev : null);
 
-/** Cards for the sessions the desktop app's bridge lists (keys are their ids: local_<x>). */
-export function localCards(list: unknown, now: number): Cards {
+/** The folder whose git branch a desktop session shows: where it works (a worktree, or its folder). */
+export function gitDir(s: unknown): string | null {
+  const o = obj(s);
+  if (!o || o.remoteTarget) return null; // an SSH session's folder is on its host: the app here can't read it
+  return str(o.cwd) || str(o.worktreePath) || str(o.originCwd);
+}
+
+/** Cards for the sessions the desktop app's bridge lists (keys are their ids: local_<x>). `gitBranches` (folder →
+ *  branch, from the app's getGitInfo) fills in a branch the session itself doesn't record. */
+export function localCards(list: unknown, now: number, gitBranches: Record<string, string | null> = {}): Cards {
   const out: Cards = {};
   if (!Array.isArray(list)) return out;
   for (const item of list) {
@@ -80,7 +88,7 @@ export function localCards(list: unknown, now: number): Cards {
     const summary = pts && str(pts.status_detail);
     out[id] = {
       folder: baseName(dir),
-      branch: branchOf(str(s.branch)) || str(s.worktreeName),
+      branch: branchOf(str(s.branch)) || str(s.worktreeName) || branchOf(gitBranches[gitDir(s) ?? ''] ?? null),
       rel: at == null ? '' : relTime(at, now),
       model: shortModel(str(s.model)),
       // a running turn: its start is the session's last turn edge
@@ -124,7 +132,7 @@ export function cloudCards(body: unknown, now: number): Cards {
 
 /** What the feed needs from the page (a window, or a fake in tests). */
 export interface FeedHost {
-  'claude.web'?: { LocalSessions?: { getAll?: () => unknown } };
+  'claude.web'?: { LocalSessions?: { getAll?: () => unknown; getGitInfo?: (cwd: string) => unknown } };
   fetch?: (url: string, init?: Obj) => Promise<{ ok: boolean; status: number; json(): Promise<unknown> }>;
   setTimeout(fn: () => void, ms: number): unknown;
   clearTimeout(t: unknown): void;
@@ -133,8 +141,8 @@ export interface FeedHost {
   removeEventListener?(t: string, fn: () => void): void;
 }
 
-export interface FeedTiming { localMs: number; cloudMs: number; maxBackoffMs: number; minRefreshMs: number }
-export const TIMING: FeedTiming = { localMs: 3000, cloudMs: 30_000, maxBackoffMs: 5 * 60_000, minRefreshMs: 10_000 };
+export interface FeedTiming { localMs: number; cloudMs: number; maxBackoffMs: number; minRefreshMs: number; gitMs: number; gitPerRead: number }
+export const TIMING: FeedTiming = { localMs: 3000, cloudMs: 30_000, maxBackoffMs: 5 * 60_000, minRefreshMs: 10_000, gitMs: 5 * 60_000, gitPerRead: 4 };
 const CLOUD_PAGE = 50;
 const CLOUD_PAGES = 3;
 export const CLOUD_URL = '/v1/code/sessions';
@@ -153,6 +161,8 @@ export class SessionFeed {
   private cloudBackoff = 0;
   private cloudBlocked = false; // signed out (401/403): wait for the page to come back into view
   private lastCloud = 0;
+  /** folder → its git branch (from getGitInfo), when it was asked and the session activity it was asked for. */
+  private git = new Map<string, { branch: string | null; at: number; activity: number | null }>();
 
   constructor(private readonly host: FeedHost, private readonly onChange: (cards: Cards) => void, private readonly timing: FeedTiming = TIMING, private readonly now = () => Date.now()) {}
 
@@ -178,9 +188,44 @@ export class SessionFeed {
     try {
       const list = await get();
       if (this.stopped) return;
-      this.local = localCards(list, this.now());
+      await this.lookUpBranches(list);
+      if (this.stopped) return;
+      const branches: Record<string, string | null> = {};
+      for (const [dir, g] of this.git) branches[dir] = g.branch;
+      this.local = localCards(list, this.now(), branches);
       this.emit();
     } catch {} // the app was busy or changed: the next read tries again
+  }
+
+  /**
+   * Asks the app for the git branch of sessions that don't record one: once per folder, again only when a session
+   * there has new activity or after a few minutes, and only a few folders per read (never a tight loop).
+   */
+  private async lookUpBranches(list: unknown): Promise<void> {
+    const ls = this.host['claude.web']?.LocalSessions;
+    const getGitInfo = ls?.getGitInfo;
+    if (typeof getGitInfo !== 'function' || !Array.isArray(list)) return;
+    const now = this.now();
+    const want = new Map<string, number | null>(); // folder → latest activity of its branchless sessions
+    for (const item of list) {
+      const s = obj(item);
+      if (!s || branchOf(str(s.branch)) || str(s.worktreeName)) continue;
+      const dir = gitDir(s);
+      if (!dir) continue;
+      const act = num(s.lastActivityAt);
+      const prev = want.get(dir);
+      want.set(dir, prev == null ? act : act == null ? prev : Math.max(prev, act));
+    }
+    let asked = 0;
+    for (const [dir, activity] of want) {
+      const hit = this.git.get(dir);
+      if (hit && hit.activity === activity && now - hit.at < this.timing.gitMs) continue;
+      if (asked++ >= this.timing.gitPerRead) break;
+      let branch: string | null = null;
+      try { branch = str(obj(await getGitInfo.call(ls, dir))?.branch); } catch {}
+      if (this.stopped) return;
+      this.git.set(dir, { branch, at: now, activity });
+    }
   }
 
   /** One read of the cloud sessions (a few pages at most). */
