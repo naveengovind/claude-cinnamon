@@ -286,12 +286,12 @@ bun scripts/formula.ts # prints the Homebrew formula and cask for dist/ (--publi
 
 **Signing.** The build signs with a *Developer ID Application* certificate when this Mac's keychain has one (or the
 one `CINNAMON_SIGN_IDENTITY` names), with the hardened runtime and a timestamp, and notarizes and staples the menu bar
-app when `CINNAMON_NOTARY_PROFILE` names a notarytool profile. Set that up once:
+app with a notarytool profile (`CINNAMON_NOTARY_PROFILE`, or `cinnamon-notary` when it exists). Set that up once:
 
 ```sh
 # Xcode → Settings → Accounts → (your team) → Manage Certificates → + → Developer ID Application, then:
 xcrun notarytool store-credentials cinnamon-notary --apple-id <you@example.com> --team-id <TEAMID>
-CINNAMON_NOTARY_PROFILE=cinnamon-notary bun scripts/release.ts
+bun scripts/release.ts   # build prints: signing: Developer ID Application: …, notarized
 ```
 
 Without a Developer ID everything is signed ad hoc, and macOS asks people to allow the downloaded app once

@@ -1,8 +1,8 @@
 // How the release signs what it ships. With a "Developer ID Application" identity in this Mac's keychain (or one named
 // by CINNAMON_SIGN_IDENTITY), everything is signed for distribution: the hardened runtime, a secure timestamp and, for
 // the Bun-compiled cinnamon command, the entitlements its engine needs (scripts/entitlements/cinnamon.plist); the menu
-// bar app is then notarized and stapled when CINNAMON_NOTARY_PROFILE names a notarytool keychain profile (made once with
-// `xcrun notarytool store-credentials <name>`). Without one, everything is signed ad hoc, as before.
+// bar app is then notarized and stapled with a notarytool keychain profile: CINNAMON_NOTARY_PROFILE, or else
+// `cinnamon-notary` when it exists (made once with `xcrun notarytool store-credentials cinnamon-notary`). Without one, everything is signed ad hoc, as before.
 // CINNAMON_SIGN_IDENTITY=- forces ad hoc.
 import { spawnSync } from 'node:child_process';
 
@@ -11,10 +11,19 @@ export interface SignOptions { identifier?: string; entitlements?: string }
 export class Signing {
   constructor(readonly identity: string | null, readonly notaryProfile: string | null = null) {}
 
+  /** The notarytool keychain profile used when CINNAMON_NOTARY_PROFILE names none (and it exists). */
+  static readonly DEFAULT_PROFILE = 'cinnamon-notary';
+
   /** From this Mac's keychain and the environment. */
   static fromEnvironment(env: NodeJS.ProcessEnv = process.env): Signing {
     const list = spawnSync('security', ['find-identity', '-v', '-p', 'codesigning'], { encoding: 'utf8' }).stdout || '';
-    return new Signing(Signing.pickIdentity(list, env), env.CINNAMON_NOTARY_PROFILE || null);
+    const identity = Signing.pickIdentity(list, env);
+    let profile = env.CINNAMON_NOTARY_PROFILE || null;
+    if (!profile && identity) { // the default profile, if `xcrun notarytool store-credentials cinnamon-notary` made it
+      const r = spawnSync('xcrun', ['notarytool', 'history', '--keychain-profile', Signing.DEFAULT_PROFILE], { encoding: 'utf8' });
+      if (r.status === 0) profile = Signing.DEFAULT_PROFILE;
+    }
+    return new Signing(identity, profile);
   }
 
   /** The identity to sign with, from `security find-identity` output: only a Developer ID Application one. */
