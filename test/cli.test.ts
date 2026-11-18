@@ -406,3 +406,14 @@ test('without --json the output stays for people', () => {
   assert.match(run(h, 'theme', 'list').out, /\* default/);
   assert.throws(() => JSON.parse(run(h, 'status').out));
 });
+
+test('browser list --json gives the browser picker its listing (read-only)', () => {
+  const h = home();
+  const r = run(h, 'browser', 'list', '--json');
+  assert.strictEqual(r.code, 0, r.out);
+  const l = JSON.parse(r.stdout);
+  assert.strictEqual(l.schema, 1);
+  assert.strictEqual(l.extensionBuilt, false);
+  assert.deepStrictEqual(l.browsers.map((b) => b.id), ['chrome', 'arc', 'brave', 'edge', 'chromium', 'vivaldi']);
+  assert.ok(!fs.existsSync(path.join(h, 'browser')), 'listing writes nothing');
+});

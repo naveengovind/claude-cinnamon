@@ -8,7 +8,10 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { cssPlan, desiredCss, disposeSnippet, PROBE, runSnippet, scriptPlan } from '../browser/apply';
 import { BrowserHost, DESKTOP_ONLY, GLASS_GROUND } from '../core/browser/BrowserHost';
-import { BrowserSetup, extensionIdOf, extensionVersion } from '../core/browser/BrowserSetup';
+import { BROWSERS, BrowserSetup, extensionIdOf, extensionVersion } from '../core/browser/BrowserSetup';
+import { BrowserCommands } from '../core/cli/BrowserCommands';
+import { Output } from '../core/cli/Output';
+import { Paths } from '../core/cli/Paths';
 import { ChunkJoiner, Decoder, frame, framesFor, MAX_TO_BROWSER } from '../core/browser/NativeMessaging';
 import { EXTENSION_ID, HOST_NAME, type HostState } from '../core/browser/protocol';
 import { ROOT } from './helpers';
@@ -262,19 +265,49 @@ test('taking an extension out forgets it only when its clean-up ran', () => {
   assert.strictEqual(vm.runInContext(PROBE, page), '{"b":"1"}');
 });
 
-// ---- cinnamon browser install ----
-function setupIn() {
+// ---- cinnamon browser install / list / uninstall ----
+const NMH = (home: string, support: string) => path.join(home, 'Library/Application Support', support, 'NativeMessagingHosts', `${HOST_NAME}.json`);
+
+/** A temp HOME and Applications folder with these browsers' apps "installed". */
+function setupIn(apps: string[] = ['Google Chrome']) {
   const base = tmp('cm-browser-setup-');
   const home = path.join(base, 'home');
   const user = path.join(base, 'user');
+  const applications = path.join(base, 'Applications');
   fs.mkdirSync(home, { recursive: true });
-  const setup = new BrowserSetup({ root: ROOT, userDir: user, home, version: '0.3.4', log: () => {} });
-  return { base, home, user, setup };
+  for (const a of apps) fs.mkdirSync(path.join(applications, `${a}.app`), { recursive: true });
+  const setup = new BrowserSetup({ root: ROOT, userDir: user, home, version: '0.3.4', applications: [applications], log: () => {} });
+  return { base, home, user, applications, setup };
 }
 
-test('install builds the extension folder with everything its manifest names, and the host Chrome starts', async () => {
-  const s = setupIn();
-  const { version, browsers } = await s.setup.install();
+test('every supported browser has a stable id, its own NativeMessagingHosts folder and extensions page', () => {
+  assert.deepStrictEqual(BROWSERS.map((b) => b.id), ['chrome', 'arc', 'brave', 'edge', 'chromium', 'vivaldi']);
+  const s = setupIn([]);
+  const by = Object.fromEntries(s.setup.browsers().map((b) => [b.id, b]));
+  assert.strictEqual(by.chrome!.hostManifest, NMH(s.home, 'Google/Chrome'));
+  assert.strictEqual(by.arc!.hostManifest, NMH(s.home, 'Arc/User Data'));
+  assert.strictEqual(by.brave!.hostManifest, NMH(s.home, 'BraveSoftware/Brave-Browser'));
+  assert.strictEqual(by.edge!.hostManifest, NMH(s.home, 'Microsoft Edge'));
+  assert.strictEqual(by.chromium!.hostManifest, NMH(s.home, 'Chromium'));
+  assert.strictEqual(by.vivaldi!.hostManifest, NMH(s.home, 'Vivaldi'));
+  assert.deepStrictEqual(Object.fromEntries(s.setup.browsers().map((b) => [b.id, b.extensionsUrl])),
+    { chrome: 'chrome://extensions', arc: 'arc://extensions', brave: 'brave://extensions', edge: 'edge://extensions', chromium: 'chrome://extensions', vivaldi: 'chrome://extensions' });
+});
+
+test('the default browser is Chrome when installed, else the first one found; none when there is none', () => {
+  assert.strictEqual(setupIn(['Arc', 'Google Chrome']).setup.defaultBrowser()?.id, 'chrome');
+  assert.strictEqual(setupIn(['Brave Browser', 'Arc']).setup.defaultBrowser()?.id, 'arc');
+  assert.strictEqual(setupIn([]).setup.defaultBrowser(), null);
+  assert.match(setupIn([]).setup.pick(null) as string, /no supported browser/);
+  assert.match(setupIn(['Arc']).setup.pick('brave') as string, /Brave isn't installed/);
+  assert.match(setupIn(['Arc']).setup.pick('netscape') as string, /unknown browser "netscape"/);
+  assert.strictEqual((setupIn(['Arc']).setup.pick('ARC') as { id: string }).id, 'arc');
+});
+
+test('install builds the extension folder with everything its manifest names, and registers the host in that browser only', async () => {
+  const s = setupIn(['Google Chrome', 'Arc']);
+  const { version, browsers } = await s.setup.install('arc');
+  assert.deepStrictEqual(browsers, ['arc']);
   const dir = s.setup.extensionDir;
   const m = JSON.parse(fs.readFileSync(path.join(dir, 'manifest.json'), 'utf8'));
   assert.strictEqual(m.version, version);
@@ -283,52 +316,112 @@ test('install builds the extension folder with everything its manifest names, an
   assert.ok(fs.existsSync(path.join(dir, m.background.service_worker)));
   for (const cs of m.content_scripts) for (const js of cs.js) assert.ok(fs.existsSync(path.join(dir, js)), js);
   assert.ok(m.permissions.includes('nativeMessaging'));
-  assert.deepStrictEqual(browsers, ['Google Chrome']);
-  const hostManifest = JSON.parse(fs.readFileSync(path.join(s.home, 'Library/Application Support/Google/Chrome/NativeMessagingHosts', `${HOST_NAME}.json`), 'utf8'));
+  const hostManifest = JSON.parse(fs.readFileSync(NMH(s.home, 'Arc/User Data'), 'utf8'));
   assert.strictEqual(hostManifest.name, HOST_NAME);
   assert.strictEqual(hostManifest.path, s.setup.hostScript);
   assert.deepStrictEqual(hostManifest.allowed_origins, [`chrome-extension://${EXTENSION_ID}/`]);
+  assert.ok(!fs.existsSync(NMH(s.home, 'Google/Chrome')), 'Chrome was not picked');
   const script = fs.readFileSync(s.setup.hostScript, 'utf8');
   assert.match(script, /browser-host/);
-  assert.match(script, new RegExp(`CINNAMON_HOME='${s.user.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}'`));
+  assert.ok(script.includes(`CINNAMON_HOME='${s.user}'`));
   assert.ok(fs.statSync(s.setup.hostScript).mode & 0o100, 'executable');
-});
-
-test('other Chromium browsers get the host manifest only when they are installed', async () => {
-  const s = setupIn();
-  fs.mkdirSync(path.join(s.home, 'Library/Application Support/Arc/User Data'), { recursive: true });
-  const { browsers } = await s.setup.install();
-  assert.deepStrictEqual(browsers, ['Google Chrome', 'Arc']);
-  assert.ok(!fs.existsSync(path.join(s.home, 'Library/Application Support/BraveSoftware')));
+  // a second browser keeps the first
+  assert.deepStrictEqual((await s.setup.install('chrome')).browsers, ['chrome', 'arc']);
+  assert.deepStrictEqual(s.setup.browsers().filter((b) => b.registered).map((b) => b.id), ['chrome', 'arc']);
 });
 
 test('the standalone binary\'s host runs the binary itself', () => {
   const s = setupIn();
-  const setup = new BrowserSetup({ root: ROOT, userDir: s.user, home: s.home, version: '1', binary: '/opt/homebrew/opt/cinnamon/bin/cinnamon' });
+  const bin = path.join(s.base, 'brew', 'opt', 'cinnamon', 'bin', 'cinnamon');
+  const setup = new BrowserSetup({ root: ROOT, userDir: s.user, home: s.home, version: '1', binary: bin });
   const text = setup.hostScriptText();
-  assert.match(text, /export CINNAMON_BIN='\/opt\/homebrew\/opt\/cinnamon\/bin\/cinnamon'/);
-  assert.match(text, /exec '\/opt\/homebrew\/opt\/cinnamon\/bin\/cinnamon' browser-host/);
+  assert.ok(text.includes(`export CINNAMON_BIN='${bin}'`));
+  assert.ok(text.includes(`exec '${bin}' browser-host`));
 });
 
-test('refresh rebuilds only a browser part that is set up, in place', async () => {
-  const s = setupIn();
+test('refresh rebuilds only a browser part that is set up, in place, re-registering the same browsers', async () => {
+  const s = setupIn(['Google Chrome', 'Arc']);
   assert.strictEqual(await s.setup.refresh(), null);
   assert.ok(!fs.existsSync(s.setup.extensionDir));
-  await s.setup.install();
+  await s.setup.install('arc');
   fs.writeFileSync(path.join(s.setup.extensionDir, 'stale.js'), '');
+  fs.writeFileSync(NMH(s.home, 'Arc/User Data'), JSON.stringify({ name: HOST_NAME, path: '/old/place' }));
   assert.match((await s.setup.refresh())!, /^0\.3\.4\./);
   assert.ok(!fs.existsSync(path.join(s.setup.extensionDir, 'stale.js')), 'files from an older build go');
+  assert.strictEqual(JSON.parse(fs.readFileSync(NMH(s.home, 'Arc/User Data'), 'utf8')).path, s.setup.hostScript);
+  assert.ok(!fs.existsSync(NMH(s.home, 'Google/Chrome')));
 });
 
-test('uninstall removes the folder and Cinnamon\'s host manifests, and leaves another program\'s file alone', async () => {
-  const s = setupIn();
-  await s.setup.install();
-  const brave = path.join(s.home, 'Library/Application Support/BraveSoftware/Brave-Browser/NativeMessagingHosts', `${HOST_NAME}.json`);
+test('uninstall from one browser keeps the others; the last one, or all, takes the folder too; another program\'s file stays', async () => {
+  const s = setupIn(['Google Chrome', 'Arc', 'Brave Browser']);
+  await s.setup.install('chrome');
+  await s.setup.install('arc');
+  const brave = NMH(s.home, 'BraveSoftware/Brave-Browser');
   fs.mkdirSync(path.dirname(brave), { recursive: true });
   fs.writeFileSync(brave, JSON.stringify({ name: 'something.else' }));
-  const removed = s.setup.uninstall();
-  assert.ok(!fs.existsSync(s.setup.dir));
-  assert.ok(!fs.existsSync(path.join(s.home, 'Library/Application Support/Google/Chrome/NativeMessagingHosts', `${HOST_NAME}.json`)));
+  assert.deepStrictEqual(s.setup.uninstall(['arc']), [NMH(s.home, 'Arc/User Data')]);
+  assert.ok(fs.existsSync(s.setup.dir), 'Chrome still has it');
+  assert.deepStrictEqual(s.setup.uninstall(['chrome']), [NMH(s.home, 'Google/Chrome'), s.setup.dir]);
   assert.ok(fs.existsSync(brave));
-  assert.strictEqual(removed.length, 2);
+  await s.setup.install('arc');
+  assert.deepStrictEqual(s.setup.uninstall('all'), [NMH(s.home, 'Arc/User Data'), s.setup.dir]);
 });
+
+// ---- the cinnamon browser command ----
+function cli(apps: string[]) {
+  const s = setupIn(apps);
+  const said: string[] = [];
+  const opened: [string, string][] = [];
+  const copied: string[] = [];
+  const out = new Output();
+  out.say = (...a: unknown[]) => { said.push(a.join(' ')); };
+  out.fail = (m: string) => { said.push(`FAIL ${m}`); return 1; };
+  const paths = new Paths({ CINNAMON_HOME: s.user, CINNAMON_ROOT: ROOT, CINNAMON_VERSION: '0.3.4' } as NodeJS.ProcessEnv);
+  const cmd = new BrowserCommands(paths, out, { home: s.home, applications: [s.applications], openApp: (a, u) => opened.push([a, u]), copy: (t) => copied.push(t) });
+  return { ...s, cmd, said, opened, copied };
+}
+
+test('`browser list --json` lists every supported browser, installed or not, with whether Cinnamon is registered', async () => {
+  const c = cli(['Arc', 'Brave Browser']);
+  await c.cmd.run(['install', '--browser', 'arc', '--no-open']);
+  c.said.length = 0;
+  assert.strictEqual(await c.cmd.run(['list', '--json']), 0);
+  const l = JSON.parse(c.said.join('\n'));
+  assert.deepStrictEqual(Object.keys(l), ['schema', 'extensionId', 'extensionDir', 'extensionBuilt', 'default', 'browsers']);
+  assert.strictEqual(l.schema, 1);
+  assert.strictEqual(l.extensionId, EXTENSION_ID);
+  assert.strictEqual(l.extensionBuilt, true);
+  assert.strictEqual(l.default, 'arc');
+  assert.deepStrictEqual(Object.keys(l.browsers[0]), ['id', 'name', 'installed', 'registered', 'extensionsUrl', 'hostManifest']);
+  assert.deepStrictEqual(l.browsers.map((b: { id: string; installed: boolean; registered: boolean }) => [b.id, b.installed, b.registered]),
+    [['chrome', false, false], ['arc', true, true], ['brave', true, false], ['edge', false, false], ['chromium', false, false], ['vivaldi', false, false]]);
+});
+
+test('`browser install --browser arc` opens Arc\'s own extensions page and puts the folder path on the clipboard', async () => {
+  const c = cli(['Google Chrome', 'Arc']);
+  assert.strictEqual(await c.cmd.run(['install', '--browser=arc']), 0);
+  assert.deepStrictEqual(c.opened, [['Arc', 'arc://extensions']]);
+  assert.deepStrictEqual(c.copied, [c.setup.extensionDir]);
+  assert.ok(c.said.some((l) => l.includes('One-time setup in Arc')));
+});
+
+test('`browser install` without --browser picks Chrome; an unknown or missing browser fails with the reason', async () => {
+  const c = cli(['Google Chrome', 'Arc']);
+  assert.strictEqual(await c.cmd.run(['install']), 0);
+  assert.deepStrictEqual(c.opened, [['Google Chrome', 'chrome://extensions']]);
+  assert.strictEqual(await c.cmd.run(['install', '--browser', 'vivaldi']), 1);
+  assert.ok(c.said.some((l) => /FAIL Vivaldi isn't installed/.test(l)));
+  assert.strictEqual(await c.cmd.run(['install', '--browser']), 1);
+});
+
+test('`browser uninstall --browser <id>` removes one; plain `uninstall` (or --all) removes everything', async () => {
+  const c = cli(['Google Chrome', 'Arc']);
+  await c.cmd.run(['install', '--browser', 'chrome', '--no-open']);
+  await c.cmd.run(['install', '--browser', 'arc', '--no-open']);
+  await c.cmd.run(['uninstall', '--browser', 'arc']);
+  assert.deepStrictEqual(c.setup.browsers().filter((b) => b.registered).map((b) => b.id), ['chrome']);
+  await c.cmd.run(['uninstall']);
+  assert.deepStrictEqual(c.setup.browsers().filter((b) => b.registered).map((b) => b.id), []);
+  assert.ok(!fs.existsSync(c.setup.dir));
+});
+

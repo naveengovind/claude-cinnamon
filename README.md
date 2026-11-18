@@ -253,18 +253,20 @@ ignored, and their TypeScript may only import files inside the extension.
 
 ## Claude in Chrome
 
-The same themes and extensions on **claude.ai in Chrome** (also Arc, Brave, Edge and Chromium), from the same files,
-CLI and skill. It's optional and needs no web store:
+The same themes and extensions on **claude.ai in Chrome, Arc, Brave, Edge, Chromium or Vivaldi**, from the same
+files, CLI and skill. It's optional and needs no web store:
 
 ```sh
-cinnamon browser install
+cinnamon browser list                      # the browsers on this Mac, and which have Cinnamon
+cinnamon browser install --browser arc     # or chrome, brave, edge, chromium, vivaldi (default: Chrome, else the first found)
 ```
 
-That builds a small extension into `~/.config/claude-cinnamon/browser/extension` and opens chrome://extensions,
-where you do three things once: turn on **Developer mode**, click **Load unpacked** and pick that folder (its path is
-on the clipboard), then open the extension's **Details** and turn on **Allow User Scripts** (Chrome 138 and later; it
-lets extensions run on claude.ai whatever the page allows). Then claude.ai's *Settings → Appearance* has the same
-Color scheme and Extensions rows as the desktop app.
+That builds a small extension into `~/.config/claude-cinnamon/browser/extension` and opens the browser's extensions
+page (arc://extensions, chrome://extensions, …), where you do three things once: turn on **Developer mode**, click
+**Load unpacked** and pick that folder (its path is on the clipboard), then open the extension's **Details** and turn
+on **Allow User Scripts** if it's there (Chrome 138 and later; it lets extensions run on claude.ai whatever the page
+allows). Then claude.ai's *Settings → Appearance* has the same Color scheme and Extensions rows as the desktop app.
+Run `install --browser <id>` again for each other browser you use; they share the one folder.
 
 - **Live, both ways.** The extension talks to the `cinnamon` command on your Mac (Chrome's native messaging), which
   watches your themes, extensions and config.json: a theme picked in the browser, the desktop app or the CLI shows up
@@ -274,8 +276,11 @@ Color scheme and Extensions rows as the desktop app.
 - **What differs in a browser.** Extensions with a main part (the sidebar cards) run only in the desktop app; they're
   listed as such. A Glass theme gets a dark ground, since a browser tab can't be see-through. `cinnamon screenshot`
   sees only the desktop app.
-- `cinnamon browser status` (and `doctor`) say whether the extension is connected; `cinnamon browser uninstall`
-  removes the folder and the files that let Chrome start Cinnamon (then remove the extension in chrome://extensions).
+- `cinnamon browser status` (and `doctor`) say whether the extension is connected. `cinnamon browser uninstall
+  --browser <id>` takes it out of one browser; `cinnamon browser uninstall` (or `--all`) removes the folder and every
+  file that lets a browser start Cinnamon (then remove the extension from the browser's extensions page).
+- For scripts: `cinnamon browser list --json` prints `{ schema, extensionId, extensionDir, extensionBuilt, default,
+  browsers: [{ id, name, installed, registered, extensionsUrl, hostManifest }] }` for every supported browser.
 
 ## How it works
 

@@ -60,8 +60,12 @@ usage:
   cinnamon ext install <source>    add an extension from GitHub / git / a folder
   cinnamon ext remove <id>         remove an installed extension
 
-  cinnamon browser install         themes and extensions on claude.ai in Chrome too (a local extension; optional)
-  cinnamon browser uninstall       remove the browser part
+  cinnamon browser install [--browser <id>]
+                                   themes and extensions on claude.ai in a browser too (a local extension; optional)
+                                   <id>: chrome, arc, brave, edge, chromium, vivaldi (default: Chrome, else the first found)
+  cinnamon browser list [--json]   the browsers on this Mac and which have Cinnamon
+  cinnamon browser uninstall [--browser <id> | --all]
+                                   remove it from one browser, or the whole browser part
   cinnamon browser status          whether the extension is connected
 
   <source>: owner/repo, https://github.com/owner/repo[/tree/<branch>/<folder>], any git URL or local folder,
@@ -95,10 +99,7 @@ Your settings, themes and extensions: ${this.paths.user}`;
         if (sub === 'uninstall') return this.appInstaller().uninstall();
         return out.fail('usage: cinnamon app install [--no-open] | cinnamon app uninstall');
       case 'browser':
-        if (sub === 'install') return this.browser.install({ open: !args.includes('--no-open') });
-        if (sub === 'uninstall') return this.browser.uninstall();
-        if (!sub || sub === 'status') return this.browser.status();
-        return out.fail(`unknown: cinnamon browser ${sub}\n\n${this.help}`);
+        return this.browser.run(args.slice(1), { json });
       case 'browser-host': // started by Chrome (native messaging), not by people
         return this.browser.host();
       case 'theme':

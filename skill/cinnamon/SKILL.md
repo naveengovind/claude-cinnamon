@@ -28,7 +28,7 @@ second, with no restart**. So to change the app, you change files or run the CLI
 | `{{CINNAMON}} screenshot` | a picture of Claude's window as it is now; prints the PNG's path (see "Look at your work") |
 | `{{CINNAMON}} logs` | the helper's log (what happened at the last launches) |
 | `{{CINNAMON}} apply` | re-inject Cinnamon now (only needed if `status` says it isn't applied) |
-| `{{CINNAMON}} browser install` / `browser status` | the same themes and extensions on claude.ai in Chrome too (optional; see "Claude in Chrome") |
+| `{{CINNAMON}} browser list` / `browser install --browser <id>` / `browser status` | the same themes and extensions on claude.ai in a browser too (optional; see "Claude in Chrome") |
 
 `<source>` is `owner/repo`, `https://github.com/owner/repo[/tree/<branch>/<folder>]`, a git URL or a local folder.
 
@@ -71,9 +71,11 @@ Settings for extensions live in `config.json` under `"settings": { "<extension i
 
 ## Claude in Chrome
 
-If the user also wants Cinnamon on claude.ai in Chrome (or Arc, Brave, Edge), `{{CINNAMON}} browser install` builds a
-small local extension in `{{USER_DIR}}/browser/extension` and prints three one-time steps they do in
-chrome://extensions (Developer mode, Load unpacked, Allow User Scripts). Ask before running it: it opens Chrome.
+If the user also wants Cinnamon on claude.ai in a browser, `{{CINNAMON}} browser list` shows which supported browsers
+are installed (chrome, arc, brave, edge, chromium, vivaldi). `{{CINNAMON}} browser install --browser <id>` (the one
+they use; default Chrome) builds a small local extension in `{{USER_DIR}}/browser/extension` and prints three
+one-time steps they do on that browser's extensions page (Developer mode, Load unpacked, Allow User Scripts). Ask
+before running it: it opens the browser.
 After that, everything you do here reaches the browser too, live: themes, extensions and settings are the same files
 and the same config. Extensions with a main part (the sidebar cards) are desktop-only; a Glass theme gets a dark
 ground in a browser (a tab can't be see-through). `{{CINNAMON}} browser status` and `doctor` say whether the

@@ -46,7 +46,7 @@ async function exec(tabId: number, code: string): Promise<unknown> {
   });
   const out = r[0]?.result as { ok?: boolean; value?: unknown; error?: string } | undefined;
   if (!out?.ok) {
-    report(`claude.ai refused Cinnamon's page code (${out?.error ?? 'no result'}). Turn on "Allow User Scripts" for Cinnamon in chrome://extensions.`);
+    report(`claude.ai refused Cinnamon's page code (${out?.error ?? 'no result'}). Turn on "Allow User Scripts" for Cinnamon on the browser's extensions page.`);
     throw new Error(out?.error ?? 'could not run code in the page');
   }
   return out.value;

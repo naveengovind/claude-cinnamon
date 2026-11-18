@@ -91,13 +91,16 @@ export class Doctor {
     const { paths } = this;
     const setup = new BrowserSetup({ root: paths.root, userDir: paths.user, home: os.homedir(), version: paths.version, binary: paths.binary });
     if (!setup.installed()) { this.note('browser: not set up (optional: cinnamon browser install)'); return; }
-    const chrome = setup.hostManifests()[0]!;
-    let pointsHere = false;
-    try { pointsHere = (JSON.parse(fs.readFileSync(chrome.file, 'utf8')) as { path?: string }).path === setup.hostScript && fs.existsSync(setup.hostScript); } catch {}
-    this.check('browser-host', pointsHere, 'Chrome can start Cinnamon for the extension', 'cinnamon browser install');
+    const registered = setup.browsers().filter((b) => b.registered);
+    this.check('browser-host', registered.length > 0, 'a browser can start Cinnamon for the extension', 'cinnamon browser install --browser <id>');
+    for (const b of registered) {
+      let pointsHere = false;
+      try { pointsHere = (JSON.parse(fs.readFileSync(b.hostManifest, 'utf8')) as { path?: string }).path === setup.hostScript && fs.existsSync(setup.hostScript); } catch {}
+      this.check(`browser-host:${b.id}`, pointsHere, `${b.name} can start Cinnamon for the extension`, `cinnamon browser install --browser ${b.id}`);
+    }
     const s = BrowserHost.readStatus(paths.user);
     this.check('browser-connected', !!s.connected, s.connected ? `browser extension connected (last ${new Date(s.connected).toLocaleString()})` : 'browser extension has connected',
-      `chrome://extensions → Developer mode → Load unpacked → ${setup.extensionDir}`);
+      `the browser's extensions page → Developer mode → Load unpacked → ${setup.extensionDir}`);
     if (s.connected && s.folderVersion && s.extensionVersion && s.folderVersion !== s.extensionVersion) {
       this.note(`browser extension ${s.extensionVersion} reloads into ${s.folderVersion} when it next connects`);
     }
