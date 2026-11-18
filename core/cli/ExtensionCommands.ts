@@ -18,10 +18,19 @@ export class ExtensionCommands {
 
   all(): ExtensionEntry[] { return this.catalog.list(); }
 
-  list(): number {
+  list({ json = false } = {}): number {
     const { out } = this;
     const cfg = this.config.read();
     const recorded = ExtensionCatalog.recordedErrors(this.paths.user);
+    if (json) {
+      out.json({
+        extensions: this.all().map((e) => ({
+          id: e.id, name: e.name, description: e.description || '', bundled: e.bundled, enabled: ExtensionCatalog.isEnabled(e, cfg),
+          errors: e.error ? [e.error] : (recorded[e.id] || []),
+        })),
+      });
+      return 0;
+    }
     for (const e of this.all()) {
       const on = ExtensionCatalog.isEnabled(e, cfg);
       out.say(`${on ? out.green('on ') : out.dim('off')}  ${e.id.padEnd(18)} ${e.name}${e.bundled ? out.dim(' (built in)') : ''}${e.error ? out.red(`  (couldn't load: ${e.error})`) : ''}`);

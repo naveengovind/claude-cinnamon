@@ -4,7 +4,7 @@
 //   2. Run the type check and the tests.
 //   3. Build dist/ (see scripts/build.ts).
 //   4. Push this commit and the new tag.
-//   5. Create the GitHub release with both tarballs and SHA256SUMS.
+//   5. Create the GitHub release with both tarballs, both menu bar app zips and SHA256SUMS.
 //   6. Publish the Homebrew formula for it to the tap (not for a draft: its downloads aren't public yet; publish it
 //      later with `bun scripts/formula.ts --publish`).
 // `brew upgrade`, `cinnamon update` and install.sh pick up the release from there.
@@ -53,6 +53,10 @@ Or without Homebrew:
 \`\`\`sh
 curl -fsSL https://raw.githubusercontent.com/${Paths.REPO}/main/install.sh | sh
 \`\`\`
+Or the menu bar app, with everything inside (no terminal needed): download \`Cinnamon-app-darwin-arm64.zip\` (Apple
+silicon) or \`Cinnamon-app-darwin-x64.zip\` (Intel), unzip it, move Cinnamon.app to Applications and open it. It isn't
+notarized: the first time, macOS asks you to confirm in System Settings → Privacy & Security (Open Anyway).
+
 Already installed: \`cinnamon update\`.`;
 sh('gh', ['release', 'create', tag, '--repo', Paths.REPO, '--title', `Cinnamon ${version}`, '--notes', notes, '--verify-tag', ...(draft ? ['--draft'] : []), ...assets]);
 console.log(`Released ${tag}${draft ? ' (draft)' : ''}.`);

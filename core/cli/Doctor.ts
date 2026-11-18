@@ -11,59 +11,75 @@ import { HelperClient, sh } from './HelperClient';
 import type { Output } from './Output';
 import type { Paths } from './Paths';
 
+/** One check, as `doctor --json` gives it: `id` names what is checked (theme:<id> and ext:<id> for those). */
+export interface Check { id: string; ok: boolean; text: string; fix?: string }
+
 export class Doctor {
   private problems = 0;
+  private checks: Check[] = [];
+  private notes: string[] = [];
+  private json = false;
 
   constructor(private readonly paths: Paths, private readonly out: Output, private readonly helper: HelperClient) {}
 
-  private check(ok: boolean, text: string, fix?: string): void {
+  private check(id: string, ok: boolean, text: string, fix?: string): void {
     const { out } = this;
-    out.say(`${ok ? out.green('✓') : out.red('✗')} ${text}${!ok && fix ? out.dim(`  → ${fix}`) : ''}`);
+    this.checks.push({ id, ok, text, ...(!ok && fix ? { fix } : {}) });
+    if (!this.json) out.say(`${ok ? out.green('✓') : out.red('✗')} ${text}${!ok && fix ? out.dim(`  → ${fix}`) : ''}`);
     if (!ok) this.problems++;
   }
 
-  run(): number {
+  private note(text: string): void {
+    this.notes.push(text);
+    if (!this.json) this.out.say(this.out.dim(`  ${text}`));
+  }
+
+  run({ json = false } = {}): number {
     const { out, paths } = this;
     this.problems = 0;
-    out.say(out.dim(`  Cinnamon ${paths.version}${paths.binary ? ` (standalone: ${paths.binary})` : ''}`));
-    this.check(!!process.versions.bun, `Bun ${process.versions.bun || '(not running under Bun)'}${paths.binary ? ' (built in)' : ''}`, 'brew install oven-sh/bun/bun');
-    this.check(fs.existsSync('/Applications/Claude.app'), 'Claude.app is in /Applications');
+    this.checks = [];
+    this.notes = [];
+    this.json = json;
+    this.note(`Cinnamon ${paths.version}${paths.binary ? ` (standalone: ${paths.binary})` : ''}`);
+    this.check('bun', !!process.versions.bun, `Bun ${process.versions.bun || '(not running under Bun)'}${paths.binary ? ' (built in)' : ''}`, 'brew install oven-sh/bun/bun');
+    this.check('claude', fs.existsSync('/Applications/Claude.app'), 'Claude.app is in /Applications', 'download Claude from claude.ai/download');
     const ver = sh('defaults', ['read', '/Applications/Claude.app/Contents/Info.plist', 'CFBundleShortVersionString']).stdout?.trim();
-    if (ver) out.say(out.dim(`  Claude ${ver}`));
-    if (!paths.binary) this.check(sh('which', ['swiftc']).status === 0, 'Swift compiler (to build the helper)', 'xcode-select --install'); // the standalone helper comes prebuilt
-    this.check(this.helper.loaded(), 'login item running', 'cinnamon install');
-    this.check(fs.existsSync(paths.helperApp), 'helper app built', 'cinnamon install');
+    if (ver) this.note(`Claude ${ver}`);
+    if (!paths.binary) this.check('swiftc', sh('which', ['swiftc']).status === 0, 'Swift compiler (to build the helper)', 'xcode-select --install'); // the standalone helper comes prebuilt
+    this.check('helper', this.helper.loaded(), 'login item running', 'cinnamon install');
+    this.check('helper-app', fs.existsSync(paths.helperApp), 'helper app built', 'cinnamon install');
     let log = '';
     try { log = fs.readFileSync(paths.logs, 'utf8'); } catch {}
     const lastStart = log.lastIndexOf('watching ');
     const recent = lastStart === -1 ? '' : log.slice(lastStart);
     const allowed = !/NOT allowed/.test(recent.split('\n')[0] || '') || /Accessibility allowed/.test(recent);
-    this.check(allowed, 'helper may use Accessibility', 'System Settings → Privacy & Security → Accessibility → turn on Cinnamon Helper');
-    this.check(!/never appeared/.test(recent), 'Developer menu found at the last launch', 'in Claude: Help → Troubleshooting → Enable Developer Mode');
+    this.check('accessibility', allowed, 'helper may use Accessibility', 'System Settings → Privacy & Security → Accessibility → turn on Cinnamon Helper');
+    this.check('developer-mode', !/never appeared/.test(recent), 'Developer menu found at the last launch', 'in Claude: Help → Troubleshooting → Enable Developer Mode');
     const finished = [...recent.matchAll(/apply finished with status (\d+)/g)].pop();
-    if (finished) this.check(finished[1] === '0', `last automatic apply ${finished[1] === '0' ? 'succeeded' : 'failed'}`, 'cinnamon logs');
+    if (finished) this.check('last-apply', finished[1] === '0', `last automatic apply ${finished[1] === '0' ? 'succeeded' : 'failed'}`, 'cinnamon logs');
     // the Code tab's colors: Claude Code's own theme API through the cinnamon-colors mod, else Cinnamon paints them
     const mod = path.join(os.homedir(), '.claude', 'skills', 'cinnamon-colors', '.claude-plugin', 'plugin.json');
-    this.check(fs.existsSync(mod), 'cinnamon-colors mod installed (Claude Code paints the Code tab)', 'cinnamon install');
-    this.check(fs.existsSync(path.join(os.homedir(), '.claude', 'skills', 'cinnamon', 'SKILL.md')), 'cinnamon skill installed (Claude Code can theme and extend the app)', 'cinnamon install');
+    this.check('mod', fs.existsSync(mod), 'cinnamon-colors mod installed (Claude Code paints the Code tab)', 'cinnamon install');
+    this.check('skill', fs.existsSync(path.join(os.homedir(), '.claude', 'skills', 'cinnamon', 'SKILL.md')), 'cinnamon skill installed (Claude Code can theme and extend the app)', 'cinnamon install');
     try {
       const r = new ThemeStore([paths.bundledThemes, paths.themes]).resolve(new Config(paths.config));
       if (r.current !== 'default') {
-        out.say(out.dim(r.look
-          ? `  Code tab: ${r.current} through Claude Code's theme API${r.look.dropped.length ? ` (the app picks: ${r.look.dropped.join(', ')})` : ''}`
-          : `  Code tab: ${r.current} painted by Cinnamon (${r.lookReason || 'no look'})`));
+        this.note(r.look
+          ? `Code tab: ${r.current} through Claude Code's theme API${r.look.dropped.length ? ` (the app picks: ${r.look.dropped.join(', ')})` : ''}`
+          : `Code tab: ${r.current} painted by Cinnamon (${r.lookReason || 'no look'})`);
       }
     } catch {}
     for (const t of new ThemeStore([paths.bundledThemes, paths.themes]).list()) {
-      if (t.error) this.check(false, `theme ${t.id}: ${t.error}`);
-      else for (const p of [...ThemeEngine.problems(t.theme), ...Backdrop.resolve(t.theme, path.dirname(t.file), t.id).errors]) this.check(false, `theme ${t.id}: ${p}`, `edit ${t.file}`);
+      if (t.error) this.check(`theme:${t.id}`, false, `theme ${t.id}: ${t.error}`);
+      else for (const p of [...ThemeEngine.problems(t.theme), ...Backdrop.resolve(t.theme, path.dirname(t.file), t.id).errors]) this.check(`theme:${t.id}`, false, `theme ${t.id}: ${p}`, `edit ${t.file}`);
     }
     const recorded = ExtensionCatalog.recordedErrors(paths.user);
     for (const e of new ExtensionCatalog({ bundled: paths.bundledExtensions, user: paths.extensions }).list()) {
-      if (e.error) this.check(false, `extension ${e.id}: ${e.error}`);
-      else for (const err of recorded[e.id] || []) this.check(false, `extension ${e.id}: ${err.split('\n')[0]}`, `fix ${e.dir}`);
+      if (e.error) this.check(`ext:${e.id}`, false, `extension ${e.id}: ${e.error}`);
+      else for (const err of recorded[e.id] || []) this.check(`ext:${e.id}`, false, `extension ${e.id}: ${err.split('\n')[0]}`, `fix ${e.dir}`);
     }
-    out.say(this.problems ? out.red(`${this.problems} problem${this.problems > 1 ? 's' : ''}`) : out.green('All good.'));
+    if (json) out.json({ ok: this.problems === 0, problems: this.problems, checks: this.checks, notes: this.notes });
+    else out.say(this.problems ? out.red(`${this.problems} problem${this.problems > 1 ? 's' : ''}`) : out.green('All good.'));
     return this.problems ? 1 : 0;
   }
 }

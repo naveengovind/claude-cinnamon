@@ -87,6 +87,39 @@ Changes to any of them apply to a running Claude within a second, with no restar
 one's code, or turning it off, swaps it in place when it cleans up after itself (`cinnamon.onDispose`, below; the
 built-in ones do). One that doesn't makes Claude's window reload instead, since its page code can't be taken out.
 
+## Menu bar app
+
+Cinnamon.app puts everything above in the menu bar, for anyone who'd rather not use a terminal:
+
+- **The menu**: pick a color scheme, switch extensions on and off, *Apply Now*, *Take Screenshot…*, *Get More Themes
+  and Extensions…* (paste `owner/repo` or a GitHub link; it shows what it found before installing), *Open Themes
+  Folder* and *Check for Updates*. It follows changes made anywhere else (the CLI, Claude's Settings rows, Claude
+  Code) as they happen.
+- **Setup and Help**: a checklist of everything Cinnamon needs, each with a button to fix it: Claude itself, Cinnamon
+  Helper (*Install*), the Accessibility permission (opens the right place in System Settings), Developer Mode in Claude,
+  Chrome's automation prompt explained, and Claude Code's mod and skill. Below it are any problems `cinnamon doctor`
+  finds, *Show Log*, *Open Cinnamon at login* and *Uninstall Cinnamon…*. It opens by itself the first time, until
+  Cinnamon is set up.
+
+Get it either way:
+
+- **No terminal**: download `Cinnamon-app-darwin-arm64.zip` (Apple silicon) or `Cinnamon-app-darwin-x64.zip` (Intel)
+  from the [latest release](https://github.com/naveengovind/claude-cinnamon/releases/latest), unzip it, drag
+  Cinnamon.app into Applications and open it. The `cinnamon` command is inside; *Install* in the Setup window copies
+  it to `~/.local/bin` and sets everything up, so updates never write inside the app.
+- **Already have the command**: `cinnamon app install` puts Cinnamon.app in `~/Applications` and opens it
+  (`--no-open` to skip that); `cinnamon app uninstall` removes it. A development checkout builds it with the Swift
+  compiler.
+
+Cinnamon.app isn't notarized (that needs a paid Apple Developer ID), so the first time you open a downloaded copy
+macOS says it can't check it: open *System Settings → Privacy & Security* and click *Open Anyway* (on macOS 14 and
+earlier, right-click the app → *Open*). One installed with `cinnamon app install` opens without asking.
+
+The app does everything through the `cinnamon` command (it adds `--json` for the app to read: `cinnamon status
+--json`, `theme list --json`, `ext list --json`, `doctor --json`), so the two never disagree. It doesn't replace
+Cinnamon Helper, which keeps the Accessibility permission. `Cinnamon --snapshot <folder>` draws the menu and the Setup
+window to PNG files (no Screen Recording permission needed), for docs.
+
 ## Ask Claude to do it
 
 `cinnamon install` also adds a Claude Code skill, `cinnamon`, so Claude in any Claude Code session on this Mac (the
