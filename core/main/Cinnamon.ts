@@ -20,6 +20,10 @@ import { RequestServer } from './RequestServer';
 import { ThemeApplier } from './ThemeApplier';
 import { ViewManager } from './ViewManager';
 import { WindowMaterial } from './WindowMaterial';
+
+/** What the page answers when Cinnamon's runtime is already in it (the same document), not a fresh load. */
+const SET_UP = 'cinnamon:set-up';
+const PROBE = `window.__cinnamon ? '${SET_UP}' : 'fresh'`;
 import type { Load, Log, MainConfig, SharedState } from './types';
 
 export interface ApplyResult {
@@ -133,8 +137,6 @@ export class Cinnamon {
       for (const wc of this.viewsMgr.all()) {
         this.viewsMgr.hook(wc);
         if (!this.viewsMgr.isTarget(wc)) continue;
-        state.ran.delete(wc.id);
-        state.themeApplied.delete(wc.id);
         await this.applyTo(wc);
         applied.push(wc.id);
       }
@@ -155,10 +157,13 @@ export class Cinnamon {
     const state = this.state;
     if (this.viewsMgr.isFrame(wc)) { state.frameKeys.delete(wc.id); return this.material.applyFrame(wc); }
     if (!this.viewsMgr.isTarget(wc)) return;
-    // Nothing of ours is in a fresh page any more. (Listeners from older versions don't reset this themselves.)
-    state.ran.delete(wc.id);
-    state.themeApplied.delete(wc.id);
-    state.extKeys.delete(wc.id);
+    // A fresh page has nothing of ours. One we're already in (dom-ready after an apply that came while it loaded, or an
+    // apply into an open window) keeps what ran there: its extensions are only swapped where they changed.
+    if ((await wc.executeJavaScript(PROBE).catch(() => null)) !== SET_UP) {
+      state.ran.delete(wc.id);
+      state.themeApplied.delete(wc.id);
+      state.extKeys.delete(wc.id);
+    }
     const old = state.keys.get(wc.id);
     state.keys.delete(wc.id);
     if (this.cfg.page.css.trim()) { const k = await wc.insertCSS(this.cfg.page.css).catch(() => null); if (k) state.keys.set(wc.id, k); }

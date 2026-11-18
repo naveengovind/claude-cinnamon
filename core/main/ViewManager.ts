@@ -43,7 +43,9 @@ export class ViewManager {
     if (!state.dispatchHooked.has(wc)) {
       state.dispatchHooked.add(wc);
       const forget = () => { state.frameKeys?.delete(id); state.keys.delete(id); state.themeKeys.delete(id); state.themeApplied?.delete(id); state.extKeys?.delete(id); state.ran?.delete(id); };
-      wc.on('dom-ready', () => { forget(); Promise.resolve(state.applyTo?.(wc)).catch(() => {}); });
+      // applyTo asks the page whether it is a fresh one: dom-ready can also come to a document Cinnamon is already in
+      // (it arrived while the page was loading), and running extensions there again would double them
+      wc.on('dom-ready', () => { Promise.resolve(state.applyTo?.(wc)).catch(() => {}); });
       wc.on('destroyed', forget);
     }
     if (!state.messageHooked.has(wc)) {

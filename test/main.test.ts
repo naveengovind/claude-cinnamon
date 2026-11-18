@@ -115,6 +115,34 @@ test('a reload of the page re-applies everything', async () => {
   } finally { h.stop(); }
 });
 
+// The page answers this when Cinnamon is already in it (same document), as opposed to a fresh load.
+const setUp = (wc) => { wc.replies['cinnamon:set-up'] = 'cinnamon:set-up'; };
+const runs = (wc, needle) => wc.js.filter((s) => s.includes(needle)).length;
+
+test('a page that finishes loading after the launch apply does not run extensions twice', async () => {
+  const h = harness();
+  try {
+    h.addExt('x', { name: 'X', page: ['p.js'] }, { 'p.js': '/*X-CODE*/' });
+    await h.run(); // Cinnamon arrives while the page is still loading
+    setUp(h.wc);
+    h.wc.emit('dom-ready'); // the same document reaches dom-ready afterwards
+    await flush();
+    assert.equal(runs(h.wc, '/*X-CODE*/'), 1);
+  } finally { h.stop(); }
+});
+
+test('applying again into an open page does not run its extensions twice', async () => {
+  const h = harness();
+  try {
+    h.addExt('x', { name: 'X', page: ['p.js'] }, { 'p.js': '/*X-CODE*/' });
+    await h.run();
+    setUp(h.wc);
+    h.stop();
+    await h.run(); // cinnamon apply / install / a helper restart, Claude still open
+    assert.equal(runs(h.wc, '/*X-CODE*/'), 1);
+  } finally { h.stop(); }
+});
+
 test('a new window gets the extensions', async () => {
   const h = harness();
   try {
