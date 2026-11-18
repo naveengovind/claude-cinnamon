@@ -33,17 +33,27 @@ async function bundle(entry: string, target: 'node' | 'browser', format: 'cjs' |
   return r.outputs[0]!.text();
 }
 
-export async function renderMain({ root, userDir = USER_DIR, themeDirs = null, extRoots = null, compiler, modDir = path.join(os.homedir(), '.claude', 'skills', 'cinnamon-colors') }: RenderOptions): Promise<string> {
+/**
+ * Cinnamon's own page code (the extension runtime and the Settings rows) and its CSS, for claude.ai. `browser`: for
+ * claude.ai in a browser, with the channel to the Cinnamon extension (core/browser/page.ts) put in first.
+ */
+export async function pageCode(root: string, { browser = false } = {}): Promise<{ js: string; css: string }> {
   const core = path.join(root, 'core');
-  const main = await bundle(path.join(core, 'main', 'index.ts'), 'node', 'cjs');
-  const pageJs = [
+  const js = [
+    ...(browser ? [await bundle(path.join(core, 'browser', 'page.ts'), 'browser', 'iife')] : []),
     await bundle(path.join(core, 'page', 'runtime.ts'), 'browser', 'iife'),
     await bundle(path.join(core, 'page', 'settings-ui.ts'), 'browser', 'iife'),
   ].join('\n;\n');
+  return { js, css: fs.readFileSync(path.join(core, 'page', 'settings-ui.css'), 'utf8') };
+}
+
+export async function renderMain({ root, userDir = USER_DIR, themeDirs = null, extRoots = null, compiler, modDir = path.join(os.homedir(), '.claude', 'skills', 'cinnamon-colors') }: RenderOptions): Promise<string> {
+  const core = path.join(root, 'core');
+  const main = await bundle(path.join(core, 'main', 'index.ts'), 'node', 'cjs');
   const config: MainConfig = {
     root, userDir, themeDirs, extRoots, modDir,
     compiler: compiler === undefined ? defaultCompiler() : compiler,
-    page: { js: pageJs, css: fs.readFileSync(path.join(core, 'page', 'settings-ui.css'), 'utf8') },
+    page: await pageCode(root),
   };
   return `(() => {
 const load = require; // the debugger's require: usable only until the first await

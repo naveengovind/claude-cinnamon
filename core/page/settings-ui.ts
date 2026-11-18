@@ -6,7 +6,8 @@
 // __cmSetExtensions.
 
 interface ThemeItem { id: string; name: string; error?: string }
-interface ExtItem { id: string; name: string; enabled?: boolean; error?: string; description?: string }
+/** `unavailable`: why it can't run here (a desktop-only extension on claude.ai in a browser). */
+interface ExtItem { id: string; name: string; enabled?: boolean; error?: string; description?: string; unavailable?: string }
 type AddItem = (text: string | null, attrs?: Record<string, string>, checked?: boolean | null, onPick?: () => void) => void;
 interface RowSpec { attr: string; title: string; valueAttr: string; value(): string; menu(add: AddItem): void }
 
@@ -26,7 +27,13 @@ interface PageWindow {
   __cmSetExtensions?: (list: unknown) => void;
 }
 
-const send = (msg: unknown): void => { try { console.debug(`[cinnamon] ${JSON.stringify(msg)}`); } catch {} };
+const send = (msg: unknown): void => {
+  try {
+    const viaBrowser = (window as unknown as { __cinnamonSend?: (m: unknown) => void }).__cinnamonSend;
+    if (typeof viaBrowser === 'function') viaBrowser(msg); // claude.ai in a browser (core/browser/page.ts)
+    else console.debug(`[cinnamon] ${JSON.stringify(msg)}`);
+  } catch {}
+};
 const leaves = (root: Element): Element[] => [...root.querySelectorAll('*')].filter((e) => e.childElementCount === 0 && e.textContent!.trim());
 const el = <K extends keyof HTMLElementTagNameMap>(tag: K, props: Partial<HTMLElementTagNameMap[K]> = {}): HTMLElementTagNameMap[K] =>
   Object.assign(document.createElement(tag), props);
@@ -100,11 +107,12 @@ class SettingsRows {
       },
       {
         attr: 'data-cm-ext-row', title: 'Extensions', valueAttr: 'data-cm-ext-value',
-        value: () => `${s.exts.filter((e) => e.enabled).length} on`,
+        value: () => `${s.exts.filter((e) => e.enabled && !e.unavailable).length} on`,
         menu: (add) => {
           for (const e of s.exts) {
-            add(e.error ? `${e.name} (couldn't load)` : e.name, { 'data-ext': e.id, role: 'menuitemcheckbox', 'aria-checked': String(!!e.enabled), title: e.error || e.description || '', ...(e.error ? { 'aria-disabled': 'true' } : {}) }, !!e.enabled,
-              () => { if (!e.error) send({ type: 'extension', id: e.id, enabled: !e.enabled }); });
+            const off = !!(e.error || e.unavailable);
+            add(e.unavailable ? `${e.name} (${e.unavailable})` : e.error ? `${e.name} (couldn't load)` : e.name, { 'data-ext': e.id, role: 'menuitemcheckbox', 'aria-checked': String(!!e.enabled && !e.unavailable), title: e.error || e.description || '', ...(off ? { 'aria-disabled': 'true' } : {}) }, !!e.enabled && !e.unavailable,
+              () => { if (!off) send({ type: 'extension', id: e.id, enabled: !e.enabled }); });
           }
           add(null);
           add('Open extensions folder…', { 'data-action': 'open-extensions-folder', role: 'menuitem' }, null, () => send({ type: 'open-extensions-folder' }));

@@ -1,5 +1,6 @@
 // Cinnamon page runtime: the small API every extension's page code gets as `cinnamon`. Runs in the claude.ai page
-// before any extension. Messages go to the main process as console messages prefixed "[cinnamon] ".
+// before any extension. Messages go to the main process as console messages prefixed "[cinnamon] " (in a browser,
+// through the Cinnamon extension instead: core/browser/page.ts).
 //   cinnamon.send(type, data)           → the extension's main part (bundled extensions) receives it
 //   cinnamon.settings.get(key) / .set(key, value) / .all() / .onChange(fn)
 //                                        → per-extension settings, saved in ~/.config/claude-cinnamon/config.json
@@ -99,7 +100,15 @@ class CinnamonRuntime {
     page.__cmLookWatch = { observer, timer: window.setInterval(check, 1000) };
   }
 
-  send(msg: unknown): void { try { console.debug(`[cinnamon] ${JSON.stringify(msg)}`); } catch {} }
+  /** To Cinnamon: through the browser extension's channel on claude.ai in a browser (core/browser/page.ts), else as a
+   *  console message the desktop app's main process reads. */
+  send(msg: unknown): void {
+    try {
+      const viaBrowser = (window as unknown as { __cinnamonSend?: (m: unknown) => void }).__cinnamonSend;
+      if (typeof viaBrowser === 'function') viaBrowser(msg);
+      else console.debug(`[cinnamon] ${JSON.stringify(msg)}`);
+    } catch {}
+  }
 
   notify(id: string): void {
     for (const fn of this.listeners[id] || []) { try { fn({ ...(this.settings[id] || {}) }); } catch {} }

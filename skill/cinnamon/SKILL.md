@@ -28,6 +28,7 @@ second, with no restart**. So to change the app, you change files or run the CLI
 | `{{CINNAMON}} screenshot` | a picture of Claude's window as it is now; prints the PNG's path (see "Look at your work") |
 | `{{CINNAMON}} logs` | the helper's log (what happened at the last launches) |
 | `{{CINNAMON}} apply` | re-inject Cinnamon now (only needed if `status` says it isn't applied) |
+| `{{CINNAMON}} browser install` / `browser status` | the same themes and extensions on claude.ai in Chrome too (optional; see "Claude in Chrome") |
 
 `<source>` is `owner/repo`, `https://github.com/owner/repo[/tree/<branch>/<folder>]`, a git URL or a local folder.
 
@@ -67,6 +68,16 @@ Settings for extensions live in `config.json` under `"settings": { "<extension i
   dark bands around the message box.
 - **An extension** is a folder `{{USER_DIR}}/extensions/<id>/` with `manifest.json`, page code and CSS. It runs in
   Claude's window, hot-reloads when it registers clean-up, and can keep settings: [extensions.md](extensions.md).
+
+## Claude in Chrome
+
+If the user also wants Cinnamon on claude.ai in Chrome (or Arc, Brave, Edge), `{{CINNAMON}} browser install` builds a
+small local extension in `{{USER_DIR}}/browser/extension` and prints three one-time steps they do in
+chrome://extensions (Developer mode, Load unpacked, Allow User Scripts). Ask before running it: it opens Chrome.
+After that, everything you do here reaches the browser too, live: themes, extensions and settings are the same files
+and the same config. Extensions with a main part (the sidebar cards) are desktop-only; a Glass theme gets a dark
+ground in a browser (a tab can't be see-through). `{{CINNAMON}} browser status` and `doctor` say whether the
+extension is connected; `{{CINNAMON}} screenshot` only sees the desktop app.
 
 ## Ask the user first
 

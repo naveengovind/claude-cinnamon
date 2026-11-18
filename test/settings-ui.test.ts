@@ -224,3 +224,31 @@ test('the Settings dropdown has its own menu styles: background, border, items',
     assert.doesNotMatch(fs.readFileSync(path.join(import.meta.dir, '..', 'extensions', 'sidebar-cards', f), 'utf8'), /\.cm-menu/, `${f} must not style the Settings menu`);
   }
 });
+
+// ---- claude.ai in a browser (the Cinnamon extension: core/browser/page.ts) ----
+test('in a browser, a pick goes through the extension\'s channel instead of a console message', async () => {
+  const w = page();
+  const viaBrowser = [];
+  w.__cinnamonSend = (m) => viaBrowser.push(m);
+  w.__cmSetThemes(THEMES);
+  await tick(w);
+  row(w).querySelector('[role="combobox"]').click();
+  w.document.querySelector('.cm-menu [data-theme="paper"]').click();
+  assert.deepStrictEqual(viaBrowser, [{ type: 'theme', id: 'paper' }]);
+  assert.deepStrictEqual(sent(w), []);
+});
+
+test('an extension that only runs in the desktop app is listed as such and cannot be switched', async () => {
+  const w = page();
+  w.__cmSetThemes(THEMES);
+  w.__cmSetExtensions([{ id: 'cards', name: 'Sidebar cards', enabled: true, unavailable: 'desktop app only' }, { id: 'ufo', name: 'UFO', enabled: true }]);
+  await tick(w);
+  const r = w.document.querySelector('[data-cm-ext-row]');
+  assert.strictEqual(r.querySelector('[data-cm-ext-value]').textContent, '1 on');
+  r.querySelector('[role="combobox"]').click();
+  const cards = w.document.querySelector('.cm-menu [data-ext="cards"]');
+  assert.match(cards.textContent, /Sidebar cards \(desktop app only\)/);
+  assert.strictEqual(cards.getAttribute('aria-disabled'), 'true');
+  cards.click();
+  assert.deepStrictEqual(sent(w), []);
+});

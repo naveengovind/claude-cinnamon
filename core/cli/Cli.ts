@@ -16,17 +16,20 @@ import { Paths } from './Paths';
 import { ThemeCommands } from './ThemeCommands';
 import { Updater } from './Updater';
 import { Screenshot } from './Screenshot';
+import { BrowserCommands } from './BrowserCommands';
 
 export class Cli {
   private readonly out = new Output();
   private readonly helper: HelperClient;
   private readonly themes: ThemeCommands;
   private readonly exts: ExtensionCommands;
+  private readonly browser: BrowserCommands;
 
   constructor(private readonly paths = new Paths()) {
     this.helper = new HelperClient(paths, this.out);
     this.themes = new ThemeCommands(paths, this.out);
     this.exts = new ExtensionCommands(paths, this.out);
+    this.browser = new BrowserCommands(paths, this.out);
   }
 
   get help(): string {
@@ -56,6 +59,10 @@ usage:
   cinnamon ext enable|disable <id>
   cinnamon ext install <source>    add an extension from GitHub / git / a folder
   cinnamon ext remove <id>         remove an installed extension
+
+  cinnamon browser install         themes and extensions on claude.ai in Chrome too (a local extension; optional)
+  cinnamon browser uninstall       remove the browser part
+  cinnamon browser status          whether the extension is connected
 
   <source>: owner/repo, https://github.com/owner/repo[/tree/<branch>/<folder>], any git URL or local folder,
             optionally followed by #<folder>. Add --yes to skip the confirmation.
@@ -87,6 +94,13 @@ Your settings, themes and extensions: ${this.paths.user}`;
         if (sub === 'install') return this.appInstaller().install({ open: !args.includes('--no-open') });
         if (sub === 'uninstall') return this.appInstaller().uninstall();
         return out.fail('usage: cinnamon app install [--no-open] | cinnamon app uninstall');
+      case 'browser':
+        if (sub === 'install') return this.browser.install({ open: !args.includes('--no-open') });
+        if (sub === 'uninstall') return this.browser.uninstall();
+        if (!sub || sub === 'status') return this.browser.status();
+        return out.fail(`unknown: cinnamon browser ${sub}\n\n${this.help}`);
+      case 'browser-host': // started by Chrome (native messaging), not by people
+        return this.browser.host();
       case 'theme':
       case 'themes':
         if (!sub || sub === 'list') return this.themes.list({ json });
@@ -121,13 +135,16 @@ Your settings, themes and extensions: ${this.paths.user}`;
     return this.helper.applyAgain();
   }
 
-  private install(): number {
+  private async install(): Promise<number> {
     const { paths } = this;
     for (const d of [paths.user, paths.themes, paths.extensions]) fs.mkdirSync(d, { recursive: true });
     fs.rmSync(paths.applied, { force: true }); // the helper applies to a running Claude as soon as it starts
     const start = this.helper.logSize();
     const code = this.installer().install({ rebuild: process.argv.includes('--rebuild') });
     if (code !== 0) return code;
+    // the browser part, if set up: rebuilt in place, and the extension reloads itself into it
+    try { const v = await this.browser.setup.refresh(); if (v) this.out.say(`Updated the Cinnamon browser extension (${v}).`); }
+    catch (e) { this.out.say(this.out.yellow(`Could not update the browser extension: ${(e as Error).message || e}`)); }
     if (process.env.CINNAMON_NO_APPLY || !HelperClient.claudePid()) return 0;
     return this.helper.follow(start, { notAllowedOk: true });
   }
@@ -165,6 +182,7 @@ Your settings, themes and extensions: ${this.paths.user}`;
     out.say(`  applied      ${pid ? applied : out.dim('-')}`);
     out.say(`  theme        ${cfg.theme}`);
     out.say(`  extensions   ${on.join(', ') || out.dim('none')}`);
+    out.say(`  browser      ${this.browser.statusLine()}`);
     return 0;
   }
 
@@ -196,7 +214,7 @@ Your settings, themes and extensions: ${this.paths.user}`;
 
   /** Homebrew installs: brew upgrade. The standalone binary otherwise: the latest release. A development checkout:
    *  git pull. Then the new version's install refreshes the login item and re-applies. */
-  private update(): number {
+  private async update(): Promise<number> {
     const { out, paths } = this;
     if (paths.cask) { // the cask: brew updates Cinnamon.app and the command inside it together
       if (sh(path.join(paths.cask, 'bin', 'brew'), ['upgrade', '--cask', Paths.CASK], { stdio: 'inherit' }).status !== 0) return out.fail('brew upgrade --cask failed');

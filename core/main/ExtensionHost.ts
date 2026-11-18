@@ -14,7 +14,7 @@ import type { ViewManager } from './ViewManager';
 import type { ExtensionInstance, ExtSummary, Load, LoadedExt, Log, SharedState } from './types';
 
 export const hash = (s: string): number => { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return h; };
-const signature = (page: string[]): string => `${page.join('\n/*--*/\n').length}:${hash(page.join('\n'))}`;
+export const signature = (page: string[]): string => `${page.join('\n/*--*/\n').length}:${hash(page.join('\n'))}`;
 /** What tells whether a re-load changed an extension: its page code, its css and its main part. */
 export const fingerprintOf = (loaded: Map<string, LoadedExt> | undefined): string =>
   [...(loaded || new Map<string, LoadedExt>())].map(([id, l]) => `${id}:${l.sig}:${l.cssSig}:${l.main || ''}`).join('|');
@@ -22,7 +22,7 @@ export const fingerprintOf = (loaded: Map<string, LoadedExt> | undefined): strin
 // Page code runs with its own `cinnamon` api, after its old listeners are dropped; a failure stays inside it.
 /** What the page runtime's dispose returns when it took an extension out. */
 const DISPOSED = 'cinnamon:disposed';
-const wrap = (id: string, code: string): string => `(() => { const cinnamon = window.__cinnamon.api(${JSON.stringify(id)}); window.__cinnamon.reset(${JSON.stringify(id)});
+export const wrap = (id: string, code: string): string => `(() => { const cinnamon = window.__cinnamon.api(${JSON.stringify(id)}); window.__cinnamon.reset(${JSON.stringify(id)});
 try {
 ${code}
 } catch (e) { console.warn('cinnamon: extension ' + ${JSON.stringify(id)} + ' failed', e);

@@ -1,0 +1,12 @@
+{
+  "manifest_version": 3,
+  "name": "Cinnamon for Claude",
+  "description": "Cinnamon's themes and extensions on claude.ai, from the cinnamon command on this Mac.",
+  "version": "0.0.0",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtu9/GPcMeF5YZ0pn0B+4HbuR3sPokZ3IK4naBC6ffKEwhzEAEyEIlCN1nIcQMo8OJlnoo+YjS7HGHjsjHioJRdwL1vrMDQ4Oe2uw9CEfSarBF10aZgBUIwlE7Owr//f2rECEXjlQ6K2UQ5ywqCiAB2q1bIYk0X/YyTuPXHkrsy7lx4zv+uyEtyjQLPWPa3ysWOE2c3KXuCXlmYDvDr9BroHzJqq9Nvqqd2Wy0W83ia4c2YXeclhi9yYO0NEnLb2DBGIjEzpZrcq9JWxWR/lcl/gyTIKKhNFAw4wzwMRjYNpFOVkYWs1Cw8xhMZGA6KyciCelWLNetTa/qCR59c+a5QIDAQAB",
+  "minimum_chrome_version": "120",
+  "permissions": ["nativeMessaging", "scripting", "storage", "userScripts"],
+  "host_permissions": ["https://claude.ai/*"],
+  "background": { "service_worker": "background.js" },
+  "content_scripts": [{ "matches": ["https://claude.ai/*"], "js": ["content.js"], "run_at": "document_start" }]
+}

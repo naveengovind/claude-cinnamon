@@ -2,6 +2,8 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { BrowserHost } from '../browser/BrowserHost';
+import { BrowserSetup } from '../browser/BrowserSetup';
 import { Backdrop } from '../lib/Backdrop';
 import { Config } from '../lib/Config';
 import { ExtensionCatalog } from '../lib/ExtensionCatalog';
@@ -78,8 +80,29 @@ export class Doctor {
       if (e.error) this.check(`ext:${e.id}`, false, `extension ${e.id}: ${e.error}`);
       else for (const err of recorded[e.id] || []) this.check(`ext:${e.id}`, false, `extension ${e.id}: ${err.split('\n')[0]}`, `fix ${e.dir}`);
     }
+    this.browser();
     if (json) out.json({ ok: this.problems === 0, problems: this.problems, checks: this.checks, notes: this.notes });
     else out.say(this.problems ? out.red(`${this.problems} problem${this.problems > 1 ? 's' : ''}`) : out.green('All good.'));
     return this.problems ? 1 : 0;
+  }
+
+  /** The browser part (claude.ai in Chrome), only when it is set up. */
+  private browser(): void {
+    const { paths } = this;
+    const setup = new BrowserSetup({ root: paths.root, userDir: paths.user, home: os.homedir(), version: paths.version, binary: paths.binary });
+    if (!setup.installed()) { this.note('browser: not set up (optional: cinnamon browser install)'); return; }
+    const chrome = setup.hostManifests()[0]!;
+    let pointsHere = false;
+    try { pointsHere = (JSON.parse(fs.readFileSync(chrome.file, 'utf8')) as { path?: string }).path === setup.hostScript && fs.existsSync(setup.hostScript); } catch {}
+    this.check('browser-host', pointsHere, 'Chrome can start Cinnamon for the extension', 'cinnamon browser install');
+    const s = BrowserHost.readStatus(paths.user);
+    this.check('browser-connected', !!s.connected, s.connected ? `browser extension connected (last ${new Date(s.connected).toLocaleString()})` : 'browser extension has connected',
+      `chrome://extensions → Developer mode → Load unpacked → ${setup.extensionDir}`);
+    if (s.connected && s.folderVersion && s.extensionVersion && s.folderVersion !== s.extensionVersion) {
+      this.note(`browser extension ${s.extensionVersion} reloads into ${s.folderVersion} when it next connects`);
+    }
+    if (s.problem) this.check('browser-page-code', false, `browser: ${s.problem}`);
+    else if (s.userScripts === false) this.note('browser: user scripts are off for the extension (fine while claude.ai allows its page code)');
+    for (const [id, errs] of Object.entries(s.errors || {})) for (const e of errs) this.check(`browser-ext:${id}`, false, `extension ${id} in the browser: ${e.split('\n')[0]}`);
   }
 }

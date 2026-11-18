@@ -251,6 +251,32 @@ Built-in extensions may also have a `main` part (`.ts` or `.cjs`) that runs in C
 cards use one to read session files). Extensions installed from elsewhere run in the page only: a `main` entry is
 ignored, and their TypeScript may only import files inside the extension.
 
+## Claude in Chrome
+
+The same themes and extensions on **claude.ai in Chrome** (also Arc, Brave, Edge and Chromium), from the same files,
+CLI and skill. It's optional and needs no web store:
+
+```sh
+cinnamon browser install
+```
+
+That builds a small extension into `~/.config/claude-cinnamon/browser/extension` and opens chrome://extensions,
+where you do three things once: turn on **Developer mode**, click **Load unpacked** and pick that folder (its path is
+on the clipboard), then open the extension's **Details** and turn on **Allow User Scripts** (Chrome 138 and later; it
+lets extensions run on claude.ai whatever the page allows). Then claude.ai's *Settings → Appearance* has the same
+Color scheme and Extensions rows as the desktop app.
+
+- **Live, both ways.** The extension talks to the `cinnamon` command on your Mac (Chrome's native messaging), which
+  watches your themes, extensions and config.json: a theme picked in the browser, the desktop app or the CLI shows up
+  everywhere, and editing a theme or extension reloads it in place.
+- **Updates without clicks.** `cinnamon update` rebuilds the folder, and the extension reloads itself into the new
+  version the next time it connects.
+- **What differs in a browser.** Extensions with a main part (the sidebar cards) run only in the desktop app; they're
+  listed as such. A Glass theme gets a dark ground, since a browser tab can't be see-through. `cinnamon screenshot`
+  sees only the desktop app.
+- `cinnamon browser status` (and `doctor`) say whether the extension is connected; `cinnamon browser uninstall`
+  removes the folder and the files that let Chrome start Cinnamon (then remove the extension in chrome://extensions).
+
 ## How it works
 
 Claude.app is signed and its code archive is integrity-checked, so Cinnamon never edits it. Instead:

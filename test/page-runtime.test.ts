@@ -158,3 +158,33 @@ test('clean-up survives the runtime being loaded again (each apply)', () => {
   assert.strictEqual(w.__cinnamon.dispose('x'), 'cinnamon:disposed');
   assert.ok(ran);
 });
+
+// ---- claude.ai in a browser: core/browser/page.ts gives the runtime the extension's channel ----
+const BROWSER_SRC = await pageCode('core/browser/page.ts');
+
+test('in a browser, messages go to the Cinnamon extension (posted to the page\'s own window), not to the console', async () => {
+  const w = new JSDOM('<body></body>', { runScripts: 'outside-only', url: 'https://claude.ai/new' }).window;
+  open.push(w);
+  w.__sent = [];
+  w.console.debug = (...a) => w.__sent.push(a.join(' '));
+  w.eval(BROWSER_SRC);
+  w.eval(SRC);
+  const posted = [];
+  w.addEventListener('message', (e) => posted.push({ data: e.data }));
+  w.__cinnamon.api('x').settings.set('k', 1);
+  await new Promise((r) => setTimeout(r, 20));
+  assert.deepStrictEqual(sent(w), []);
+  assert.strictEqual(posted.length, 1);
+  assert.deepStrictEqual(posted[0].data, { 'cinnamon:to-host': true, msg: { type: 'ext-setting', ext: 'x', key: 'k', value: 1 } });
+  // (jsdom leaves the event's source and origin empty; in Chrome they are the page's own window and origin)
+  assert.deepStrictEqual(w.__cinnamonBrowser, { ran: {} });
+});
+
+test('loading the browser channel again keeps what the document already runs', () => {
+  const w = new JSDOM('<body></body>', { runScripts: 'outside-only', url: 'https://claude.ai/new' }).window;
+  open.push(w);
+  w.eval(BROWSER_SRC);
+  w.__cinnamonBrowser.ran.ufo = 's1';
+  w.eval(BROWSER_SRC);
+  assert.deepStrictEqual(w.__cinnamonBrowser.ran, { ufo: 's1' });
+});
