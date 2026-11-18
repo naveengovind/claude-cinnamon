@@ -11,6 +11,8 @@ export class Output {
   readonly yellow = this.paint(33);
 
   say(...a: unknown[]): void { console.log(...a); }
+  /** One JSON value on stdout (--json). */
+  json(v: unknown): void { console.log(JSON.stringify(v, null, 2)); }
   /** Prints the problem and returns the exit code 1. */
   fail(msg: string): number { console.error(this.red(`✗ ${msg}`)); return 1; }
   liveNote(): void { this.say(this.dim('Applies within a second if Claude is running with Cinnamon.')); }

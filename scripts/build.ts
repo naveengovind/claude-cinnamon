@@ -1,8 +1,10 @@
 // Builds the standalone release into dist/: one `cinnamon` binary per Mac architecture with Bun and all of Cinnamon's
 // files inside, so installing needs neither Homebrew nor Bun.
-//   bun scripts/build.ts            → dist/cinnamon-darwin-arm64.tar.gz, dist/cinnamon-darwin-x64.tar.gz, dist/SHA256SUMS
+//   bun scripts/build.ts            → dist/cinnamon-darwin-arm64.tar.gz, dist/cinnamon-darwin-x64.tar.gz, dist/SHA256SUMS,
+//                                     and the menu bar app with that binary inside: dist/Cinnamon-app-darwin-<arch>.zip
 //   bun scripts/build.ts --arch=arm64   only this Mac's architecture (quicker, for trying it out)
-// Steps: build Cinnamon Helper once as a universal app (arm64 + x86_64, signed), lay out the payload (core, themes,
+// Steps: build Cinnamon Helper and Cinnamon.app (the menu bar app) once each as universal apps (arm64 + x86_64,
+// signed), lay out the payload (core, themes,
 // extensions, types, package.json and the prebuilt helper), generate an entry that embeds every payload file
 // (`with { type: 'file' }`) and hands them to core/standalone/Standalone.ts, then `bun build --compile` per target.
 // Each binary is then run (see verify; an x64 build on Apple silicon under Rosetta) before it is packed.
@@ -11,12 +13,13 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import { AppInstaller, appSourceHash } from '../core/install/AppInstaller';
 import { helperSourceHash, Installer, runCommand, type RunResult } from '../core/install/Installer';
 
 const ROOT = path.join(import.meta.dir, '..');
 const WORK = path.join(ROOT, 'build', 'standalone');
 const DIST = path.join(ROOT, 'dist');
-const PAYLOAD_DIRS = ['core', 'extensions', 'mod', 'skill', 'themes', 'types'];
+const PAYLOAD_DIRS = ['app', 'core', 'extensions', 'mod', 'skill', 'themes', 'types'];
 const PAYLOAD_FILES = ['package.json'];
 // x64: the regular build (AVX2). Cinnamon needs macOS 13, which runs only on Intel Macs from 2017 on, all with AVX2.
 const TARGETS = { arm64: 'bun-darwin-arm64', x64: 'bun-darwin-x64' } as const;
@@ -57,10 +60,35 @@ function buildHelper(payload: string): void {
   fs.writeFileSync(path.join(payload, 'prebuilt', '.built-from'), `${helperSourceHash(ROOT)}\n`);
 }
 
-function layOut(payload: string): string[] {
+/** Cinnamon.app (app/) as a universal app, for `cinnamon app install` and the downloadable app. */
+function buildApp(payload: string, version: string): void {
+  const app = path.join(payload, 'prebuilt', AppInstaller.NAME);
+  const err = AppInstaller.build(ROOT, app, version, ['arm64', 'x86_64'], runCommand, path.join(WORK, 'app-slices'));
+  if (err) throw new Error(err);
+  fs.writeFileSync(path.join(payload, 'prebuilt', '.app-built-from'), `${appSourceHash(ROOT)}\n`);
+}
+
+/** The downloadable menu bar app: Cinnamon.app with this architecture's cinnamon binary inside, zipped. */
+function appZip(payload: string, bin: string, arch: Arch): string {
+  const dir = path.join(WORK, `app-${arch}`);
+  fs.rmSync(dir, { recursive: true, force: true });
+  fs.mkdirSync(dir, { recursive: true });
+  const app = path.join(dir, AppInstaller.NAME);
+  fs.cpSync(path.join(payload, 'prebuilt', AppInstaller.NAME), app, { recursive: true, verbatimSymlinks: true });
+  fs.copyFileSync(bin, path.join(app, 'Contents', 'Resources', 'cinnamon'));
+  fs.chmodSync(path.join(app, 'Contents', 'Resources', 'cinnamon'), 0o755);
+  run('codesign', ['--force', '--sign', '-', '--identifier', AppInstaller.BUNDLE_ID, app]);
+  run('codesign', ['--verify', '--strict', app]);
+  const zip = path.join(DIST, `Cinnamon-app-darwin-${arch}.zip`);
+  run('ditto', ['-c', '-k', '--sequesterRsrc', '--keepParent', app, zip]);
+  return zip;
+}
+
+function layOut(payload: string, version: string): string[] {
   for (const d of PAYLOAD_DIRS) fs.cpSync(path.join(ROOT, d), path.join(payload, d), { recursive: true, filter: (src) => !/(^|\/)(\.DS_Store|node_modules)$/.test(src) });
   for (const f of PAYLOAD_FILES) fs.copyFileSync(path.join(ROOT, f), path.join(payload, f));
   buildHelper(payload);
+  buildApp(payload, version);
   return walk(payload).map((f) => path.relative(payload, f)).sort();
 }
 
@@ -117,6 +145,11 @@ function verify(bin: string, arch: Arch, version: string): string {
     const inst = new Installer({ root: unpacked, userDir: home, home, pathEnv: '', bun: bin, uid: process.getuid!(), run: noSwift, log: () => {}, binary: bin, prebuiltHelper: prebuilt });
     if (!inst.buildHelper()) throw new Error('the installer could not put the prebuilt helper in place');
     run('codesign', ['--verify', '--strict', inst.app]);
+    // the menu bar app: prebuilt from this source, and installed into a home of its own without a Swift compiler
+    if (fs.readFileSync(path.join(unpacked, 'prebuilt', '.app-built-from'), 'utf8').trim() !== appSourceHash(ROOT)) throw new Error('prebuilt Cinnamon.app is not from this source');
+    const app = new AppInstaller({ root: unpacked, home, userDir: home, version, launcher: bin, run: noSwift, log: () => {} });
+    if (app.install({ open: false }) !== 0) throw new Error('the prebuilt Cinnamon.app could not be installed');
+    run('codesign', ['--verify', '--strict', app.dest]);
     return rosetta ? 'verified (Rosetta)' : 'verified';
   } finally {
     fs.rmSync(home, { recursive: true, force: true });
@@ -129,7 +162,7 @@ export async function build(arches: Arch[] = ['arm64', 'x64']): Promise<string[]
   fs.rmSync(DIST, { recursive: true, force: true });
   fs.mkdirSync(DIST, { recursive: true });
   const payload = path.join(WORK, 'payload');
-  const files = layOut(payload);
+  const files = layOut(payload, version);
   const entry = writeEntry(payload, files, version);
   const sums: string[] = [];
   const outputs: string[] = [];
@@ -140,6 +173,9 @@ export async function build(arches: Arch[] = ['arm64', 'x64']): Promise<string[]
     run('tar', ['-czf', tarball, '-C', path.dirname(bin), 'cinnamon']);
     sums.push(`${createHash('sha256').update(fs.readFileSync(tarball)).digest('hex')}  ${path.basename(tarball)}`);
     outputs.push(tarball);
+    const zip = appZip(payload, bin, arch);
+    sums.push(`${createHash('sha256').update(fs.readFileSync(zip)).digest('hex')}  ${path.basename(zip)}`);
+    outputs.push(zip);
     console.log(`built ${path.relative(ROOT, tarball)} (${(fs.statSync(tarball).size / 1e6).toFixed(1)} MB, Cinnamon ${version}, ${files.length} files): ${checked}`);
   }
   fs.writeFileSync(path.join(DIST, 'SHA256SUMS'), `${sums.join('\n')}\n`);

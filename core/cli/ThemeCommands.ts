@@ -18,9 +18,23 @@ export class ThemeCommands {
     this.config = new Config(paths.config);
   }
 
-  list(): number {
+  list({ json = false } = {}): number {
     const { out } = this;
     const current = this.config.read().theme;
+    if (json) {
+      const bundled = path.resolve(this.paths.bundledThemes);
+      out.json({
+        current,
+        themes: [
+          { id: 'default', name: 'Default', description: "Claude's own colors", bundled: true },
+          ...this.store.list().map((t) => ({
+            id: t.id, name: t.name, description: t.description || '', bundled: path.resolve(path.dirname(t.file)) === bundled,
+            ...(t.error ? { error: t.error } : {}),
+          })),
+        ],
+      });
+      return 0;
+    }
     const mark = (id: string) => (current === id ? out.green('*') : ' ');
     out.say(`${mark('default')} ${'default'.padEnd(16)} Default ${out.dim('(Claude\'s own colors)')}`);
     for (const t of this.store.list()) {

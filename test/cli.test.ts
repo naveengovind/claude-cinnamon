@@ -15,7 +15,7 @@ function home() {
 }
 function run(h, ...args) {
   const r = spawnSync(BIN, args, { encoding: 'utf8', env: { ...process.env, PATH: `${path.dirname(process.execPath)}:${process.env.PATH}`, CINNAMON_HOME: h, CINNAMON_NO_APPLY: '1', NO_COLOR: '1' } });
-  return { code: r.status, out: r.stdout + r.stderr };
+  return { code: r.status, out: r.stdout + r.stderr, stdout: r.stdout };
 }
 const config = (h) => JSON.parse(fs.readFileSync(path.join(h, 'config.json'), 'utf8'));
 function gitRepo(files) {
@@ -338,4 +338,71 @@ test('a refused backdrop is named by theme <id> and doctor', () => {
   fs.writeFileSync(path.join(h, 'themes', 'bd.json'), JSON.stringify({ name: 'Bd', dark: { background: '#111' }, backdrop: { svg: '<svg onload="x()"></svg>' } }));
   assert.match(run(h, 'theme', 'bd').out, /not applied: backdrop: svg may not have scripts/);
   assert.match(run(h, 'doctor').out, /theme bd: backdrop: svg may not have scripts/);
+});
+
+// ---- --json: what the menu bar app reads ----
+const json = (h, ...args) => { const r = run(h, ...args, '--json'); assert.ok(r.code === 0 || r.code === 1, r.out); return JSON.parse(r.stdout); };
+
+test('theme list --json gives the current theme and every theme, Default first', () => {
+  const h = home();
+  run(h, 'theme', 'codex');
+  const r = json(h, 'theme', 'list');
+  assert.strictEqual(r.current, 'codex');
+  assert.deepStrictEqual(r.themes[0], { id: 'default', name: 'Default', description: "Claude's own colors", bundled: true });
+  const codex = r.themes.find((t) => t.id === 'codex');
+  assert.strictEqual(codex.name, 'Codex');
+  assert.strictEqual(codex.bundled, true);
+});
+
+test('ext list --json gives each extension with whether it is on', () => {
+  const h = home();
+  run(h, 'ext', 'disable', 'full-width');
+  const r = json(h, 'ext', 'list');
+  const fw = r.extensions.find((e) => e.id === 'full-width');
+  assert.strictEqual(fw.enabled, false);
+  assert.strictEqual(fw.bundled, true);
+  assert.strictEqual(typeof fw.name, 'string');
+  assert.deepStrictEqual(fw.errors, []);
+  assert.strictEqual(r.extensions.find((e) => e.id === 'sidebar-cards').enabled, true);
+});
+
+test('status --json describes the setup', () => {
+  const h = home();
+  run(h, 'theme', 'codex');
+  const r = json(h, 'status');
+  assert.strictEqual(r.theme, 'codex');
+  assert.strictEqual(r.user, h);
+  assert.strictEqual(typeof r.version, 'string');
+  assert.strictEqual(typeof r.helper.running, 'boolean');
+  assert.strictEqual(typeof r.claude.running, 'boolean');
+  assert.strictEqual(typeof r.claude.installed, 'boolean');
+  assert.ok(r.extensions.includes('sidebar-cards'));
+});
+
+test('doctor --json lists each check by id, with its fix', () => {
+  const h = home();
+  const r = json(h, 'doctor');
+  assert.strictEqual(typeof r.ok, 'boolean');
+  assert.strictEqual(r.problems, r.checks.filter((c) => !c.ok).length);
+  const ids = r.checks.map((c) => c.id);
+  for (const id of ['claude', 'helper', 'accessibility', 'developer-mode', 'mod', 'skill']) assert.ok(ids.includes(id), `${id} in ${ids}`);
+  const helper = r.checks.find((c) => c.id === 'helper');
+  if (!helper.ok) assert.strictEqual(helper.fix, 'cinnamon install');
+});
+
+test('cinnamon app explains itself, and uninstall with nothing installed is fine', () => {
+  const h = home();
+  const usage = run(h, 'app');
+  assert.notStrictEqual(usage.code, 0);
+  assert.match(usage.out, /cinnamon app install \[--no-open\]/);
+  const r = spawnSync(BIN, ['app', 'uninstall'], { encoding: 'utf8', env: { ...process.env, HOME: h, PATH: `${path.dirname(process.execPath)}:${process.env.PATH}`, CINNAMON_HOME: h, NO_COLOR: '1' } });
+  assert.strictEqual(r.status, 0, r.stderr);
+  assert.match(r.stdout, /not installed/);
+  assert.match(run(h, 'help').out, /cinnamon app install/);
+});
+
+test('without --json the output stays for people', () => {
+  const h = home();
+  assert.match(run(h, 'theme', 'list').out, /\* default/);
+  assert.throws(() => JSON.parse(run(h, 'status').out));
 });

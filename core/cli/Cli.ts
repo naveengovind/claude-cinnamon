@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fromEnv } from '../apply/main';
+import { AppInstaller } from '../install/AppInstaller';
 import { Installer } from '../install/Installer';
 import { Config } from '../lib/Config';
 import { ExtensionCatalog } from '../lib/ExtensionCatalog';
@@ -36,11 +37,14 @@ usage:
   cinnamon apply [--keep]          apply now (--keep leaves Claude's debugger on)
   cinnamon status                  what is installed and applied
   cinnamon doctor                  check the setup and explain any problem
+                                   (status, doctor, theme list and ext list take --json)
   cinnamon logs                    the helper's recent log
   cinnamon screenshot [--out f.png] [--width px]
                                    a picture of Claude's window, taken by Cinnamon inside Claude (no permission needed)
   cinnamon update                  upgrade Cinnamon and refresh the setup
   cinnamon version                 Cinnamon's version
+  cinnamon app install [--no-open] the Cinnamon menu bar app, in ~/Applications
+  cinnamon app uninstall           remove the menu bar app
 
   cinnamon theme [list]            themes (* = current)
   cinnamon theme <id>              use a theme ("default" = Claude's own colors)
@@ -60,15 +64,16 @@ Your settings, themes and extensions: ${this.paths.user}`;
 
   async main(argv: string[]): Promise<number> {
     const yes = argv.includes('--yes') || argv.includes('-y');
-    const args = argv.filter((a) => a !== '--yes' && a !== '-y');
+    const json = argv.includes('--json'); // machine-readable output (the menu bar app reads it)
+    const args = argv.filter((a) => a !== '--yes' && a !== '-y' && a !== '--json');
     const [cmd, sub, arg] = args;
     const { out } = this;
     switch (cmd) {
       case 'apply': return this.apply(args.includes('--keep') ? ['--keep'] : []);
       case 'install': return this.install();
       case 'uninstall': return this.installer().uninstall();
-      case 'status': return this.status();
-      case 'doctor': return new Doctor(this.paths, out, this.helper).run();
+      case 'status': return json ? this.statusJson() : this.status();
+      case 'doctor': return new Doctor(this.paths, out, this.helper).run({ json });
       case 'screenshot': return new Screenshot(this.paths, out).run(args.slice(1));
       case 'logs': return this.logs();
       case 'update': return this.update();
@@ -77,16 +82,20 @@ Your settings, themes and extensions: ${this.paths.user}`;
       case '-v':
         out.say(this.paths.version);
         return 0;
+      case 'app':
+        if (sub === 'install') return this.appInstaller().install({ open: !args.includes('--no-open') });
+        if (sub === 'uninstall') return this.appInstaller().uninstall();
+        return out.fail('usage: cinnamon app install [--no-open] | cinnamon app uninstall');
       case 'theme':
       case 'themes':
-        if (!sub || sub === 'list') return this.themes.list();
+        if (!sub || sub === 'list') return this.themes.list({ json });
         if (sub === 'install') return arg ? this.themes.install(arg, yes) : out.fail('usage: cinnamon theme install <source>');
         if (sub === 'remove') return arg ? this.themes.remove(arg) : out.fail('usage: cinnamon theme remove <id>');
         return this.themes.set(sub);
       case 'ext':
       case 'extension':
       case 'extensions':
-        if (!sub || sub === 'list') return this.exts.list();
+        if (!sub || sub === 'list') return this.exts.list({ json });
         if (sub === 'enable' || sub === 'disable') return arg ? this.exts.setEnabled(arg, sub === 'enable') : out.fail(`usage: cinnamon ext ${sub} <id>`);
         if (sub === 'install') return arg ? this.exts.install(arg, yes) : out.fail('usage: cinnamon ext install <source>');
         if (sub === 'remove') return arg ? this.exts.remove(arg) : out.fail('usage: cinnamon ext remove <id>');
@@ -122,6 +131,14 @@ Your settings, themes and extensions: ${this.paths.user}`;
     return this.helper.follow(start, { notAllowedOk: true });
   }
 
+  private appInstaller(): AppInstaller {
+    const { paths } = this;
+    return new AppInstaller({
+      root: paths.root, home: os.homedir(), userDir: paths.user, version: paths.version,
+      launcher: paths.binary ?? path.join(paths.root, 'bin', 'cinnamon'),
+    });
+  }
+
   private installer(): Installer {
     const { paths } = this;
     return new Installer({
@@ -147,6 +164,27 @@ Your settings, themes and extensions: ${this.paths.user}`;
     out.say(`  applied      ${pid ? applied : out.dim('-')}`);
     out.say(`  theme        ${cfg.theme}`);
     out.say(`  extensions   ${on.join(', ') || out.dim('none')}`);
+    return 0;
+  }
+
+  /** status as JSON, for the menu bar app. */
+  private statusJson(): number {
+    const { paths } = this;
+    const pid = HelperClient.claudePid();
+    const cfg = new Config(paths.config).read();
+    let applied = false;
+    try { applied = !!pid && fs.readFileSync(paths.applied, 'utf8').trim().split(' ')[0] === pid; } catch {}
+    this.out.json({
+      version: paths.version,
+      root: paths.root,
+      user: paths.user,
+      binary: paths.binary,
+      helper: { running: this.helper.loaded(), built: fs.existsSync(paths.helperApp) },
+      claude: { installed: fs.existsSync('/Applications/Claude.app'), running: !!pid, pid: pid ? Number(pid) : null },
+      applied,
+      theme: cfg.theme,
+      extensions: this.exts.all().filter((e) => ExtensionCatalog.isEnabled(e, cfg)).map((e) => e.id),
+    });
     return 0;
   }
 
