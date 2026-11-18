@@ -110,6 +110,10 @@ const observer = new MutationObserver((records) => {
 observer.observe(document.body, { subtree: true, childList: true, characterData: true });
 maskAll();
 document.documentElement.dataset.cinnamonDemo = 'on';
+// pictures in the sidebar (a workspace's logo, an avatar) can be as personal as names: hidden while the mask is on
+const hideImages = document.createElement('style');
+hideImages.textContent = 'nav img, aside img, nav [style*="background-image"], aside [style*="background-image"] { visibility: hidden !important; }';
+document.head.append(hideImages);
 
 // scripts/screenshots.ts steers the page through this extension's `go` setting (a path such as /epitaxy)
 function go(settings: Record<string, unknown>): void {
@@ -143,4 +147,5 @@ cinnamon.onDispose(() => {
   for (const [node, text] of original) if (node.isConnected && node.data === assigned.get(node)) node.data = text;
   assigned.clear(); original.clear();
   delete document.documentElement.dataset.cinnamonDemo;
+  hideImages.remove();
 });

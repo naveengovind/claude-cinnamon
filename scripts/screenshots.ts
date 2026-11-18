@@ -1,4 +1,4 @@
-// Takes the screenshots for the README and the website (site/shots/) from the running Claude app, with nothing of
+// Takes screenshots (into build/shots/) from the running Claude app, with nothing of
 // yours in them: bun scripts/screenshots.ts [shot ...]
 //
 // It puts tools/demo-mask in place as a user extension (it swaps chat, session, folder, branch and account names for
@@ -14,7 +14,7 @@ import path from 'node:path';
 import { Paths } from '../core/cli/Paths';
 
 const ROOT = path.join(import.meta.dir, '..');
-const OUT = path.join(ROOT, 'site', 'shots');
+const OUT = path.join(ROOT, 'build', 'shots');
 const paths = new Paths(process.env);
 const MASK_ID = 'demo-mask';
 const maskDir = path.join(paths.extensions, MASK_ID);

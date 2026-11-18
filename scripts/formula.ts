@@ -62,7 +62,6 @@ end
 
 export function renderCask({ version, repo, sha256 }: { version: string; repo: string; sha256: Sums }): string {
   const asset = (arch: keyof Sums) => `https://github.com/${repo}/releases/download/v${version}/Cinnamon-app-darwin-${arch}.zip`;
-  const owner = repo.split('/')[0];
   return `# Cinnamon: the menu bar app and the cinnamon command, for the Claude desktop app (macOS).
 # Made by scripts/formula.ts in ${repo} at each release; change it there.
 cask "cinnamon" do
@@ -79,7 +78,7 @@ cask "cinnamon" do
 
   name "Cinnamon"
   desc "Themes and extensions for the Claude desktop app"
-  homepage "https://${owner}.github.io/${repo.split('/')[1]}/"
+  homepage "https://github.com/${repo}"
 
   livecheck do
     url :url
