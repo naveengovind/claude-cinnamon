@@ -18,6 +18,23 @@ export class Homebrew {
     return exists(opt) ? opt : file;
   }
 
+  static readonly CASK = 'naveengovind/tap/cinnamon';
+
+  /** The app bundle `file` lives in (Cinnamon.app's own copy of the command), or null. */
+  static insideApp(file: string | null): string | null {
+    const m = file ? /^(.+?\.app)\/Contents\//.exec(file) : null;
+    return m ? m[1]! : null;
+  }
+
+  /**
+   * Homebrew's prefix when `file` is the command inside Cinnamon.app and Homebrew's cask installed that app (then
+   * `brew upgrade --cask` updates both), or null.
+   */
+  static caskPrefixOf(file: string | null, exists: (f: string) => boolean = fs.existsSync, prefixes = ['/opt/homebrew', '/usr/local']): string | null {
+    if (!Homebrew.insideApp(file)) return null;
+    return prefixes.find((p) => exists(path.join(p, 'Caskroom', 'cinnamon')) && exists(path.join(p, 'bin', 'brew'))) ?? null;
+  }
+
   /** Homebrew's prefix when `file` belongs to a Homebrew install of Cinnamon (with brew there to manage it). */
   static prefixOf(file: string | null, exists: (f: string) => boolean = fs.existsSync): string | null {
     const m = file ? INSTALL.exec(file) : null;

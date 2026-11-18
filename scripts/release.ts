@@ -13,7 +13,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { Paths } from '../core/cli/Paths';
 import { build } from './build';
-import { publishFormula, readSums, renderFormula } from './formula';
+import { publishFormula, readAppSums, readSums, renderCask, renderFormula } from './formula';
 
 const ROOT = path.join(import.meta.dir, '..');
 
@@ -61,4 +61,7 @@ Already installed: \`cinnamon update\`.`;
 sh('gh', ['release', 'create', tag, '--repo', Paths.REPO, '--title', `Cinnamon ${version}`, '--notes', notes, '--verify-tag', ...(draft ? ['--draft'] : []), ...assets]);
 console.log(`Released ${tag}${draft ? ' (draft)' : ''}.`);
 
-if (!draft) publishFormula(renderFormula({ version, repo: Paths.REPO, sha256: readSums(path.join(ROOT, 'dist', 'SHA256SUMS')) }), version);
+if (!draft) {
+  const sums = path.join(ROOT, 'dist', 'SHA256SUMS');
+  publishFormula(renderFormula({ version, repo: Paths.REPO, sha256: readSums(sums) }), version, Paths.TAP, renderCask({ version, repo: Paths.REPO, sha256: readAppSums(sums) }));
+}

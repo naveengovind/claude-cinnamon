@@ -39,12 +39,20 @@ That is all: Cinnamon is a single standalone command with [Bun](https://bun.sh) 
 
 ## Install
 
-With [Homebrew](https://brew.sh):
+With [Homebrew](https://brew.sh), the menu bar app and the `cinnamon` command together:
+
+```sh
+brew install --cask naveengovind/tap/cinnamon
+```
+
+then open **Cinnamon** from Applications: it walks you through the rest. Or just the command:
 
 ```sh
 brew install naveengovind/tap/cinnamon
 cinnamon install
 ```
+
+(Pick one: the cask and the formula both provide `cinnamon`.)
 
 Without Homebrew:
 
@@ -273,8 +281,22 @@ bun run typecheck      # strict tsc: main-process/CLI code and page code
 bin/cinnamon install   # points the login item at this checkout (the standalone's `cinnamon install` points it back)
 bun scripts/build.ts   # the standalone builds: dist/cinnamon-darwin-{arm64,x64}.tar.gz + SHA256SUMS (--arch=arm64: one)
 bun scripts/release.ts # checks, builds, tags v<package.json version>, creates the GitHub release, updates the tap
-bun scripts/formula.ts # prints the Homebrew formula for dist/ (--publish: commits it to naveengovind/homebrew-tap)
+bun scripts/formula.ts # prints the Homebrew formula and cask for dist/ (--publish: commits them to naveengovind/homebrew-tap)
 ```
+
+**Signing.** The build signs with a *Developer ID Application* certificate when this Mac's keychain has one (or the
+one `CINNAMON_SIGN_IDENTITY` names), with the hardened runtime and a timestamp, and notarizes and staples the menu bar
+app when `CINNAMON_NOTARY_PROFILE` names a notarytool profile. Set that up once:
+
+```sh
+# Xcode → Settings → Accounts → (your team) → Manage Certificates → + → Developer ID Application, then:
+xcrun notarytool store-credentials cinnamon-notary --apple-id <you@example.com> --team-id <TEAMID>
+CINNAMON_NOTARY_PROFILE=cinnamon-notary bun scripts/release.ts
+```
+
+Without a Developer ID everything is signed ad hoc, and macOS asks people to allow the downloaded app once
+(*System Settings → Privacy & Security → Open Anyway*). Switching from ad hoc to Developer ID changes the helper's
+signature, so macOS asks for its Accessibility permission once more.
 
 The standalone binary (`bun build --compile`) carries Bun, the files below and a universal, signed Cinnamon Helper.
 Each version unpacks them into `~/.config/claude-cinnamon/app/<version>` on first run and runs from there, using

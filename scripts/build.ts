@@ -15,6 +15,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { AppInstaller, appSourceHash } from '../core/install/AppInstaller';
 import { helperSourceHash, Installer, runCommand, type RunResult } from '../core/install/Installer';
+import { Signing } from './signing';
 
 const ROOT = path.join(import.meta.dir, '..');
 const WORK = path.join(ROOT, 'build', 'standalone');
@@ -23,6 +24,9 @@ const PAYLOAD_DIRS = ['app', 'core', 'extensions', 'mod', 'skill', 'themes', 'ty
 const PAYLOAD_FILES = ['package.json'];
 // x64: the regular build (AVX2). Cinnamon needs macOS 13, which runs only on Intel Macs from 2017 on, all with AVX2.
 const TARGETS = { arm64: 'bun-darwin-arm64', x64: 'bun-darwin-x64' } as const;
+/** Developer ID when this Mac has it (scripts/signing.ts), ad hoc otherwise. */
+const SIGN = Signing.fromEnvironment();
+const ENTITLEMENTS = path.join(ROOT, 'scripts', 'entitlements', 'cinnamon.plist');
 /** What Bun prints on start under Rosetta, which has no AVX; install.sh gives Apple silicon the arm64 build. */
 const ROSETTA_AVX_WARNING = /^warn: CPU lacks AVX support.*\n.*baseline\.zip\s*$/s;
 type Arch = keyof typeof TARGETS;
@@ -56,7 +60,7 @@ function buildHelper(payload: string): void {
     return out;
   });
   run('lipo', ['-create', '-output', exe, ...slices]);
-  run('codesign', ['--force', '--sign', '-', '--identifier', Installer.LABEL, app]);
+  run('codesign', SIGN.args(app, { identifier: Installer.LABEL }));
   fs.writeFileSync(path.join(payload, 'prebuilt', '.built-from'), `${helperSourceHash(ROOT)}\n`);
 }
 
@@ -65,6 +69,7 @@ function buildApp(payload: string, version: string): void {
   const app = path.join(payload, 'prebuilt', AppInstaller.NAME);
   const err = AppInstaller.build(ROOT, app, version, ['arm64', 'x86_64'], runCommand, path.join(WORK, 'app-slices'));
   if (err) throw new Error(err);
+  if (SIGN.distributable) run('codesign', SIGN.args(app, { identifier: AppInstaller.BUNDLE_ID }));
   fs.writeFileSync(path.join(payload, 'prebuilt', '.app-built-from'), `${appSourceHash(ROOT)}\n`);
 }
 
@@ -77,10 +82,17 @@ function appZip(payload: string, bin: string, arch: Arch): string {
   fs.cpSync(path.join(payload, 'prebuilt', AppInstaller.NAME), app, { recursive: true, verbatimSymlinks: true });
   fs.copyFileSync(bin, path.join(app, 'Contents', 'Resources', 'cinnamon'));
   fs.chmodSync(path.join(app, 'Contents', 'Resources', 'cinnamon'), 0o755);
-  run('codesign', ['--force', '--sign', '-', '--identifier', AppInstaller.BUNDLE_ID, app]);
+  // inside out: the command (with its engine's entitlements), then the app around it
+  run('codesign', SIGN.args(path.join(app, 'Contents', 'Resources', 'cinnamon'), { entitlements: ENTITLEMENTS }));
+  run('codesign', SIGN.args(app, { identifier: AppInstaller.BUNDLE_ID }));
   run('codesign', ['--verify', '--strict', app]);
   const zip = path.join(DIST, `Cinnamon-app-darwin-${arch}.zip`);
   run('ditto', ['-c', '-k', '--sequesterRsrc', '--keepParent', app, zip]);
+  if (SIGN.canNotarize) { // Apple checks the zip; the ticket is stapled to the app, which is then zipped again
+    SIGN.notarize(zip, app, (cmd, args) => run(cmd, args));
+    fs.rmSync(zip);
+    run('ditto', ['-c', '-k', '--sequesterRsrc', '--keepParent', app, zip]);
+  }
   return zip;
 }
 
@@ -112,7 +124,7 @@ function compile(entry: string, arch: Arch): string {
   fs.mkdirSync(outDir, { recursive: true });
   const bin = path.join(outDir, 'cinnamon');
   run('bun', ['build', '--compile', `--target=${TARGETS[arch]}`, entry, '--outfile', bin], { cwd: WORK }); // its temporary files land in cwd
-  run('codesign', ['--force', '--sign', '-', bin]);
+  run('codesign', SIGN.args(bin, { entitlements: ENTITLEMENTS }));
   return bin;
 }
 
@@ -157,6 +169,7 @@ function verify(bin: string, arch: Arch, version: string): string {
 }
 
 export async function build(arches: Arch[] = ['arm64', 'x64']): Promise<string[]> {
+  console.log(`signing: ${SIGN.describe}`);
   const version = (JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')) as { version: string }).version;
   fs.rmSync(WORK, { recursive: true, force: true });
   fs.rmSync(DIST, { recursive: true, force: true });

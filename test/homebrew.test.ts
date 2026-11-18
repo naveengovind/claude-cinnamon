@@ -9,7 +9,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { Homebrew } from '../core/standalone/Homebrew';
 import { Installer } from '../core/install/Installer';
-import { readSums, renderFormula } from '../scripts/formula';
+import { readAppSums, readSums, renderCask, renderFormula } from '../scripts/formula';
 
 const ROOT = path.join(import.meta.dir, '..');
 const tmp = (p: string) => fs.mkdtempSync(path.join(os.tmpdir(), p));
@@ -94,4 +94,54 @@ test('checksums are read from a release\'s SHA256SUMS', () => {
   assert.deepStrictEqual(readSums(file), SUMS);
   fs.writeFileSync(file, `${SUMS.arm64}  cinnamon-darwin-arm64.tar.gz\n`);
   assert.throws(() => readSums(file), /x64/);
+});
+
+// ---- the cask: the cinnamon command inside Cinnamon.app ----
+test('the command inside Cinnamon.app belongs to the cask when Homebrew has the cask installed', () => {
+  const prefixes = ['/opt/homebrew', '/usr/local'];
+  const has = (f: string) => f === '/opt/homebrew/Caskroom/cinnamon' || f === '/opt/homebrew/bin/brew';
+  const inApp = '/Applications/Cinnamon.app/Contents/Resources/cinnamon';
+  assert.strictEqual(Homebrew.caskPrefixOf(inApp, has, prefixes), '/opt/homebrew');
+  assert.strictEqual(Homebrew.caskPrefixOf(inApp, () => false, prefixes), null, 'a downloaded app, not the cask');
+  assert.strictEqual(Homebrew.caskPrefixOf('/Users/x/.local/bin/cinnamon', has, prefixes), null);
+  assert.strictEqual(Homebrew.caskPrefixOf(null, has, prefixes), null);
+});
+
+test('a command inside an app bundle is recognized, so it never replaces itself there', () => {
+  assert.strictEqual(Homebrew.insideApp('/Applications/Cinnamon.app/Contents/Resources/cinnamon'), '/Applications/Cinnamon.app');
+  assert.strictEqual(Homebrew.insideApp('/Users/x/Applications/Cinnamon.app/Contents/Resources/cinnamon'), '/Users/x/Applications/Cinnamon.app');
+  assert.strictEqual(Homebrew.insideApp('/Users/x/.local/bin/cinnamon'), null);
+  assert.strictEqual(Homebrew.insideApp(null), null);
+});
+
+test('the cask installs Cinnamon.app and links the cinnamon command inside it', () => {
+  const c = renderCask({ version: '1.2.3', repo: 'owner/repo', sha256: SUMS });
+  assert.match(c, /cask "cinnamon" do/);
+  assert.match(c, /on_arm do\s+url "https:\/\/github\.com\/owner\/repo\/releases\/download\/v1\.2\.3\/Cinnamon-app-darwin-arm64\.zip"\s+sha256 "a{64}"/);
+  assert.match(c, /on_intel do\s+url "https:\/\/github\.com\/owner\/repo\/releases\/download\/v1\.2\.3\/Cinnamon-app-darwin-x64\.zip"\s+sha256 "b{64}"/);
+  assert.match(c, /app "Cinnamon\.app"/);
+  assert.match(c, /binary "#\{appdir\}\/Cinnamon\.app\/Contents\/Resources\/cinnamon"/);
+  assert.match(c, /uninstall[\s\S]*args:\s+\["uninstall"\]/, 'takes out the login item, mod and skill first');
+  if (fs.existsSync('/usr/bin/ruby')) {
+    const file = path.join(tmp('cm-rb-'), 'cinnamon.rb');
+    fs.writeFileSync(file, c);
+    const r = spawnSync('/usr/bin/ruby', ['-c', file], { encoding: 'utf8' });
+    assert.strictEqual(r.status, 0, r.stderr);
+  }
+});
+
+test('the app zips\' checksums are read from a release\'s SHA256SUMS', () => {
+  const file = path.join(tmp('cm-sums-'), 'SHA256SUMS');
+  fs.writeFileSync(file, `${SUMS.arm64}  Cinnamon-app-darwin-arm64.zip\n${SUMS.x64}  Cinnamon-app-darwin-x64.zip\n${'c'.repeat(64)}  cinnamon-darwin-arm64.tar.gz\n`);
+  assert.deepStrictEqual(readAppSums(file), SUMS);
+});
+
+test('update never replaces the command inside an app it didn\'t get from the cask', () => {
+  const app = path.join(tmp('cm-app-'), 'Cinnamon.app', 'Contents', 'Resources', 'cinnamon');
+  const r = spawnSync(path.join(ROOT, 'bin', 'cinnamon'), ['update'], {
+    encoding: 'utf8',
+    env: { ...process.env, PATH: `${path.dirname(process.execPath)}:/usr/bin:/bin`, CINNAMON_HOME: tmp('cm-hb-home-'), CINNAMON_BIN: app, CINNAMON_VERSION: '0.2.0', NO_COLOR: '1' },
+  });
+  assert.notStrictEqual(r.status, 0);
+  assert.match(r.stdout + r.stderr, /inside .*Cinnamon\.app.*update the app/s);
 });

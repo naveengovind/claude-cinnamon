@@ -1,4 +1,5 @@
 // cinnamon — command-line tool for Cinnamon (themes and extensions for the Claude desktop app, macOS).
+import { Homebrew } from '../standalone/Homebrew';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -197,6 +198,15 @@ Your settings, themes and extensions: ${this.paths.user}`;
    *  git pull. Then the new version's install refreshes the login item and re-applies. */
   private update(): number {
     const { out, paths } = this;
+    if (paths.cask) { // the cask: brew updates Cinnamon.app and the command inside it together
+      if (sh(path.join(paths.cask, 'bin', 'brew'), ['upgrade', '--cask', Paths.CASK], { stdio: 'inherit' }).status !== 0) return out.fail('brew upgrade --cask failed');
+      if (process.env.CINNAMON_NO_APPLY) return 0;
+      return sh(paths.binary!, ['install'], { stdio: 'inherit' }).status ?? 1;
+    }
+    const app = Homebrew.insideApp(paths.binary);
+    if (app) { // replacing it would break the app's signature
+      return out.fail(`this cinnamon is the one inside ${app}; update the app instead: download the latest from https://github.com/${Paths.REPO}/releases, or install it with: brew install --cask ${Paths.CASK}`);
+    }
     if (paths.binary && !paths.homebrew) {
       return new Updater({ binary: paths.binary, version: paths.version, arch: process.arch === 'arm64' ? 'arm64' : 'x64', repo: Paths.REPO, log: (l) => out.say(l) }).run();
     }

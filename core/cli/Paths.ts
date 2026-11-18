@@ -21,9 +21,12 @@ export class Paths {
   readonly binary: string | null;
   /** Homebrew's prefix, when Homebrew installed this Cinnamon. */
   readonly homebrew: string | null;
+  /** Homebrew's prefix, when this is the command inside Cinnamon.app and Homebrew's cask installed the app. */
+  readonly cask: string | null;
   readonly version: string;
   static readonly LABEL = 'local.claude-cinnamon.helper';
   static readonly FORMULA = Homebrew.FORMULA;
+  static readonly CASK = Homebrew.CASK;
   static readonly REPO = 'naveengovind/claude-cinnamon';
   static readonly TAP = 'naveengovind/homebrew-tap';
 
@@ -40,6 +43,7 @@ export class Paths {
     this.bundledExtensions = path.join(this.root, 'extensions');
     this.binary = env.CINNAMON_BIN || null;
     this.homebrew = Homebrew.prefixOf(this.binary ?? this.root);
+    this.cask = Homebrew.caskPrefixOf(this.binary);
     this.version = env.CINNAMON_VERSION || Paths.packageVersion(this.root);
   }
 
