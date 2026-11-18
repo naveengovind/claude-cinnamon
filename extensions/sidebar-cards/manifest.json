@@ -1,6 +1,6 @@
 {
   "name": "Sidebar cards",
-  "description": "t3-style session cards: folder, branch, model and age, a Working timer, status chips and your own labels",
+  "description": "t3-style session cards: folder, branch, model and age, and a live Working timer, for sessions on this Mac, over SSH and in the cloud",
   "version": "1.0.0",
   "page": ["page.ts"],
   "css": ["cards.css"],

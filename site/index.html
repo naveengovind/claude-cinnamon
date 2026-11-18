@@ -148,11 +148,10 @@
   <div class="hero">
     <div>
       <h1>Your own look for the Claude app</h1>
-      <p class="lede">Cinnamon adds themes and small extensions to the Claude desktop app on your Mac. Pick them in Claude's own Settings, or just ask Claude to make one.</p>
+      <p class="lede">Cinnamon adds themes and small extensions to the Claude desktop app on your Mac, and to claude.ai in your browser. Pick them from the menu bar, in Claude's own Settings, or just ask Claude to make one.</p>
       <div class="install-card">
-        <pre id="brew"><span class="p">$ </span>brew install naveengovind/tap/cinnamon
-<span class="p">$ </span>cinnamon install</pre>
-        <div class="row"><span>macOS 13 or later. Free and open source.</span><button class="copy" data-copy="brew" type="button">Copy</button></div>
+        <pre id="brew"><span class="p">$ </span>brew install --cask naveengovind/tap/cinnamon</pre>
+        <div class="row"><span>The menu bar app and the <code>cinnamon</code> command. macOS 13 or later, signed and notarized.</span><button class="copy" data-copy="brew" type="button">Copy</button></div>
       </div>
     </div>
 
@@ -222,6 +221,21 @@
   </div>
 </section>
 
+<section class="block" id="anywhere">
+  <div class="wrap">
+    <h2>From the menu bar, and in your browser</h2>
+    <div class="split">
+      <dl class="exts">
+        <dt>A menu bar app</dt>
+        <dd>Switch color schemes and extensions, take a screenshot, add themes from GitHub and check for updates without opening a terminal. Its setup window checks each step and fixes what it can.</dd>
+        <dt>Claude on the web</dt>
+        <dd>The same themes and extensions on claude.ai in Chrome, Arc, Brave, Edge, Chromium or Vivaldi. Pick your browser in the app, or run <code>cinnamon browser install --browser arc</code>. It updates itself with Cinnamon, so there's no store to deal with.</dd>
+      </dl>
+      <img src="shots/browsers.jpg" alt="Cinnamon's menu bar app listing Google Chrome and Arc, each with a Set Up button" loading="lazy">
+    </div>
+  </div>
+</section>
+
 <section class="block" id="install">
   <div class="wrap">
     <h2>Install in a few minutes</h2>
@@ -235,7 +249,9 @@
       <li>
         <div>
           <h3>Install Cinnamon</h3>
-          <p>With Homebrew:</p>
+          <p>With Homebrew, then open Cinnamon from Applications:</p>
+          <pre class="cmd">brew install --cask naveengovind/tap/cinnamon</pre>
+          <p style="margin-top:.9rem">Just the command, with Homebrew:</p>
           <pre class="cmd">brew install naveengovind/tap/cinnamon
 cinnamon install</pre>
           <p style="margin-top:.9rem">Or without Homebrew:</p>
