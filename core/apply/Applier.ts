@@ -1,7 +1,8 @@
 // Applies Cinnamon to the running Claude: Cinnamon Helper presses Claude's own Developer > Enable Main Process
 // Debugger (Developer Mode must be on), the bundled main-process script is evaluated through the debugger, and the
 // debugger is turned off again — even if applying fails — unless `keep`. Turning the debugger on makes Claude open
-// chrome://inspect in Google Chrome; that tab is closed as soon as it appears and the previous app is brought back.
+// chrome://inspect in Google Chrome; with `closeChromeTab` that tab is closed as soon as it appears, and the previous
+// app is brought back. In `manual` mode (no Accessibility) nothing is pressed: it waits for you to turn the debugger on.
 // Only one apply runs at a time (state/apply.lock); a caller that already holds the lock passes `lockHeld`.
 import fs from 'node:fs';
 import os from 'node:os';
@@ -34,7 +35,16 @@ export interface ApplierOptions {
   stateDir: string;
   pressTimeout?: number;
   lockWait?: number;
+  /** No Accessibility: nothing is pressed; Cinnamon waits for you to choose Developer → Enable Main Process Debugger. */
+  manual?: boolean;
+  /** Seconds manual mode waits for that (default 600). */
+  manualWait?: number;
+  /** Close the chrome://inspect tab Claude opens (scripts Chrome, so macOS asks for Automation). Off by default. */
+  closeChromeTab?: boolean;
 }
+
+/** What manual mode asks you to do, in the log (and so in `cinnamon apply`). */
+export const MANUAL_ASK = "waiting for you: in Claude, choose Developer → Enable Main Process Debugger";
 
 export class Applier {
   constructor(private readonly sys: System, private readonly opts: ApplierOptions, private readonly deps: ApplierDeps = Applier.defaultDeps(opts.root)) {}
@@ -76,18 +86,30 @@ export class Applier {
       }
       try {
         if (!owner) {
-          if (!sys.helperExists()) { sys.log("Cinnamon Helper isn't built yet; run: cinnamon install"); return 1; }
-          const chrome = this.deps.chromeScript();
-          const snapshot = sys.osascript(['-l', 'JavaScript', chrome, 'snapshot']);
-          const front = sys.helper(['front']).stdout.trim();
-          const press = sys.helper(['press', claude, '--timeout', String(this.opts.pressTimeout ?? 60)]);
-          if (press.status !== 0) return press.status;
-          closer = (async () => {
-            sys.log(`chrome: ${await sys.osascriptAsync(['-l', 'JavaScript', chrome, 'cleanup', snapshot])}`);
-            if (front) sys.helper(['activate', front]);
+          const chrome = this.opts.closeChromeTab ? this.deps.chromeScript() : null;
+          const cleanup = (snapshot: string) => (async () => {
+            if (chrome) sys.log(`chrome: ${await sys.osascriptAsync(['-l', 'JavaScript', chrome, 'cleanup', snapshot])}`);
           })();
-          if (front) sys.log(`front app before the press: pid ${front}`);
-          for (let i = 0; i < 40; i++) { owner = sys.listener(PORT); if (owner) break; await sys.sleep(250); }
+          if (this.opts.manual) {
+            const snapshot = chrome ? sys.osascript(['-l', 'JavaScript', chrome, 'snapshot']) : '';
+            sys.log(MANUAL_ASK);
+            const tries = Math.ceil((this.opts.manualWait ?? 600) * 2);
+            for (let i = 0; i < tries && !owner; i++) { await sys.sleep(500); owner = sys.listener(PORT); }
+            if (!owner) { sys.log("Claude's debugger was not turned on; Cinnamon applies the next time you turn it on (or run: cinnamon apply)."); return 1; }
+            if (chrome) closer = cleanup(snapshot);
+          } else {
+            if (!sys.helperExists()) { sys.log("Cinnamon Helper isn't built yet; run: cinnamon install"); return 1; }
+            const snapshot = chrome ? sys.osascript(['-l', 'JavaScript', chrome, 'snapshot']) : '';
+            const front = sys.helper(['front']).stdout.trim();
+            const press = sys.helper(['press', claude, '--timeout', String(this.opts.pressTimeout ?? 60)]);
+            if (press.status !== 0) return press.status;
+            closer = (async () => {
+              await cleanup(snapshot);
+              if (front) sys.helper(['activate', front]);
+            })();
+            if (front) sys.log(`front app before the press: pid ${front}`);
+            for (let i = 0; i < 40; i++) { owner = sys.listener(PORT); if (owner) break; await sys.sleep(250); }
+          }
           if (owner !== claude) { sys.log(`Claude's debugger did not come up on port ${PORT} (listener: ${owner || 'none'}).`); return 1; }
         }
         let value: unknown;

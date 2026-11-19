@@ -6,6 +6,7 @@ import fs from 'node:fs';
 import type { Output } from './Output';
 import { Paths } from './Paths';
 import { pidOf } from '../lib/Processes';
+import { MANUAL_ASK } from '../apply/Applier';
 
 const pause = (ms: number): void => { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms); };
 export const sh = (cmd: string, args: string[], opts: Parameters<typeof spawnSync>[2] = {}): SpawnSyncReturns<string> =>
@@ -44,9 +45,15 @@ export class HelperClient {
   /** Follows the helper's log from `start` until it reports the apply it is doing. */
   follow(start: number, { notAllowedOk = false } = {}): number {
     const out = this.out;
-    const deadline = Date.now() + 120_000;
+    let deadline = Date.now() + 120_000;
+    let asked = false;
     while (Date.now() < deadline) {
       const text = this.logSince(start);
+      if (!asked && text.includes(MANUAL_ASK)) { // permissions: none — the apply waits for you (up to 10 minutes)
+        asked = true;
+        deadline = Date.now() + 11 * 60_000;
+        out.say(`In Claude, choose ${out.bold('Developer → Enable Main Process Debugger')}; Cinnamon applies itself as soon as you do.`);
+      }
       const done = text.match(/apply finished with status (\d+)/);
       if (done) { out.say(out.dim(text.trimEnd())); return Number(done[1]); }
       if (/Accessibility NOT allowed/.test(text)) {

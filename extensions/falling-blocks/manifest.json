@@ -1,0 +1,7 @@
+{
+  "name": "Blocks while working",
+  "description": "A falling-blocks game that docks at the side while Claude is working. Click it to play; click the chat box to go back to typing.",
+  "version": "2.0.0",
+  "page": ["page.ts"],
+  "css": ["blocks.css"]
+}

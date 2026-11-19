@@ -75,7 +75,7 @@ async function main(): Promise<void> {
     await sleep(5);
     for (const shot of shots) {
       cli('theme', shot.theme);
-      const exts = { 'ufo-critter': false, 'tetris-busy': false, ...shot.extensions };
+      const exts = { 'ufo-critter': false, 'falling-blocks': false, ...shot.extensions };
       for (const [id, on] of Object.entries(exts)) { try { cli('ext', on ? 'enable' : 'disable', id); } catch {} }
       steer('go', shot.path);
       await sleep(8);

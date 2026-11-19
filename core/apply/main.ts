@@ -6,6 +6,8 @@ import path from 'node:path';
 import { Applier } from './Applier';
 import { AutoApplier } from './AutoApplier';
 import { RealSystem } from './System';
+import { Config } from '../lib/Config';
+import { permissionPrefs } from '../lib/Permissions';
 
 export function fromEnv(env = process.env) {
   const root = env.CM_DIR || env.CINNAMON_ROOT || path.join(import.meta.dir, '..', '..');
@@ -13,7 +15,11 @@ export function fromEnv(env = process.env) {
   const stateDir = env.CM_STATE || path.join(user, 'state');
   const sys = new RealSystem(env.CM_HELPER || path.join(user, 'helper', 'Cinnamon Helper.app', 'Contents', 'MacOS', 'cinnamon-helper'));
   const lockWait = env.CM_LOCK_WAIT ? Number(env.CM_LOCK_WAIT) : 90;
-  const applier = new Applier(sys, { root, stateDir, pressTimeout: env.CM_PRESS_TIMEOUT ? Number(env.CM_PRESS_TIMEOUT) : 60, lockWait });
+  const prefs = permissionPrefs(new Config(path.join(user, 'config.json')).read());
+  const applier = new Applier(sys, {
+    root, stateDir, pressTimeout: env.CM_PRESS_TIMEOUT ? Number(env.CM_PRESS_TIMEOUT) : 60, lockWait,
+    manual: prefs.mode === 'none', closeChromeTab: prefs.closeChromeTab,
+  });
   return { sys, applier, auto: new AutoApplier(sys, applier, stateDir, lockWait) };
 }
 

@@ -29,19 +29,26 @@ struct SetupView: View {
               .buttonStyle(.borderedProminent)
           }
           Divider()
-          step(state: checkState("accessibility"), title: "Accessibility permission",
-               detail: "The helper turns on Claude's debugger through Claude's own Developer menu, so macOS asks you to allow Cinnamon Helper under Privacy & Security → Accessibility.") {
-            Button("Open System Settings") { NSWorkspace.shared.open(Links.accessibility) }
-          }
+          permissionsStep
           Divider()
-          step(state: checkState("developer-mode"), title: "Developer Mode in Claude",
-               detail: "In Claude, choose Help → Troubleshooting → Enable Developer Mode. Cinnamon needs the Developer menu it adds. This is checked the next time Claude starts.") {
+          if !model.isManual {
+            step(state: checkState("accessibility"), title: "Accessibility permission",
+                 detail: "The helper turns on Claude's debugger through Claude's own Developer menu, so macOS asks you to allow Cinnamon Helper under Privacy & Security → Accessibility.") {
+              Button("Open System Settings") { NSWorkspace.shared.open(Links.accessibility) }
+            }
+            Divider()
+          }
+          step(state: model.isManual ? .info : checkState("developer-mode"), title: "Developer Mode in Claude",
+               detail: "In Claude, choose Help → Troubleshooting → Enable Developer Mode. Cinnamon needs the Developer menu it adds.\(model.isManual ? "" : " This is checked the next time Claude starts.")") {
             Button("Open Claude") { Links.openClaude() }
           }
           Divider()
-          step(state: .info, title: "Controlling Google Chrome",
-               detail: "When Claude's debugger turns on, Claude opens a chrome://inspect tab in Chrome. Cinnamon closes it right away. If macOS asks whether Cinnamon Helper may control Google Chrome, choose Allow.") {
-            Button("Open Automation Settings") { NSWorkspace.shared.open(Links.automation) }
+          step(state: .info, title: "The Chrome tab Claude opens",
+               detail: "Turning on Claude's debugger makes Claude open a chrome://inspect tab in Google Chrome. Cinnamon can close it, but macOS then asks whether Cinnamon Helper may control Google Chrome (Automation).") {
+            Toggle("Close it", isOn: Binding(get: { model.status?.permissions?.closeChromeTab ?? false },
+                                            set: { on in Task { await model.setCloseChromeTab(on) } }))
+              .toggleStyle(.switch)
+              .controlSize(.small)
           }
           Divider()
           step(state: claudeCodeState, title: "Claude Code",
@@ -108,6 +115,23 @@ struct SetupView: View {
       Button("Cancel", role: .cancel) {}
     } message: {
       Text("This removes the helper, its login item and Cinnamon's Claude Code mod and skill. Claude goes back to its own look the next time it starts. Your themes and settings stay in your folder.")
+    }
+  }
+
+  /** Accessibility (turns itself on) or none (you press Claude's menu item). */
+  private var permissionsStep: some View {
+    step(state: .info, title: "Permissions",
+         detail: model.isManual
+           ? "None. Each time Claude starts, choose Developer → Enable Main Process Debugger in Claude, and Cinnamon applies itself."
+           : "Accessibility only: Cinnamon turns itself on each time Claude starts, by pressing Developer → Enable Main Process Debugger for you. Nothing else (no Screen Recording, Full Disk Access or Input Monitoring).") {
+      Picker("", selection: Binding(get: { model.isManual ? "none" : "accessibility" },
+                                    set: { mode in Task { await model.setPermissionMode(mode) } })) {
+        Text("Automatic").tag("accessibility")
+        Text("None").tag("none")
+      }
+      .pickerStyle(.segmented)
+      .labelsHidden()
+      .frame(width: 160)
     }
   }
 

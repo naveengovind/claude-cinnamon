@@ -119,11 +119,11 @@ struct BrowserStepsView: View {
           .foregroundStyle(.secondary)
           .help("Close")
       }
-      Text("\(steps.browser.name) just opened its extensions page (\(steps.browser.extensionsUrl)). Do this there once:")
+      Text("\(steps.browser.name) just opened its extensions page (\(steps.browser.extensionsUrl)), and Finder is showing the extension folder. Do this once:")
         .font(.callout)
         .fixedSize(horizontal: false, vertical: true)
       step(1, "Turn on **Developer mode** (a switch near the top right).")
-      step(2, "Click **Load unpacked**. In the window that opens, press **⌘⇧G**, paste the folder below (it's already copied), press **Return**, then click **Select**.")
+      step(2, "Drag the **extension** folder from Finder onto the extensions page and drop it. (Or click **Load unpacked**, press **⌘⇧G**, paste the path below and click **Select**.)")
       HStack(spacing: 6) {
         Text(steps.folder)
           .font(.system(.caption, design: .monospaced))

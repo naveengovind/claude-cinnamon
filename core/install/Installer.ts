@@ -10,6 +10,8 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { Homebrew } from '../standalone/Homebrew';
+import { Config } from '../lib/Config';
+import { permissionPrefs, type PermissionMode } from '../lib/Permissions';
 
 export interface RunResult { status: number; stdout: string; stderr: string }
 export type Runner = (cmd: string, args: string[]) => RunResult;
@@ -50,6 +52,8 @@ const pause = (ms: number): void => { Atomics.wait(new Int32Array(new SharedArra
 export class Installer {
   static readonly LABEL = 'local.claude-cinnamon.helper';
   static readonly OLD_LABEL = 'local.claude-desktop-mods.helper'; // the helper's name before Cinnamon
+  /** Cinnamon.app's bundle id: Login Items shows the helper under Cinnamon (AssociatedBundleIdentifiers). */
+  static readonly APP_ID = 'local.claude-cinnamon.app';
   private readonly run: Runner;
   private readonly log: (line: string) => void;
   private readonly sleep: (ms: number) => void;
@@ -82,6 +86,16 @@ export class Installer {
   /** Earlier versions also linked into these; uninstall still removes such a link. */
   private get oldLinkDirs(): string[] { return ['/opt/homebrew/bin', '/usr/local/bin']; }
 
+  /** Rewrites the login item for the current permission mode and restarts it (it applies to an open Claude again). */
+  reloadLoginItem(): number {
+    if (!fs.existsSync(this.plist)) return 0;
+    fs.writeFileSync(this.plist, this.plistText());
+    this.stop(Installer.LABEL);
+    const b = this.run('launchctl', ['bootstrap', this.domain, this.plist]);
+    if (b.status !== 0) { this.log(`Could not restart the login item: ${b.stderr.trim()}`); return 1; }
+    return 0;
+  }
+
   /** Hash of the helper's source: a rebuild only happens when it changes. */
   sourceHash(): string { return helperSourceHash(this.o.root); }
 
@@ -93,6 +107,16 @@ export class Installer {
   private isExecutable(f: string): boolean { try { fs.accessSync(f, fs.constants.X_OK); return true; } catch { return false; } }
   private readText(f: string): string { try { return fs.readFileSync(f, 'utf8').trim(); } catch { return ''; } }
   private same(a: string, b: string): boolean { try { return fs.realpathSync(a) === fs.realpathSync(b); } catch { return false; } }
+
+  /** The Team ID an app is signed with; null when ad hoc or unsigned. */
+  private teamOf(app: string): string | null {
+    const r = this.run('codesign', ['-dv', app]);
+    const m = /TeamIdentifier=([^\n]+)/.exec(`${r.stderr}\n${r.stdout}`);
+    return m && m[1]!.trim() !== 'not set' ? m[1]!.trim() : null;
+  }
+
+  /** Which permissions your config.json picks (core/lib/Permissions.ts). */
+  get mode(): PermissionMode { return permissionPrefs(new Config(path.join(this.o.userDir, 'config.json')).read()).mode; }
 
   /** Standalone: copies the release's helper into place, if it was built from this source. */
   private copyPrebuilt(hash: string, builtFrom: string): boolean {
@@ -133,7 +157,12 @@ exec "$bin" __autoapply "$@"
       fs.renameSync(oldApp, this.app);
       fs.writeFileSync(builtFrom, `${hash}\n`);
     }
-    if (this.isExecutable(this.exe) && this.readText(builtFrom) === hash && !rebuild) return true;
+    if (this.isExecutable(this.exe) && this.readText(builtFrom) === hash && !rebuild) {
+      // An ad-hoc helper (built here, or by an older release) loses its Accessibility permission whenever it changes;
+      // one signed with a Developer ID keeps it across updates. Swap once, when the release brings a signed one.
+      if (this.o.prebuiltHelper && !this.teamOf(this.app) && this.teamOf(this.o.prebuiltHelper)) return this.copyPrebuilt(hash, builtFrom) || true;
+      return true;
+    }
     if (this.copyPrebuilt(hash, builtFrom)) return true;
     if (this.run('which', ['swiftc']).status !== 0) { this.log('Cinnamon needs the Swift compiler to build its helper: xcode-select --install'); return false; }
     this.log('Building Cinnamon Helper…');
@@ -159,7 +188,7 @@ exec "$bin" __autoapply "$@"
   <array>
     <string>${xml(this.exe)}</string>
     <string>watch</string>
-    <string>--bundle-id</string><string>com.anthropic.claudefordesktop</string>
+${this.mode === 'none' ? '    <string>--no-accessibility</string>\n' : ''}    <string>--bundle-id</string><string>com.anthropic.claudefordesktop</string>
     <string>--run</string><string>${xml(this.launchScript)}</string>
   </array>
   <key>EnvironmentVariables</key>
@@ -168,6 +197,8 @@ exec "$bin" __autoapply "$@"
     <key>CINNAMON_HOME</key><string>${xml(o.userDir)}</string>
 ${o.binary ? `    <key>CINNAMON_BIN</key><string>${xml(o.binary)}</string>` : `    <key>CINNAMON_ROOT</key><string>${xml(o.root)}</string>`}
   </dict>
+  <key>AssociatedBundleIdentifiers</key>
+  <array><string>${Installer.APP_ID}</string></array>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
   <key>ProcessType</key><string>Interactive</string>
@@ -225,7 +256,8 @@ ${o.binary ? `    <key>CINNAMON_BIN</key><string>${xml(o.binary)}</string>` : ` 
     this.installMod();
     this.installSkill();
     this.log('Cinnamon Helper is running and will start at every login.');
-    this.log('If macOS asks, allow Cinnamon Helper under System Settings > Privacy & Security > Accessibility.');
+    if (this.mode === 'none') this.log('No permissions: each time Claude starts, choose Developer > Enable Main Process Debugger in Claude and Cinnamon applies itself.');
+    else this.log('If macOS asks, allow Cinnamon Helper under System Settings > Privacy & Security > Accessibility.');
     return 0;
   }
 

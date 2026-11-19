@@ -98,7 +98,21 @@ final class AppModel: ObservableObject {
     await perform(on ? "Turning on…" : "Turning off…", ["ext", on ? "enable" : "disable", id])
   }
 
-  func applyNow() async { await perform("Applying to Claude…", ["apply"], show: true) }
+  /** "accessibility" or "none" (`cinnamon permissions <mode>`). */
+  func setPermissionMode(_ mode: String) async {
+    await perform(mode == "none" ? "Switching to no permissions…" : "Switching to Accessibility…", ["permissions", mode])
+    await refreshDoctor()
+  }
+
+  func setCloseChromeTab(_ on: Bool) async {
+    await perform(on ? "Turning on…" : "Turning off…", ["permissions", "chrome-tab", on ? "on" : "off"])
+  }
+
+  var isManual: Bool { status?.permissions?.mode == "none" }
+
+  func applyNow() async {
+    await perform(isManual ? "In Claude, choose Developer → Enable Main Process Debugger…" : "Applying to Claude…", ["apply"], show: true)
+  }
 
   func screenshot(to url: URL) async {
     let r = await perform("Taking a picture of Claude…", ["screenshot", "--out", url.path])

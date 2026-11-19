@@ -89,6 +89,30 @@ test('the installer uses a prebuilt helper (no Swift compiler), links the binary
   assert.match(fs.readFileSync(inst.plist, 'utf8'), /<key>CINNAMON_BIN<\/key><string>[^<]*\/cinnamon<\/string>/);
 });
 
+test('an ad-hoc helper is swapped once for the Developer ID one, so later updates keep the Accessibility permission', () => {
+  const base = tmp('cm-team-');
+  const root = path.join(base, 'app');
+  fs.mkdirSync(path.join(root, 'core', 'helper'), { recursive: true });
+  for (const f of ['main.swift', 'Info.plist']) fs.copyFileSync(path.join(ROOT, 'core', 'helper', f), path.join(root, 'core', 'helper', f));
+  const prebuilt = path.join(root, 'prebuilt', 'Cinnamon Helper.app');
+  fs.mkdirSync(path.join(prebuilt, 'Contents', 'MacOS'), { recursive: true });
+  fs.writeFileSync(path.join(prebuilt, 'Contents', 'MacOS', 'cinnamon-helper'), 'signed', { mode: 0o755 });
+  const home = path.join(base, 'home');
+  const binary = path.join(base, 'cinnamon');
+  fs.writeFileSync(binary, 'bin', { mode: 0o755 });
+  const run = (cmd: string, args: string[]): RunResult => {
+    if (cmd === 'codesign' && args[0] === '-dv') return { status: 0, stdout: '', stderr: `Identifier=x\nTeamIdentifier=${args[1]!.startsWith(root) ? 'ABCDE12345' : 'not set'}\n` };
+    return { status: cmd === 'launchctl' && args[0] === 'print' ? 1 : 0, stdout: '', stderr: '' };
+  };
+  const inst = new Installer({ root, userDir: path.join(home, 'cfg'), home, pathEnv: '', bun: binary, uid: 501, run, log: () => {}, sleep: () => {}, binary, prebuiltHelper: prebuilt });
+  fs.writeFileSync(path.join(prebuilt, '..', '.built-from'), `${inst.sourceHash()}\n`);
+  fs.mkdirSync(path.dirname(inst.exe), { recursive: true });
+  fs.writeFileSync(inst.exe, 'ad hoc', { mode: 0o755 });
+  fs.writeFileSync(path.join(home, 'cfg', 'helper', '.built-from'), `${inst.sourceHash()}\n`);
+  assert.strictEqual(inst.install(), 0);
+  assert.strictEqual(fs.readFileSync(inst.exe, 'utf8'), 'signed');
+});
+
 test('the login item runs a script in your folder that hands over to the binary', () => {
   const base = tmp('cm-launch-');
   const binary = path.join(base, 'cinnamon');

@@ -12,6 +12,8 @@ Not affiliated with or endorsed by Anthropic.
     from the page itself (the app's own session list, and claude.ai for cloud sessions), never from files on disk.
     *Working* follows the app's own Running status, so it's right for all three.
   - **Full width**: adds *Full* to *Settings → Appearance → Transcript width*.
+  - **Blocks while working**: a falling-blocks game that docks at the side while Claude is working. Click it to play;
+    click the chat box to go back to typing.
   - **UFO critter** (off until you switch it on): a little pixel alien flying a saucer around the window. It runs
     from your pointer and now and then beams up a passing cow. Clicks pass through.
   - Install more from GitHub: `cinnamon ext install owner/repo`.
@@ -60,12 +62,24 @@ Either way, `cinnamon update` upgrades later (through `brew upgrade` for a Homeb
 `cinnamon install` sets up **Cinnamon Helper**, adds it as a login item, makes sure the `cinnamon` command is on your
 PATH, puts the `cinnamon-colors` mod and the `cinnamon` skill in `~/.claude/skills/` (see
 [Code tab colors](#code-tab-colors) and [Ask Claude to do it](#ask-claude-to-do-it)) and applies Cinnamon if Claude
-is running. macOS will ask you to allow two things for Cinnamon Helper:
+is running.
 
-- **Accessibility** (*System Settings → Privacy & Security → Accessibility*), so it can click Claude's
-  *Developer → Enable Main Process Debugger* menu item at launch;
-- **controlling Google Chrome**, so it can close the `chrome://inspect` tab Claude opens whenever its debugger
-  turns on.
+### Permissions
+
+By default Cinnamon asks for one permission: **Accessibility** for Cinnamon Helper (*System Settings → Privacy &
+Security → Accessibility*). The helper uses it for one thing: clicking Claude's own *Developer → Enable Main Process
+Debugger* each time Claude starts. Claude blocks every other way in (`--inspect`, `NODE_OPTIONS`, the remote-debugging
+port), and macOS has no narrower permission for pressing another app's menu item. Cinnamon needs no Screen Recording,
+Full Disk Access, Input Monitoring or other apps' data.
+
+| Command | |
+| --- | --- |
+| `cinnamon permissions` | which permissions Cinnamon uses |
+| `cinnamon permissions none` | **no permissions at all**: each time Claude starts, you choose *Developer → Enable Main Process Debugger* in Claude yourself, and Cinnamon applies itself as soon as you do |
+| `cinnamon permissions accessibility` | back to turning itself on (the default) |
+| `cinnamon permissions chrome-tab on` | also close the `chrome://inspect` tab Claude opens in Google Chrome when its debugger turns on. macOS then asks whether Cinnamon Helper may control Google Chrome (Automation). Off by default: the tab just stays |
+
+The released helper is signed with a Developer ID, so its Accessibility permission carries over to new versions.
 
 ## Use
 
@@ -105,13 +119,15 @@ Cinnamon.app puts everything above in the menu bar, for anyone who'd rather not 
   Folder* and *Check for Updates*. It follows changes made anywhere else (the CLI, Claude's Settings rows, Claude
   Code) as they happen.
 - **Setup and Help**: a checklist of everything Cinnamon needs, each with a button to fix it: Claude itself, Cinnamon
-  Helper (*Install*), the Accessibility permission (opens the right place in System Settings), Developer Mode in Claude,
-  Chrome's automation prompt explained, and Claude Code's mod and skill. Below it are any problems `cinnamon doctor`
+  Helper (*Install*), *Permissions* (*Automatic* with Accessibility, or *None*), the Accessibility permission (opens
+  the right place in System Settings), Developer Mode in Claude, whether to close the Chrome tab Claude opens, and
+  Claude Code's mod and skill. Below it are any problems `cinnamon doctor`
   finds, *Show Log*, *Open Cinnamon at login* and *Uninstall Cinnamon…*. It opens by itself the first time, until
   Cinnamon is set up.
 - **Use in a Browser…** (also in Setup): the browsers on this Mac that Cinnamon works with (Chrome, Arc, Brave, Edge,
   Chromium, Vivaldi), each with *Set Up* or *Remove* ([Claude in Chrome](#claude-in-chrome), one browser at a time).
-  After *Set Up* it shows the three clicks left to do in that browser, with the folder to load already copied.
+  After *Set Up* the browser's extensions page opens with the extension folder beside it in Finder: turn on Developer
+  mode and drag the folder onto the page.
 
 Get it either way:
 
@@ -255,8 +271,10 @@ cinnamon browser install --browser arc     # or chrome, brave, edge, chromium, v
 ```
 
 That builds a small extension into `~/.config/claude-cinnamon/browser/extension` and opens the browser's extensions
-page (arc://extensions, chrome://extensions, …), where you do two things once: turn on **Developer mode**, then click
-**Load unpacked** and pick that folder (its path is on the clipboard). Then claude.ai's *Settings → Appearance* has
+page (arc://extensions, chrome://extensions, …) with that folder selected in a Finder window beside it. Do two things
+once: turn on **Developer mode**, then drag the folder onto the extensions page (or click **Load unpacked** and pick
+it; its path is on the clipboard). Chrome only accepts extensions from outside its store this way (or through an
+organization's managed profile), and each Arc space is its own profile, so do it once per space. Then claude.ai's *Settings → Appearance* has
 the same Color scheme and Extensions rows as the desktop app. (Cinnamon's page code runs from files inside the
 extension, so claude.ai's Content-Security-Policy doesn't stand in its way, and no "Allow User Scripts" switch is
 needed.)
@@ -283,6 +301,7 @@ Claude.app is signed and its code archive is integrity-checked, so Cinnamon neve
 
 1. **Cinnamon Helper**, a small login item, watches for Claude to start and clicks Claude's own
    *Developer → Enable Main Process Debugger* (that's why it needs Accessibility, and why Developer Mode is needed).
+   With `cinnamon permissions none` it presses nothing and waits for you to choose that menu item.
 2. Cinnamon bundles its main-process code (`core/main`, TypeScript) with Bun, connects to that debugger on
    `127.0.0.1:9229`, runs the bundle inside Claude's main process, then turns the debugger off again. It refuses to
    touch the port if another process owns it.
@@ -322,7 +341,8 @@ bun scripts/release.ts   # build prints: signing: Developer ID Application: …,
 
 Without a Developer ID everything is signed ad hoc, and macOS asks people to allow the downloaded app once
 (*System Settings → Privacy & Security → Open Anyway*). Switching from ad hoc to Developer ID changes the helper's
-signature, so macOS asks for its Accessibility permission once more.
+signature, so macOS asks for its Accessibility permission once more (`cinnamon install` swaps an ad-hoc helper for
+the release's Developer ID one when it can); after that, new versions keep the permission.
 
 The standalone binary (`bun build --compile`) carries Bun, the files below and a universal, signed Cinnamon Helper.
 Each version unpacks them into `~/.config/claude-cinnamon/app/<version>` on first run and runs from there, using

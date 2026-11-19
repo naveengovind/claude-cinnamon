@@ -3,8 +3,9 @@
 // Keep it small and stable: rebuilding changes its signature and macOS then asks for the permission again.
 // All other logic lives in core/autoapply.sh / core/apply.sh, which can change freely.
 //
-//   cinnamon-helper watch --bundle-id <id> --run <script>
+//   cinnamon-helper watch --bundle-id <id> --run <script> [--no-accessibility]
 //       runs `bash <script> <pid>` for every launch of that app, and once at start if it is already running
+//       (--no-accessibility: never asks for the permission; the script waits for you to turn the debugger on)
 //   cinnamon-helper press <pid> [--menu Developer] [--item "Enable Main Process Debugger"] [--timeout 60]
 //       waits for the menu item and presses it once
 //       exit 0 = pressed, 2 = item never appeared, 3 = no Accessibility permission, 1 = press failed
@@ -73,8 +74,10 @@ func watch() -> Never {
   let script = option("--run", "")
   if script.isEmpty { fail(64, "watch needs --run <script>") }
   let me = Bundle.main.executablePath ?? args[0]
-  let trusted = AXIsProcessTrustedWithOptions([kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary)
-  log("watching \(bundleId); Accessibility \(trusted ? "allowed" : "NOT allowed yet: System Settings > Privacy & Security > Accessibility > Cinnamon Helper")")
+  let manual = args.contains("--no-accessibility")
+  let trusted = manual || AXIsProcessTrustedWithOptions([kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary)
+  if manual { log("watching \(bundleId); no permissions: you turn Claude's debugger on") }
+  else { log("watching \(bundleId); Accessibility \(trusted ? "allowed" : "NOT allowed yet: System Settings > Privacy & Security > Accessibility > Cinnamon Helper")") }
 
   func run(_ pid: pid_t) {
     let p = Process()
@@ -110,7 +113,7 @@ func watch() -> Never {
   ) { note in
     guard let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
           app.bundleIdentifier == bundleId else { return }
-    guard AXIsProcessTrusted() else { log("\(bundleId) started, but Accessibility is not allowed yet; skipping"); return }
+    guard manual || AXIsProcessTrusted() else { log("\(bundleId) started, but Accessibility is not allowed yet; skipping"); return }
     run(app.processIdentifier)
   }
   RunLoop.main.run()

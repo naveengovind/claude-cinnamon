@@ -200,3 +200,20 @@ test('reinstalling keeps the theme the person picked', () => {
   s.inst.install();
   assert.strictEqual(JSON.parse(fs.readFileSync(path.join(s.userDir, 'config.json'), 'utf8')).theme, 'codex');
 });
+
+test('the login item is shown under Cinnamon in Login Items, and asks for Accessibility by default', () => {
+  const s = setup();
+  assert.strictEqual(s.inst.install(), 0, s.logs.join('\n'));
+  const plist = fs.readFileSync(s.inst.plist, 'utf8');
+  assert.match(plist, /<key>AssociatedBundleIdentifiers<\/key>\s*<array><string>local\.claude-cinnamon\.app<\/string><\/array>/);
+  assert.ok(!plist.includes('--no-accessibility'));
+});
+
+test('with "permissions": "none" the helper only watches for Claude and never asks for Accessibility', () => {
+  const s = setup();
+  fs.mkdirSync(s.userDir, { recursive: true });
+  fs.writeFileSync(path.join(s.userDir, 'config.json'), JSON.stringify({ theme: 'ember', permissions: 'none' }));
+  assert.strictEqual(s.inst.install(), 0, s.logs.join('\n'));
+  assert.match(fs.readFileSync(s.inst.plist, 'utf8'), /<string>watch<\/string>\s*<string>--no-accessibility<\/string>/);
+  assert.ok(!s.logs.some((l) => /Accessibility/.test(l)), s.logs.join('\n'));
+});

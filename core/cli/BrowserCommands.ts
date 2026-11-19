@@ -22,6 +22,8 @@ export interface BrowserCommandsOptions {
   openApp?: (app: string, url: string) => void;
   /** Puts text on the clipboard. */
   copy?: (text: string) => void;
+  /** Shows a folder selected in Finder (`open -R`), to drag onto the extensions page. */
+  reveal?: (dir: string) => void;
 }
 
 /** The value of `--name <v>` or `--name=<v>` in args, or null. */
@@ -77,7 +79,8 @@ export class BrowserCommands {
     out.say(`
 ${out.bold(`One-time setup in ${b.name}`)} (${b.extensionsUrl}${open ? ', opening now' : ''}):
   1. Turn on ${out.bold('Developer mode')}.
-  2. Click ${out.bold('Load unpacked')} and pick this folder (press ⌘⇧G in the picker and paste it):
+  2. Drag the ${out.bold('extension')} folder${open ? ' Finder is showing' : ''} onto that page and drop it.
+     (Or click ${out.bold('Load unpacked')} and pick it: press ⌘⇧G in the picker and paste the path${open ? ', already copied' : ''}.)
        ${setup.extensionDir}
 Then open claude.ai: Settings → Appearance has Cinnamon's rows, as in the desktop app. Themes, extensions and settings
 are shared with the desktop app. ${out.dim(`(extension id ${EXTENSION_ID})`)}
@@ -85,7 +88,8 @@ Updates come with ${out.bold('cinnamon update')}; the extension reloads itself, 
     if (open) {
       (this.opts.copy ?? ((t: string) => { spawnSync('pbcopy', { input: t }); }))(setup.extensionDir);
       (this.opts.openApp ?? ((app: string, url: string) => { spawnSync('open', ['-a', app, url]); }))(b.app, b.extensionsUrl);
-      out.say(out.dim('(the folder path is on the clipboard)'));
+      // after the browser, so the Finder window sits in front of it, with the folder selected
+      (this.opts.reveal ?? ((dir: string) => { spawnSync('open', ['-R', dir]); }))(setup.extensionDir);
     }
     return 0;
   }

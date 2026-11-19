@@ -6,10 +6,12 @@ import { BrowserHost } from '../browser/BrowserHost';
 import { BrowserSetup } from '../browser/BrowserSetup';
 import { Backdrop } from '../lib/Backdrop';
 import { Config } from '../lib/Config';
+import { permissionPrefs } from '../lib/Permissions';
 import { ExtensionCatalog } from '../lib/ExtensionCatalog';
 import { ThemeEngine } from '../lib/ThemeEngine';
 import { ThemeStore } from '../lib/ThemeStore';
 import { HelperClient, sh } from './HelperClient';
+import { Installer } from '../install/Installer';
 import type { Output } from './Output';
 import type { Paths } from './Paths';
 
@@ -54,9 +56,19 @@ export class Doctor {
     try { log = fs.readFileSync(paths.logs, 'utf8'); } catch {}
     const lastStart = log.lastIndexOf('watching ');
     const recent = lastStart === -1 ? '' : log.slice(lastStart);
-    const allowed = !/NOT allowed/.test(recent.split('\n')[0] || '') || /Accessibility allowed/.test(recent);
-    this.check('accessibility', allowed, 'helper may use Accessibility', 'System Settings → Privacy & Security → Accessibility → turn on Cinnamon Helper');
-    this.check('developer-mode', !/never appeared/.test(recent), 'Developer menu found at the last launch', 'in Claude: Help → Troubleshooting → Enable Developer Mode');
+    const prefs = permissionPrefs(new Config(paths.config).read());
+    if (prefs.mode === 'accessibility') {
+      const allowed = !/NOT allowed/.test(recent.split('\n')[0] || '') || /Accessibility allowed/.test(recent);
+      this.check('accessibility', allowed, 'helper may use Accessibility', 'System Settings → Privacy & Security → Accessibility → turn on Cinnamon Helper');
+      this.check('developer-mode', !/never appeared/.test(recent), 'Developer menu found at the last launch', 'in Claude: Help → Troubleshooting → Enable Developer Mode');
+    } else {
+      this.note('permissions: none. Each time Claude starts, choose Developer → Enable Main Process Debugger in Claude (Developer Mode must be on)');
+    }
+    const plist = path.join(os.homedir(), 'Library', 'LaunchAgents', `${Installer.LABEL}.plist`);
+    let plistText = '';
+    try { plistText = fs.readFileSync(plist, 'utf8'); } catch {}
+    if (plistText) this.check('permissions-mode', plistText.includes('--no-accessibility') === (prefs.mode === 'none'), `login item set up for permissions: ${prefs.mode}`, 'cinnamon install');
+    this.note(prefs.closeChromeTab ? 'Chrome: closes the chrome://inspect tab (Automation → Google Chrome)' : 'Chrome: left alone (cinnamon permissions chrome-tab on closes the chrome://inspect tab)');
     const finished = [...recent.matchAll(/apply finished with status (\d+)/g)].pop();
     if (finished) this.check('last-apply', finished[1] === '0', `last automatic apply ${finished[1] === '0' ? 'succeeded' : 'failed'}`, 'cinnamon logs');
     // the Code tab's colors: Claude Code's own theme API through the cinnamon-colors mod, else Cinnamon paints them
@@ -100,7 +112,7 @@ export class Doctor {
     }
     const s = BrowserHost.readStatus(paths.user);
     this.check('browser-connected', !!s.connected, s.connected ? `browser extension connected (last ${new Date(s.connected).toLocaleString()})` : 'browser extension has connected',
-      `the browser's extensions page → Developer mode → Load unpacked → ${setup.extensionDir}`);
+      `the browser's extensions page → Developer mode → drag in ${setup.extensionDir}`);
     if (s.connected && s.folderVersion && s.extensionVersion && s.folderVersion !== s.extensionVersion) {
       this.note(`browser extension ${s.extensionVersion} reloads into ${s.folderVersion} when it next connects`);
     }

@@ -137,6 +137,15 @@ struct Status: Decodable {
   let applied: Bool
   let theme: String
   let extensions: [String]
+  /** Absent from versions before 0.4.3. */
+  let permissions: Permissions?
+}
+
+/** Which macOS permissions Cinnamon uses (`cinnamon permissions --json`). */
+struct Permissions: Decodable, Equatable {
+  /** "accessibility" (turns itself on) or "none" (you turn on Claude's debugger). */
+  let mode: String
+  let closeChromeTab: Bool
 }
 
 struct ThemeList: Decodable {

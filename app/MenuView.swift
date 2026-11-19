@@ -62,7 +62,8 @@ struct MenuView: View {
     guard let s = model.status else { return model.cliMissing ? "Not installed" : "…" }
     if !s.helper.running { return "Not set up" }
     if !s.claude.running { return "Claude isn't running" }
-    return s.applied ? "On in Claude" : "Not applied yet"
+    if s.applied { return "On in Claude" }
+    return model.isManual ? "In Claude: Developer → Enable Main Process Debugger" : "Not applied yet"
   }
 
   private func notSetUp(text: String) -> some View {

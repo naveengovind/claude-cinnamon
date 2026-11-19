@@ -7,6 +7,7 @@ import { fromEnv } from '../apply/main';
 import { AppInstaller } from '../install/AppInstaller';
 import { Installer } from '../install/Installer';
 import { Config } from '../lib/Config';
+import { permissionPrefs, PERMISSION_MODES, type PermissionMode } from '../lib/Permissions';
 import { ExtensionCatalog } from '../lib/ExtensionCatalog';
 import { Doctor } from './Doctor';
 import { ExtensionCommands } from './ExtensionCommands';
@@ -45,6 +46,12 @@ usage:
   cinnamon logs                    the helper's recent log
   cinnamon screenshot [--out f.png] [--width px]
                                    a picture of Claude's window, taken by Cinnamon inside Claude (no permission needed)
+  cinnamon permissions [--json]    which macOS permissions Cinnamon uses
+  cinnamon permissions accessibility
+                                   turn Cinnamon on by itself each time Claude starts (asks for Accessibility; default)
+  cinnamon permissions none        no permissions: you choose Developer → Enable Main Process Debugger in Claude
+  cinnamon permissions chrome-tab on|off
+                                   close the chrome://inspect tab Claude opens in Chrome (asks for Automation; off)
   cinnamon update                  upgrade Cinnamon and refresh the setup
   cinnamon version                 Cinnamon's version
   cinnamon app install [--no-open] the Cinnamon menu bar app, in ~/Applications
@@ -89,6 +96,7 @@ Your settings, themes and extensions: ${this.paths.user}`;
       case 'screenshot': return new Screenshot(this.paths, out).run(args.slice(1));
       case 'logs': return this.logs();
       case 'update': return this.update();
+      case 'permissions': return this.permissions(args.slice(1), json);
       case 'version':
       case '--version':
       case '-v':
@@ -147,6 +155,7 @@ Your settings, themes and extensions: ${this.paths.user}`;
     try { const v = await this.browser.setup.refresh(); if (v) this.out.say(`Updated the Cinnamon browser extension (${v}).`); }
     catch (e) { this.out.say(this.out.yellow(`Could not update the browser extension: ${(e as Error).message || e}`)); }
     if (process.env.CINNAMON_NO_APPLY || !HelperClient.claudePid()) return 0;
+    if (permissionPrefs(new Config(paths.config).read()).mode === 'none') return 0; // it waits for you to turn the debugger on
     return this.helper.follow(start, { notAllowedOk: true });
   }
 
@@ -204,7 +213,46 @@ Your settings, themes and extensions: ${this.paths.user}`;
       applied,
       theme: cfg.theme,
       extensions: this.exts.all().filter((e) => ExtensionCatalog.isEnabled(e, cfg)).map((e) => e.id),
+      permissions: permissionPrefs(cfg),
     });
+    return 0;
+  }
+
+  /** `cinnamon permissions [accessibility|none | chrome-tab on|off]`: shows or changes them (config.json). */
+  private permissions(args: string[], json: boolean): number {
+    const { out, paths } = this;
+    const config = new Config(paths.config);
+    const [what, value] = args;
+    if (what === 'chrome-tab') {
+      if (value !== 'on' && value !== 'off') return out.fail('usage: cinnamon permissions chrome-tab on|off');
+      config.write({ closeChromeTab: value === 'on' });
+      out.say(value === 'on'
+        ? 'Cinnamon closes the chrome://inspect tab Claude opens in Chrome. If macOS asks whether Cinnamon Helper may control Google Chrome, choose Allow.'
+        : 'Cinnamon leaves Chrome alone (Claude still opens a chrome://inspect tab there when its debugger turns on).');
+      return 0;
+    }
+    if (what) {
+      if (!PERMISSION_MODES.includes(what as PermissionMode)) return out.fail(`usage: cinnamon permissions ${PERMISSION_MODES.join('|')} | chrome-tab on|off`);
+      config.write({ permissions: what });
+      // the login item asks for Accessibility (or doesn't) when it starts: restart it with the new mode
+      if (!process.env.CINNAMON_NO_APPLY && this.helper.loaded()) {
+        const code = this.installer().reloadLoginItem();
+        if (code !== 0) return code;
+      }
+      out.say(what === 'none'
+        ? `No permissions. Each time Claude starts, choose ${out.bold('Developer → Enable Main Process Debugger')} in Claude and Cinnamon applies itself.\nYou can turn Cinnamon Helper off in System Settings → Privacy & Security → Accessibility.`
+        : 'Cinnamon turns itself on each time Claude starts. If macOS asks, allow Cinnamon Helper under System Settings → Privacy & Security → Accessibility.');
+      return 0;
+    }
+    const prefs = permissionPrefs(config.read());
+    if (json) { out.json(prefs); return 0; }
+    out.say(prefs.mode === 'accessibility'
+      ? `${out.bold('Accessibility')}: Cinnamon Helper turns Cinnamon on by itself each time Claude starts (it presses Claude's Developer → Enable Main Process Debugger).`
+      : `${out.bold('None')}: you choose Developer → Enable Main Process Debugger in Claude each time it starts, and Cinnamon applies itself.`);
+    out.say(prefs.closeChromeTab
+      ? `${out.bold('Automation → Google Chrome')}: closes the chrome://inspect tab Claude opens.`
+      : out.dim('Chrome is left alone (cinnamon permissions chrome-tab on closes the chrome://inspect tab; macOS then asks for Automation).'));
+    out.say(out.dim('Nothing else: no Screen Recording, Full Disk Access, Input Monitoring or other apps\' data.'));
     return 0;
   }
 

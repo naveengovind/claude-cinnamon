@@ -11,12 +11,13 @@ const CLAUDE = '123';
 const LSTART = 'Thu Nov 12 18:03:11 2026';
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-interface Opts { mainFails?: boolean; listener?: string; running?: boolean; pressExit?: number; noHelper?: boolean; stateDir?: string; lockHeld?: boolean; keep?: boolean }
+interface Opts { manual?: boolean; closeChromeTab?: boolean; appearsAfter?: number; mainFails?: boolean; listener?: string; running?: boolean; pressExit?: number; noHelper?: boolean; stateDir?: string; lockHeld?: boolean; keep?: boolean }
 
 async function runApply(o: Opts = {}) {
   const calls: string[] = [];
   const out: string[] = [];
   let port = o.listener || '';
+  let sleeps = 0;
   const sys: System = {
     claudePid: () => (o.running === false ? null : CLAUDE),
     listener: () => port || null,
@@ -30,11 +31,11 @@ async function runApply(o: Opts = {}) {
       if (args[0] === 'activate') calls.push(`activate ${args[1]}`);
       return { status: 0, stdout: '' };
     },
-    sleep: async () => {},
+    sleep: async () => { sleeps++; if (o.appearsAfter !== undefined && sleeps >= o.appearsAfter) port = CLAUDE; },
     log: (l) => out.push(l),
   };
   const stateDir = o.stateDir || fs.mkdtempSync(path.join(os.tmpdir(), 'cm-state-'));
-  const applier = new Applier(sys, { root: path.join(import.meta.dir, '..'), stateDir, lockWait: 1 }, {
+  const applier = new Applier(sys, { root: path.join(import.meta.dir, '..'), stateDir, lockWait: 1, manual: o.manual, manualWait: 5, closeChromeTab: o.closeChromeTab ?? true }, {
     render: async () => 'SCRIPT',
     evaluate: async (code) => {
       if (code === CLOSE_JS) { calls.push('close'); return 'closed'; }
@@ -160,4 +161,33 @@ test('a successful apply records which Claude process has the mods', async () =>
 test('a failed apply records nothing', async () => {
   const r = await runApply({ mainFails: true });
   assert.strictEqual(r.marker, null);
+});
+
+test('with closing the Chrome tab off, Chrome is never scripted (no Automation prompt)', async () => {
+  const r = await runApply({ closeChromeTab: false });
+  assert.strictEqual(r.status, 0, r.out);
+  assert.ok(r.calls.includes(`press ${CLAUDE}`), r.calls.join(','));
+  assert.ok(!r.calls.some((c) => c.startsWith('chrome')), r.calls.join(','));
+});
+
+test('manual mode presses nothing and applies once you turn the debugger on', async () => {
+  const r = await runApply({ manual: true, closeChromeTab: false, appearsAfter: 3 });
+  assert.strictEqual(r.status, 0, r.out);
+  assert.ok(!r.calls.some((c) => c.startsWith('press') || c.startsWith('activate')), r.calls.join(','));
+  assert.ok(before(r.calls, 'main', 'close'), r.calls.join(','));
+  assert.match(r.out, /Developer → Enable Main Process Debugger/);
+});
+
+test('manual mode gives up when the debugger is never turned on', async () => {
+  const r = await runApply({ manual: true, closeChromeTab: false });
+  assert.notStrictEqual(r.status, 0);
+  assert.deepStrictEqual(r.calls, []);
+  assert.strictEqual(r.marker, null);
+});
+
+test('manual mode can still close the Chrome tab when that is on', async () => {
+  const r = await runApply({ manual: true, closeChromeTab: true, appearsAfter: 2 });
+  assert.strictEqual(r.status, 0, r.out);
+  assert.ok(before(r.calls, 'chrome snapshot', 'chrome cleanup'), r.calls.join(','));
+  assert.ok(!r.calls.some((c) => c.startsWith('press')), r.calls.join(','));
 });

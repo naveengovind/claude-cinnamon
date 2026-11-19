@@ -74,7 +74,7 @@ Settings for extensions live in `config.json` under `"settings": { "<extension i
 If the user also wants Cinnamon on claude.ai in a browser, `{{CINNAMON}} browser list` shows which supported browsers
 are installed (chrome, arc, brave, edge, chromium, vivaldi). `{{CINNAMON}} browser install --browser <id>` (the one
 they use; default Chrome) builds a small local extension in `{{USER_DIR}}/browser/extension` and prints the two
-one-time steps they do on that browser's extensions page (Developer mode, Load unpacked). Ask
+one-time steps they do on that browser's extensions page (Developer mode, then drag in the folder Finder shows). Ask
 before running it: it opens the browser.
 After that, everything you do here reaches the browser too, live: themes, extensions and settings are the same files
 and the same config. Extensions with a main part (the sidebar cards) are desktop-only; a Glass theme gets a dark
@@ -93,4 +93,7 @@ extension is connected; `{{CINNAMON}} screenshot` only sees the desktop app.
 - Native macOS menus (the menu bar, right-click menus) and permission prompts can't be themed.
 - Downloaded extensions run in the page only (no main-process code); only built-in ones have a main part.
 - Cinnamon's injection needs Claude's Developer Mode (Help → Troubleshooting → Enable Developer Mode) and the
-  Accessibility permission for Cinnamon Helper; `doctor` says when either is missing.
+  Accessibility permission for Cinnamon Helper; `doctor` says when either is missing. `{{CINNAMON}} permissions none`
+  drops the permission (the user then chooses Developer → Enable Main Process Debugger in Claude at each launch), and
+  `{{CINNAMON}} permissions chrome-tab on|off` decides whether the chrome://inspect tab is closed (asks for Automation).
+  Ask before changing either.

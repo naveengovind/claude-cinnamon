@@ -480,12 +480,13 @@ function cli(apps: string[]) {
   const said: string[] = [];
   const opened: [string, string][] = [];
   const copied: string[] = [];
+  const revealed: string[] = [];
   const out = new Output();
   out.say = (...a: unknown[]) => { said.push(a.join(' ')); };
   out.fail = (m: string) => { said.push(`FAIL ${m}`); return 1; };
   const paths = new Paths({ CINNAMON_HOME: s.user, CINNAMON_ROOT: ROOT, CINNAMON_VERSION: '0.3.4' } as NodeJS.ProcessEnv);
-  const cmd = new BrowserCommands(paths, out, { home: s.home, applications: [s.applications], openApp: (a, u) => opened.push([a, u]), copy: (t) => copied.push(t) });
-  return { ...s, cmd, said, opened, copied };
+  const cmd = new BrowserCommands(paths, out, { home: s.home, applications: [s.applications], openApp: (a, u) => opened.push([a, u]), copy: (t) => copied.push(t), reveal: (d) => revealed.push(d) });
+  return { ...s, cmd, said, opened, copied, revealed };
 }
 
 test('`browser list --json` lists every supported browser, installed or not, with whether Cinnamon is registered', async () => {
@@ -510,6 +511,16 @@ test('`browser install --browser arc` opens Arc\'s own extensions page and puts 
   assert.deepStrictEqual(c.opened, [['Arc', 'arc://extensions']]);
   assert.deepStrictEqual(c.copied, [c.setup.extensionDir]);
   assert.ok(c.said.some((l) => l.includes('One-time setup in Arc')));
+});
+
+test('`browser install` shows the extension folder in Finder, ready to drag onto the extensions page', async () => {
+  const c = cli(['Google Chrome']);
+  assert.strictEqual(await c.cmd.run(['install']), 0);
+  assert.deepStrictEqual(c.revealed, [c.setup.extensionDir]);
+  assert.ok(c.said.some((l) => /Drag/.test(l) && /onto/.test(l)), c.said.join('\n'));
+  const quiet = cli(['Google Chrome']);
+  assert.strictEqual(await quiet.cmd.run(['install', '--no-open']), 0);
+  assert.deepStrictEqual(quiet.revealed, [], 'nothing opens with --no-open');
 });
 
 test('`browser install` without --browser picks Chrome; an unknown or missing browser fails with the reason', async () => {
