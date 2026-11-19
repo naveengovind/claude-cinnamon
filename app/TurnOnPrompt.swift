@@ -32,6 +32,7 @@ final class TurnOnPrompt: ObservableObject {
       Task { @MainActor in TurnOnPrompt.shared.hide() }
     }
     Task { await check(after: 0) }
+    Task { await check(after: 5) } // once more after launch: a setup or mode change may still be settling
   }
 
   /** Shows the card when it is needed (guided mode, set up, Claude open, not applied), hides it otherwise. */
@@ -41,10 +42,15 @@ final class TurnOnPrompt: ObservableObject {
     checking = true
     defer { checking = false }
     guard let s = await CLI.json(Status.self, ["status"]) else { hide(); return }
+    AppModel.shared.status = s
+    evaluate(s)
+  }
+
+  /** Shows or hides the card for a status (the menu's every refresh comes through here too). */
+  func evaluate(_ s: Status) {
     let needed = s.helper.running && s.permissions?.mode == "none" && s.claude.running && !s.applied
     currentPid = s.claude.pid
     if needed && !quietUntilLaunch && (s.claude.pid == nil || s.claude.pid != dismissedFor) { show() } else { hide() }
-    AppModel.shared.status = s
   }
 
   /** From the menu's Turn On…: shows the card even after Not Now. */
@@ -77,7 +83,9 @@ final class TurnOnPrompt: ObservableObject {
       panel = p
     }
     guard let p = panel else { return }
-    if !p.isVisible, let screen = NSScreen.main?.visibleFrame {
+    // on the screen the person is using (the one with the pointer), top right
+    let mouse = NSEvent.mouseLocation
+    if !p.isVisible, let screen = (NSScreen.screens.first { NSMouseInRect(mouse, $0.frame, false) } ?? NSScreen.main)?.visibleFrame {
       p.setFrameTopLeftPoint(NSPoint(x: screen.maxX - p.frame.width - 16, y: screen.maxY - 16))
     }
     p.orderFrontRegardless()

@@ -68,7 +68,7 @@ final class AppModel: ObservableObject {
     async let e = CLI.json(ExtensionList.self, ["ext", "list"])
     let (status, themes, exts) = await (s, t, e)
     guard mine == generation else { return } // a newer refresh has (or will have) newer answers
-    if let status { self.status = status; watch(status.user) }
+    if let status { self.status = status; watch(status.user); TurnOnPrompt.shared.evaluate(status) }
     if let themes { self.themes = themes.themes; currentTheme = themes.current }
     if let exts { extensions = exts.extensions }
     loadError = status == nil ? "Couldn't read Cinnamon's status (cinnamon status --json). See Show Log, or run cinnamon doctor in Terminal." : nil
