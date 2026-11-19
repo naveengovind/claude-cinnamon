@@ -47,7 +47,8 @@ struct MenuView: View {
     }
     .padding(12)
     .frame(width: 320)
-    .task { await model.refresh() }
+    .task { model.readLaunchAtLogin(); await model.refresh() }
+    .onDisappear { if model.busy == nil { model.message = nil } } // a report is for now, not for the next time
   }
 
   private var header: some View {
@@ -85,6 +86,10 @@ struct MenuView: View {
         Text("On").font(.caption).foregroundStyle(.secondary)
       } else if model.isManual {
         Button("Turn On…") { TurnOnPrompt.shared.showNow() }.controlSize(.small)
+      } else if s.helper.accessibility == false {
+        Button("Allow Accessibility…") { NSWorkspace.shared.open(Links.accessibility) }
+          .controlSize(.small)
+          .help("Automatic mode presses Claude's menu item for you, which needs Accessibility. Or choose Guided in Setup.")
       } else {
         Button("Apply Now") { Task { await model.applyNow() } }.controlSize(.small)
       }
@@ -121,6 +126,7 @@ struct MenuView: View {
 
   private var actions: some View {
     VStack(alignment: .leading, spacing: 2) {
+    VStack(alignment: .leading, spacing: 2) {
       MenuButton("Apply Now", systemImage: "arrow.clockwise") { Task { await model.applyNow() } }
         .disabled(!(model.status?.claude.running ?? false))
       MenuButton("Take Screenshot…", systemImage: "camera") { saveScreenshot() }
@@ -130,10 +136,12 @@ struct MenuView: View {
       MenuButton("Open Themes Folder", systemImage: "folder") { model.openUserFolder("themes") }
       MenuButton("Check for Updates", systemImage: "arrow.down.circle") { Task { await model.update() } }
       MenuButton("Setup and Help…", systemImage: "gearshape") { Windows.showSetup() }
-      Divider().padding(.vertical, 2)
-      MenuButton("Quit Cinnamon", systemImage: "power") { NSApp.terminate(nil) }
     }
     .disabled(model.busy != nil)
+    Divider().padding(.vertical, 2)
+    // never disabled: a long command must not trap the person
+    MenuButton("Quit Cinnamon", systemImage: "power") { NSApp.terminate(nil) }
+    }
   }
 
   private func saveScreenshot() {

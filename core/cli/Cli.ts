@@ -204,7 +204,7 @@ Your settings, themes and extensions: ${this.paths.user}`;
       root: paths.root,
       user: paths.user,
       binary: paths.binary,
-      helper: { running: this.helper.loaded(), built: fs.existsSync(paths.helperApp) },
+      helper: { running: this.helper.loaded(), built: fs.existsSync(paths.helperApp), accessibility: this.helper.accessibility() },
       claude: { installed: fs.existsSync('/Applications/Claude.app'), running: !!pid, pid: pid ? Number(pid) : null },
       applied,
       theme: cfg.theme,

@@ -14,12 +14,18 @@ final class TurnOnPrompt: ObservableObject {
   /** The Claude process the person said "Not now" for: asked again at its next launch. */
   private var dismissedFor: Int?
   private var currentPid: Int?
+  /** Not Now with no Claude process known: quiet until Claude next starts. */
+  private var quietUntilLaunch = false
+  private var checking = false
 
   func start() {
     let center = NSWorkspace.shared.notificationCenter
     center.addObserver(forName: NSWorkspace.didLaunchApplicationNotification, object: nil, queue: .main) { note in
       guard (note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication)?.bundleIdentifier == TurnOnPrompt.claudeId else { return }
-      Task { @MainActor in await TurnOnPrompt.shared.check(after: 2) }
+      Task { @MainActor in
+        TurnOnPrompt.shared.quietUntilLaunch = false
+        await TurnOnPrompt.shared.check(after: 2)
+      }
     }
     center.addObserver(forName: NSWorkspace.didTerminateApplicationNotification, object: nil, queue: .main) { note in
       guard (note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication)?.bundleIdentifier == TurnOnPrompt.claudeId else { return }
@@ -31,28 +37,33 @@ final class TurnOnPrompt: ObservableObject {
   /** Shows the card when it is needed (guided mode, set up, Claude open, not applied), hides it otherwise. */
   func check(after seconds: Double) async {
     if seconds > 0 { try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000)) }
+    guard !checking else { return }
+    checking = true
+    defer { checking = false }
     guard let s = await CLI.json(Status.self, ["status"]) else { hide(); return }
     let needed = s.helper.running && s.permissions?.mode == "none" && s.claude.running && !s.applied
     currentPid = s.claude.pid
-    if needed && s.claude.pid != dismissedFor { show() } else { hide() }
-    if s.applied { AppModel.shared.status = s }
+    if needed && !quietUntilLaunch && (s.claude.pid == nil || s.claude.pid != dismissedFor) { show() } else { hide() }
+    AppModel.shared.status = s
   }
 
   /** From the menu's Turn On…: shows the card even after Not Now. */
   func showNow() {
     dismissedFor = nil
+    quietUntilLaunch = false
     show()
   }
 
   func notNow() {
     dismissedFor = currentPid
+    if currentPid == nil { quietUntilLaunch = true }
     hide()
   }
 
   private func show() {
     if panel == nil {
       let p = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 360, height: 10),
-                      styleMask: [.titled, .closable, .nonactivatingPanel, .fullSizeContentView], backing: .buffered, defer: false)
+                      styleMask: [.titled, .nonactivatingPanel, .fullSizeContentView], backing: .buffered, defer: false)
       p.titleVisibility = .hidden
       p.titlebarAppearsTransparent = true
       p.isFloatingPanel = true

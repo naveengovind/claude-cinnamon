@@ -77,6 +77,10 @@ struct SetupView: View {
           }
         }
 
+        if let err = model.loadError {
+          Label(err, systemImage: "exclamationmark.triangle.fill").foregroundStyle(.orange).font(.callout)
+        }
+
         if let notes = model.doctor?.notes, !notes.isEmpty {
           Text(notes.joined(separator: "\n")).font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
         }

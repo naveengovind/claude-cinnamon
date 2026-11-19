@@ -6,6 +6,8 @@
 //   2. one installed in the usual places (~/.local/bin, Homebrew, ~/bin),
 //   3. the one inside this app (Contents/Resources/cinnamon, in the downloadable app): used to set Cinnamon up, when
 //      it is first copied to ~/.local/bin (see bootstrap), so updates never write inside the app.
+// When Homebrew's cask installed this app, its own copy comes first: brew updates the app and that copy together, and
+// an older copy elsewhere (~/.local/bin) must not win.
 import Foundation
 
 struct CommandResult {
@@ -34,9 +36,16 @@ enum CLI {
     return FileManager.default.isExecutableFile(atPath: url.path) ? url.path : nil
   }
 
+  /** Homebrew's cask installed this app (and so the `cinnamon` inside it). */
+  static var caskManaged: Bool {
+    ["/opt/homebrew/Caskroom/cinnamon", "/usr/local/Caskroom/cinnamon"].contains { FileManager.default.fileExists(atPath: $0) }
+      && Bundle.main.bundlePath.hasSuffix("/Applications/Cinnamon.app")
+  }
+
   /** The `cinnamon` this app runs, or nil when there is none at all. */
   static func locate() -> String? {
     let fm = FileManager.default
+    if caskManaged, let own = bundled { return own }
     if let url = Bundle.main.url(forResource: "cli-path", withExtension: nil),
        let named = try? String(contentsOf: url, encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines),
        !named.isEmpty, fm.isExecutableFile(atPath: named) {
@@ -47,7 +56,7 @@ enum CLI {
   }
 
   /** True when only the copy inside the app is there: Cinnamon isn't set up on this Mac yet. */
-  static var onlyBundled: Bool { locate() != nil && locate() == bundled }
+  static var onlyBundled: Bool { !caskManaged && locate() != nil && locate() == bundled }
 
   /**
    * Copies the app's own `cinnamon` to ~/.local/bin, where `cinnamon update` can replace it without touching the
@@ -69,16 +78,16 @@ enum CLI {
     }
   }
 
-  /** Runs `cinnamon <args>` off the main thread. */
-  static func run(_ args: [String], using explicit: String? = nil) async -> CommandResult {
+  /** Runs `cinnamon <args>` off the main thread; stopped after `timeout` seconds. */
+  static func run(_ args: [String], using explicit: String? = nil, timeout: TimeInterval = 300) async -> CommandResult {
     guard let exe = explicit ?? locate() else {
       return CommandResult(status: 127, stdout: "", stderr: CLIError.missing.localizedDescription)
     }
-    return await Task.detached(priority: .userInitiated) { runBlocking(exe, args) }.value
+    return await Task.detached(priority: .userInitiated) { runBlocking(exe, args, timeout: timeout) }.value
   }
 
   /** Runs it and waits: only ever called off the main thread (see run). */
-  private static func runBlocking(_ exe: String, _ args: [String]) -> CommandResult {
+  private static func runBlocking(_ exe: String, _ args: [String], timeout: TimeInterval) -> CommandResult {
     let p = Process()
     p.executableURL = URL(fileURLWithPath: exe)
     p.arguments = args
@@ -95,6 +104,7 @@ enum CLI {
     do { try p.run() } catch {
       return CommandResult(status: 126, stdout: "", stderr: "Could not run \(exe): \(error.localizedDescription)")
     }
+    DispatchQueue.global().asyncAfter(deadline: .now() + timeout) { if p.isRunning { p.terminate() } }
     // read both pipes to the end before waiting, so a chatty command can't fill one and stall
     let group = DispatchGroup()
     var outData = Data(), errData = Data()
@@ -109,11 +119,13 @@ enum CLI {
                          stderr: String(decoding: errData, as: UTF8.self))
   }
 
-  /** Runs `cinnamon <args> --json` and decodes what it prints. */
+  /** Runs `cinnamon <args> --json` and decodes what it prints; nil (and why, in the system log) when it can't. */
   static func json<T: Decodable>(_ type: T.Type, _ args: [String]) async -> T? {
-    let r = await run(args + ["--json"])
-    guard let data = r.stdout.data(using: .utf8) else { return nil }
-    return try? JSONDecoder().decode(T.self, from: data)
+    let r = await run(args + ["--json"], timeout: 60)
+    do { return try JSONDecoder().decode(T.self, from: Data(r.stdout.utf8)) } catch {
+      NSLog("Cinnamon: cinnamon %@ --json: %@ (exit %d) %@", args.joined(separator: " "), String(describing: error), r.status, r.stderr)
+      return nil
+    }
   }
 }
 
@@ -127,7 +139,8 @@ enum CLIError: LocalizedError {
 // What `--json` prints (core/cli: status, theme list, ext list, doctor).
 
 struct Status: Decodable {
-  struct Helper: Decodable { let running: Bool; let built: Bool }
+  /** accessibility: whether the helper may use it (nil before 0.4.4). */
+  struct Helper: Decodable { let running: Bool; let built: Bool; let accessibility: Bool? }
   struct Claude: Decodable { let installed: Bool; let running: Bool; let pid: Int? }
   let version: String
   let user: String

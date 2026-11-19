@@ -18,6 +18,20 @@ export class HelperClient {
   /** Your Claude's main process, if it is running (also when this runs inside it, from a Claude Code session). */
   static claudePid(): string | null { return pidOf('Claude'); }
 
+  /**
+   * Whether the helper may use Accessibility, from its log: its latest start says "NOT allowed", unless it logged
+   * "Accessibility allowed" since. (Only the helper process itself can ask macOS.)
+   */
+  static accessibilityAllowed(log: string): boolean {
+    const lastStart = log.lastIndexOf('watching ');
+    const recent = lastStart === -1 ? '' : log.slice(lastStart);
+    return !/NOT allowed/.test(recent.split('\n')[0] || '') || /Accessibility allowed/.test(recent);
+  }
+
+  accessibility(): boolean {
+    try { return HelperClient.accessibilityAllowed(fs.readFileSync(this.paths.logs, 'utf8')); } catch { return false; }
+  }
+
   loaded(): boolean { return sh('launchctl', ['print', `gui/${process.getuid!()}/${Paths.LABEL}`]).status === 0; }
 
   logSize(): number { try { return fs.statSync(this.paths.logs).size; } catch { return 0; } }

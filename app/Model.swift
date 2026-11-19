@@ -14,6 +14,14 @@ final class AppModel: ObservableObject {
   @Published var doctor: DoctorReport?
   /** What is running now ("Applying…"), shown with a spinner; nil when idle. */
   @Published var busy: String?
+  /** Commands running now: `busy` clears only when the last one ends. */
+  private var running = 0
+  /** Each refresh's number: an older one that finishes later is dropped. */
+  private var generation = 0
+  private var stateWatcher: DispatchSourceFileSystemObject?
+  private var pendingRefresh: DispatchWorkItem?
+  /** A status/doctor/browser listing that couldn't be read, shown in Setup. */
+  @Published var loadError: String?
   /** The last command's output worth showing (an error, an install's report). */
   @Published var message: String?
   @Published var messageIsError = false
@@ -31,7 +39,21 @@ final class AppModel: ObservableObject {
   var isSetUp: Bool { status?.helper.running ?? false }
 
   init() {
-    launchAtLogin = SMAppService.mainApp.status == .enabled
+    readLaunchAtLogin()
+    // Claude starting or quitting changes what the menu shows
+    let center = NSWorkspace.shared.notificationCenter
+    for name in [NSWorkspace.didLaunchApplicationNotification, NSWorkspace.didTerminateApplicationNotification] {
+      center.addObserver(forName: name, object: nil, queue: .main) { note in
+        guard (note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication)?.bundleIdentifier == TurnOnPrompt.claudeId else { return }
+        Task { @MainActor in AppModel.shared.refreshSoon() }
+      }
+    }
+  }
+
+  /** Requires-approval counts as on (it is registered; macOS waits for the person in System Settings). */
+  func readLaunchAtLogin() {
+    let s = SMAppService.mainApp.status
+    launchAtLogin = s == .enabled || s == .requiresApproval
   }
 
   // MARK: reading
@@ -39,42 +61,67 @@ final class AppModel: ObservableObject {
   func refresh() async {
     cliMissing = CLI.locate() == nil
     if cliMissing { return }
+    generation += 1
+    let mine = generation
     async let s = CLI.json(Status.self, ["status"])
     async let t = CLI.json(ThemeList.self, ["theme", "list"])
     async let e = CLI.json(ExtensionList.self, ["ext", "list"])
     let (status, themes, exts) = await (s, t, e)
+    guard mine == generation else { return } // a newer refresh has (or will have) newer answers
     if let status { self.status = status; watch(status.user) }
     if let themes { self.themes = themes.themes; currentTheme = themes.current }
     if let exts { extensions = exts.extensions }
+    loadError = status == nil ? "Couldn't read Cinnamon's status (cinnamon status --json). See Show Log, or run cinnamon doctor in Terminal." : nil
+  }
+
+  /** One refresh shortly, however many changes arrive meanwhile (a config save is a write plus a rename). */
+  func refreshSoon() {
+    pendingRefresh?.cancel()
+    let work = DispatchWorkItem { Task { @MainActor in await AppModel.shared.refresh() } }
+    pendingRefresh = work
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: work)
   }
 
   func refreshDoctor() async {
     if CLI.locate() == nil { cliMissing = true; return }
     doctor = await CLI.json(DoctorReport.self, ["doctor"])
+    if doctor == nil { loadError = "Couldn't run cinnamon doctor. Run it in Terminal to see why." }
   }
 
-  /** Follows changes made elsewhere (the CLI, Claude's Settings rows, Claude Code) by watching the settings folder. */
+  /**
+   * Follows changes made elsewhere (the CLI, Claude's Settings rows, Claude Code, an apply finishing, a browser
+   * connecting) by watching the settings folder and its state/ folder.
+   */
   private func watch(_ dir: String) {
     guard watchedDir != dir else { return }
     watcher?.cancel()
+    stateWatcher?.cancel()
+    try? FileManager.default.createDirectory(atPath: "\(dir)/state/presence", withIntermediateDirectories: true)
+    watcher = folderWatcher(dir)
+    stateWatcher = folderWatcher("\(dir)/state")
+    watchedDir = dir
+  }
+
+  private func folderWatcher(_ dir: String) -> DispatchSourceFileSystemObject? {
     let fd = open(dir, O_EVTONLY)
-    guard fd >= 0 else { return }
+    guard fd >= 0 else { return nil }
     let source = DispatchSource.makeFileSystemObjectSource(fileDescriptor: fd, eventMask: [.write, .rename, .delete], queue: .main)
-    source.setEventHandler { [weak self] in Task { await self?.refresh() } }
+    source.setEventHandler { Task { @MainActor in AppModel.shared.refreshSoon() } }
     source.setCancelHandler { close(fd) }
     source.resume()
-    watcher = source
-    watchedDir = dir
+    return source
   }
 
   // MARK: doing
 
   /** Runs a command with a spinner; shows its output when it fails (or always, with `show`). */
   @discardableResult
-  func perform(_ label: String, _ args: [String], show: Bool = false, using exe: String? = nil) async -> CommandResult {
+  func perform(_ label: String, _ args: [String], show: Bool = false, using exe: String? = nil, timeout: TimeInterval = 300) async -> CommandResult {
+    running += 1
     busy = label
-    defer { busy = nil }
-    let r = await CLI.run(args, using: exe)
+    message = nil
+    defer { running -= 1; if running == 0 { busy = nil } }
+    let r = await CLI.run(args, using: exe, timeout: timeout)
     if !r.ok || show {
       message = r.text.isEmpty ? (r.ok ? "Done." : "That didn't work (exit \(r.status)).") : r.text
       messageIsError = !r.ok
@@ -110,8 +157,10 @@ final class AppModel: ObservableObject {
 
   var isManual: Bool { status?.permissions?.mode == "none" }
 
+  /** Guided mode: the card says what to click (an apply would wait for that click). Automatic: apply now. */
   func applyNow() async {
-    await perform(isManual ? "In Claude, choose Developer → Enable Main Process Debugger…" : "Applying to Claude…", ["apply"], show: true)
+    if isManual { TurnOnPrompt.shared.showNow(); return }
+    await perform("Applying to Claude…", ["apply"], show: true, timeout: 180)
   }
 
   func screenshot(to url: URL) async {
@@ -134,7 +183,7 @@ final class AppModel: ObservableObject {
         return
       }
     }
-    await perform("Setting up Cinnamon…", ["install"], show: true, using: exe)
+    await perform("Setting up Cinnamon…", ["install"], show: true, using: exe, timeout: 300)
     await refreshDoctor()
   }
 
@@ -145,7 +194,27 @@ final class AppModel: ObservableObject {
 
   /** `cinnamon update`; an app that `cinnamon app install` put in ~/Applications is refreshed and restarted too. */
   func update() async {
-    let r = await perform("Checking for updates…", ["update"], show: true)
+    if CLI.caskManaged {
+      // brew replaces this app (quitting it first), so the update runs on its own, logs to the helper's log, and
+      // opens the new app when it is done
+      guard let exe = CLI.locate(), let user = status?.user else { return }
+      let p = Process()
+      p.executableURL = URL(fileURLWithPath: "/bin/sh")
+      p.arguments = ["-c", "nohup \"$0\" update >> \"$1/logs/helper.log\" 2>&1; /usr/bin/open -a \"$2\"", exe, user, Bundle.main.bundlePath]
+      p.standardInput = FileHandle.nullDevice
+      p.standardOutput = FileHandle.nullDevice
+      p.standardError = FileHandle.nullDevice
+      do {
+        try p.run()
+        message = "Updating with Homebrew. Cinnamon quits and opens again when it's done (progress: Show Log)."
+        messageIsError = false
+      } catch {
+        message = "Could not start the update: \(error.localizedDescription)"
+        messageIsError = true
+      }
+      return
+    }
+    let r = await perform("Checking for updates…", ["update"], show: true, timeout: 900)
     guard r.ok, Bundle.main.bundlePath == "\(CLI.home)/Applications/Cinnamon.app" else { return }
     let refreshed = await CLI.run(["app", "install", "--no-open"])
     if refreshed.ok { relaunch() }
@@ -224,7 +293,7 @@ final class AppModel: ObservableObject {
       message = "Could not change Open at login: \(error.localizedDescription)"
       messageIsError = true
     }
-    launchAtLogin = SMAppService.mainApp.status == .enabled
+    readLaunchAtLogin()
   }
 
   func openUserFolder(_ sub: String) {

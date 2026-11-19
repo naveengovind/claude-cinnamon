@@ -58,7 +58,7 @@ export class Doctor {
     const recent = lastStart === -1 ? '' : log.slice(lastStart);
     const prefs = permissionPrefs(new Config(paths.config).read());
     if (prefs.mode === 'accessibility') {
-      const allowed = !/NOT allowed/.test(recent.split('\n')[0] || '') || /Accessibility allowed/.test(recent);
+      const allowed = HelperClient.accessibilityAllowed(log);
       this.check('accessibility', allowed, 'helper may use Accessibility', 'System Settings → Privacy & Security → Accessibility → turn on Cinnamon Helper');
       this.check('developer-mode', !/never appeared/.test(recent), 'Developer menu found at the last launch', 'in Claude: Help → Troubleshooting → Enable Developer Mode');
     } else {

@@ -375,6 +375,7 @@ test('status --json describes the setup', () => {
   assert.strictEqual(r.user, h);
   assert.strictEqual(typeof r.version, 'string');
   assert.strictEqual(typeof r.helper.running, 'boolean');
+  assert.strictEqual(typeof r.helper.accessibility, 'boolean');
   assert.strictEqual(typeof r.claude.running, 'boolean');
   assert.strictEqual(typeof r.claude.installed, 'boolean');
   assert.ok(r.extensions.includes('sidebar-cards'));

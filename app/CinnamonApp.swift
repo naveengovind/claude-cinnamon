@@ -146,6 +146,7 @@ enum Windows {
 
   static func showLog(_ text: String) {
     open["log"]?.close()
+    open["log"] = nil // close() only clears it on a later pass; don't bring the closed window back
     show("log", title: "Cinnamon Log", size: NSSize(width: 640, height: 420)) {
       ScrollView { Text(text).font(.system(.caption, design: .monospaced)).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading).padding() }
     }
