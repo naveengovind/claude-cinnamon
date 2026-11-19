@@ -11,7 +11,7 @@ const CLAUDE = '123';
 const LSTART = 'Thu Nov 12 18:03:11 2026';
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-interface Opts { manual?: boolean; closeChromeTab?: boolean; appearsAfter?: number; mainFails?: boolean; listener?: string; running?: boolean; pressExit?: number; noHelper?: boolean; stateDir?: string; lockHeld?: boolean; keep?: boolean }
+interface Opts { chromeClosed?: boolean; manual?: boolean; closeChromeTab?: boolean; appearsAfter?: number; mainFails?: boolean; listener?: string; running?: boolean; pressExit?: number; noHelper?: boolean; stateDir?: string; lockHeld?: boolean; keep?: boolean }
 
 async function runApply(o: Opts = {}) {
   const calls: string[] = [];
@@ -22,14 +22,19 @@ async function runApply(o: Opts = {}) {
     claudePid: () => (o.running === false ? null : CLAUDE),
     listener: () => port || null,
     lstart: () => LSTART,
-    osascript: (args) => { calls.push(`chrome ${args[3]}`); return '{"running":true,"ids":[]}'; },
-    osascriptAsync: async (args) => { calls.push(`chrome ${args[3]}`); await wait(600); calls.push('chrome cleanup done'); return '{"closed":1}'; },
     helperExists: () => !o.noHelper,
     helper: (args) => {
       if (args[0] === 'press') { calls.push(`press ${args[1]}`); if (o.pressExit) return { status: o.pressExit, stdout: '' }; port = CLAUDE; }
       if (args[0] === 'front') return { status: 0, stdout: '77' };
+      if (args[0] === 'inspect-tabs') { calls.push('chrome snapshot'); return { status: 0, stdout: `{"running":${!o.chromeClosed},"count":1}` }; }
       if (args[0] === 'activate') calls.push(`activate ${args[1]}`);
       return { status: 0, stdout: '' };
+    },
+    helperAsync: async (args) => {
+      calls.push(`chrome cleanup ${args.slice(1).join(' ')}`);
+      await wait(600);
+      calls.push('chrome cleanup done');
+      return { status: 0, stdout: '{"closed":1}' };
     },
     sleep: async () => { sleeps++; if (o.appearsAfter !== undefined && sleeps >= o.appearsAfter) port = CLAUDE; },
     log: (l) => out.push(l),
@@ -44,14 +49,14 @@ async function runApply(o: Opts = {}) {
       if (o.mainFails) throw new Error('boom');
       return { applied: [2] };
     },
-    chromeScript: () => '/tmp/chrome-tab.js',
   });
   const status = await applier.run({ keep: o.keep, lockHeld: o.lockHeld });
   const markerFile = path.join(stateDir, 'applied');
   const marker = fs.existsSync(markerFile) ? fs.readFileSync(markerFile, 'utf8').trim() : null;
   return { status, calls, out: out.join('\n'), marker, stateDir };
 }
-const before = (calls: string[], a: string, b: string) => calls.indexOf(a) !== -1 && calls.indexOf(a) < calls.indexOf(b);
+const at = (calls: string[], a: string) => calls.findIndex((c) => c === a || c.startsWith(`${a} `));
+const before = (calls: string[], a: string, b: string) => at(calls, a) !== -1 && at(calls, a) < at(calls, b);
 
 test('the debugger is closed even when applying fails', async () => {
   const r = await runApply({ mainFails: true });
@@ -142,14 +147,14 @@ test('the Chrome tab is closed right after the press, without waiting for the mo
 
 test('Chrome is cleaned up even when applying fails', async () => {
   const r = await runApply({ mainFails: true });
-  assert.ok(r.calls.includes('chrome cleanup'), r.calls.join(','));
+  assert.ok(at(r.calls, 'chrome cleanup') !== -1, r.calls.join(','));
 });
 
 test('a failed press leaves Chrome alone (Claude never opened anything in it)', async () => {
   const r = await runApply({ pressExit: 2 });
   assert.notStrictEqual(r.status, 0);
   assert.ok(r.calls.includes(`press ${CLAUDE}`), r.calls.join(','));
-  assert.ok(!r.calls.includes('chrome cleanup'), r.calls.join(','));
+  assert.strictEqual(at(r.calls, 'chrome cleanup'), -1, r.calls.join(','));
   assert.ok(!r.calls.includes('main'));
 });
 
@@ -163,7 +168,7 @@ test('a failed apply records nothing', async () => {
   assert.strictEqual(r.marker, null);
 });
 
-test('with closing the Chrome tab off, Chrome is never scripted (no Automation prompt)', async () => {
+test('with closing the Chrome tab off, Chrome is left alone', async () => {
   const r = await runApply({ closeChromeTab: false });
   assert.strictEqual(r.status, 0, r.out);
   assert.ok(r.calls.includes(`press ${CLAUDE}`), r.calls.join(','));
@@ -185,9 +190,15 @@ test('manual mode gives up when the debugger is never turned on', async () => {
   assert.strictEqual(r.marker, null);
 });
 
-test('manual mode can still close the Chrome tab when that is on', async () => {
+test('manual mode leaves Chrome alone (nothing may close the tab without Accessibility)', async () => {
   const r = await runApply({ manual: true, closeChromeTab: true, appearsAfter: 2 });
   assert.strictEqual(r.status, 0, r.out);
-  assert.ok(before(r.calls, 'chrome snapshot', 'chrome cleanup'), r.calls.join(','));
-  assert.ok(!r.calls.some((c) => c.startsWith('press')), r.calls.join(','));
+  assert.ok(!r.calls.some((c) => c.startsWith('chrome') || c.startsWith('press')), r.calls.join(','));
+});
+
+test('only the tab Claude opens is closed, and Chrome is quit only if Claude started it', async () => {
+  const running = await runApply();
+  assert.ok(running.calls.includes('chrome cleanup --known 1'), running.calls.join(','));
+  const started = await runApply({ chromeClosed: true });
+  assert.ok(started.calls.includes('chrome cleanup --known 1 --launched'), started.calls.join(','));
 });

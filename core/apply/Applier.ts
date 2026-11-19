@@ -1,8 +1,8 @@
 // Applies Cinnamon to the running Claude: Cinnamon Helper presses Claude's own Developer > Enable Main Process
 // Debugger (Developer Mode must be on), the bundled main-process script is evaluated through the debugger, and the
 // debugger is turned off again — even if applying fails — unless `keep`. Turning the debugger on makes Claude open
-// chrome://inspect in Google Chrome; with `closeChromeTab` that tab is closed as soon as it appears, and the previous
-// app is brought back. In `manual` mode (no Accessibility) nothing is pressed: it waits for you to turn the debugger on.
+// chrome://inspect in Google Chrome; Cinnamon Helper closes that tab as soon as it appears (with Accessibility, the
+// permission it already has: no Automation), and the previous app is brought back. In `manual` mode (no Accessibility) nothing is pressed: it waits for you to turn the debugger on.
 // Only one apply runs at a time (state/apply.lock); a caller that already holds the lock passes `lockHeld`.
 import fs from 'node:fs';
 import os from 'node:os';
@@ -26,8 +26,6 @@ export interface ApplierDeps {
   render(): Promise<string>;
   /** Evaluates code in Claude's main process; resolves to its value, rejects on an exception or time-out. */
   evaluate(code: string): Promise<unknown>;
-  /** Plain JavaScript of core/apply/chrome-tab.ts, as a file osascript can run. */
-  chromeScript(): string;
 }
 
 export interface ApplierOptions {
@@ -39,7 +37,7 @@ export interface ApplierOptions {
   manual?: boolean;
   /** Seconds manual mode waits for that (default 600). */
   manualWait?: number;
-  /** Close the chrome://inspect tab Claude opens (scripts Chrome, so macOS asks for Automation). Off by default. */
+  /** Close the chrome://inspect tab Claude opens (Cinnamon Helper does it with Accessibility). On unless false. */
   closeChromeTab?: boolean;
 }
 
@@ -50,18 +48,18 @@ export class Applier {
   constructor(private readonly sys: System, private readonly opts: ApplierOptions, private readonly deps: ApplierDeps = Applier.defaultDeps(opts.root)) {}
 
   static defaultDeps(root: string): ApplierDeps {
-    let chrome: string | null = null;
     return {
       render: () => renderMain({ root }),
       evaluate: (code) => new InspectorClient(PORT).evaluate(code),
-      chromeScript: () => {
-        if (chrome) return chrome;
-        const js = new Bun.Transpiler({ loader: 'ts' }).transformSync(fs.readFileSync(path.join(root, 'core', 'apply', 'chrome-tab.ts'), 'utf8'));
-        chrome = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'cinnamon-')), 'chrome-tab.js');
-        fs.writeFileSync(chrome, js);
-        return chrome;
-      },
     };
+  }
+
+  /** `cinnamon-helper inspect-tabs` output: is Chrome running, and its chrome://inspect tab count (-1: unknown). */
+  static inspectTabs(out: string): { running: boolean; count: number } | null {
+    try {
+      const v = JSON.parse(out) as { running?: unknown; count?: unknown };
+      return typeof v.running === 'boolean' && typeof v.count === 'number' ? { running: v.running, count: v.count } : null;
+    } catch { return null; }
   }
 
   /** The marker of which Claude process has Cinnamon: "<pid> <start time>". */
@@ -86,25 +84,24 @@ export class Applier {
       }
       try {
         if (!owner) {
-          const chrome = this.opts.closeChromeTab ? this.deps.chromeScript() : null;
-          const cleanup = (snapshot: string) => (async () => {
-            if (chrome) sys.log(`chrome: ${await sys.osascriptAsync(['-l', 'JavaScript', chrome, 'cleanup', snapshot])}`);
-          })();
           if (this.opts.manual) {
-            const snapshot = chrome ? sys.osascript(['-l', 'JavaScript', chrome, 'snapshot']) : '';
             sys.log(MANUAL_ASK);
             const tries = Math.ceil((this.opts.manualWait ?? 600) * 2);
             for (let i = 0; i < tries && !owner; i++) { await sys.sleep(500); owner = sys.listener(PORT); }
             if (!owner) { sys.log("Claude's debugger was not turned on; Cinnamon applies the next time you turn it on (or run: cinnamon apply)."); return 1; }
-            if (chrome) closer = cleanup(snapshot);
+            // without Accessibility nothing closes the chrome://inspect tab Claude opens
           } else {
             if (!sys.helperExists()) { sys.log("Cinnamon Helper isn't built yet; run: cinnamon install"); return 1; }
-            const snapshot = chrome ? sys.osascript(['-l', 'JavaScript', chrome, 'snapshot']) : '';
+            // what Chrome has before the press, so only the tab Claude opens is closed (and Chrome quit only if Claude started it)
+            const chrome = this.opts.closeChromeTab === false ? null : Applier.inspectTabs(sys.helper(['inspect-tabs']).stdout);
             const front = sys.helper(['front']).stdout.trim();
             const press = sys.helper(['press', claude, '--timeout', String(this.opts.pressTimeout ?? 60)]);
             if (press.status !== 0) return press.status;
             closer = (async () => {
-              await cleanup(snapshot);
+              if (chrome && chrome.count >= 0) {
+                const r = await sys.helperAsync(['close-inspect-tab', '--known', String(chrome.count), ...(chrome.running ? [] : ['--launched'])]);
+                sys.log(`chrome: ${r.stdout.trim() || `exit ${r.status}`}`);
+              }
               if (front) sys.helper(['activate', front]);
             })();
             if (front) sys.log(`front app before the press: pid ${front}`);

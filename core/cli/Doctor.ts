@@ -68,7 +68,7 @@ export class Doctor {
     let plistText = '';
     try { plistText = fs.readFileSync(plist, 'utf8'); } catch {}
     if (plistText) this.check('permissions-mode', plistText.includes('--no-accessibility') === (prefs.mode === 'none'), `login item set up for permissions: ${prefs.mode}`, 'cinnamon install');
-    this.note(prefs.closeChromeTab ? 'Chrome: closes the chrome://inspect tab (Automation → Google Chrome)' : 'Chrome: left alone (cinnamon permissions chrome-tab on closes the chrome://inspect tab)');
+    if (prefs.mode === 'accessibility') this.note(prefs.closeChromeTab ? 'Chrome: the helper closes the chrome://inspect tab Claude opens' : 'Chrome: the chrome://inspect tab is left open (cinnamon permissions chrome-tab on)');
     const finished = [...recent.matchAll(/apply finished with status (\d+)/g)].pop();
     if (finished) this.check('last-apply', finished[1] === '0', `last automatic apply ${finished[1] === '0' ? 'succeeded' : 'failed'}`, 'cinnamon logs');
     // the Code tab's colors: Claude Code's own theme API through the cinnamon-colors mod, else Cinnamon paints them

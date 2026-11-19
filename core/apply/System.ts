@@ -1,4 +1,4 @@
-// The outside world the Applier uses — processes, the debugger port, AppleScript, Cinnamon Helper — behind one
+// The outside world the Applier uses — processes, the debugger port, Cinnamon Helper — behind one
 // interface, so tests can replace it.
 import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -13,10 +13,10 @@ export interface System {
   listener(port: number): string | null;
   /** A process's start time (`ps -o lstart=`), to tell a restarted Claude from the same one. */
   lstart(pid: string): string;
-  osascript(args: string[]): string;
-  osascriptAsync(args: string[]): Promise<string>;
   helperExists(): boolean;
   helper(args: string[]): HelperResult;
+  /** The helper without blocking (it waits for Chrome's tab while the apply goes on). */
+  helperAsync(args: string[]): Promise<HelperResult>;
   sleep(ms: number): Promise<void>;
   log(line: string): void;
 }
@@ -51,6 +51,16 @@ export class RealSystem implements System {
   helper(args: string[]): HelperResult {
     const r = spawnSync(this.helperPath, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] });
     return { status: r.status ?? 1, stdout: r.stdout || '' };
+  }
+
+  helperAsync(args: string[]): Promise<HelperResult> {
+    return new Promise((resolve) => {
+      const p = spawn(this.helperPath, args, { stdio: ['ignore', 'pipe', 'inherit'] });
+      let out = '';
+      p.stdout.on('data', (d) => { out += d; });
+      p.on('close', (code) => resolve({ status: code ?? 1, stdout: out }));
+      p.on('error', (e) => resolve({ status: 1, stdout: String(e) }));
+    });
   }
 
   sleep(ms: number): Promise<void> { return new Promise((r) => setTimeout(r, ms)); }

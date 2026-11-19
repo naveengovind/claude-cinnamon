@@ -7,13 +7,14 @@ import path from 'node:path';
 import { fromEnv } from '../core/apply/main';
 import { permissionPrefs } from '../core/lib/Permissions';
 
-test('by default Cinnamon uses Accessibility only and leaves Chrome alone', () => {
-  assert.deepStrictEqual(permissionPrefs({}), { mode: 'accessibility', closeChromeTab: false });
+test('by default Cinnamon uses Accessibility only, and closes the Chrome tab with it', () => {
+  assert.deepStrictEqual(permissionPrefs({}), { mode: 'accessibility', closeChromeTab: true });
 });
 
 test('"none" and closing the Chrome tab are read from config.json; anything else falls back', () => {
   assert.deepStrictEqual(permissionPrefs({ permissions: 'none', closeChromeTab: true }), { mode: 'none', closeChromeTab: true });
-  assert.deepStrictEqual(permissionPrefs({ permissions: 'everything', closeChromeTab: 'yes' }), { mode: 'accessibility', closeChromeTab: false });
+  assert.deepStrictEqual(permissionPrefs({ permissions: 'everything', closeChromeTab: 'yes' }), { mode: 'accessibility', closeChromeTab: true });
+  assert.deepStrictEqual(permissionPrefs({ closeChromeTab: false }), { mode: 'accessibility', closeChromeTab: false });
 });
 
 test('the apply entry point takes manual mode and the Chrome tab setting from your config', () => {

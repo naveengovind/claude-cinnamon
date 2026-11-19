@@ -95,5 +95,6 @@ extension is connected; `{{CINNAMON}} screenshot` only sees the desktop app.
 - Cinnamon's injection needs Claude's Developer Mode (Help → Troubleshooting → Enable Developer Mode) and the
   Accessibility permission for Cinnamon Helper; `doctor` says when either is missing. `{{CINNAMON}} permissions none`
   drops the permission (the user then chooses Developer → Enable Main Process Debugger in Claude at each launch), and
-  `{{CINNAMON}} permissions chrome-tab on|off` decides whether the chrome://inspect tab is closed (asks for Automation).
+  `{{CINNAMON}} permissions chrome-tab on|off` decides whether the chrome://inspect tab is closed (on by default; the
+  helper does it with Accessibility, no other permission).
   Ask before changing either.

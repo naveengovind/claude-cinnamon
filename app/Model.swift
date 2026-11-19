@@ -238,7 +238,6 @@ struct BrowserSteps: Equatable {
 enum Links {
   static let claudeDownload = URL(string: "https://claude.ai/download")!
   static let accessibility = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!
-  static let automation = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation")!
   static let project = URL(string: "https://github.com/naveengovind/claude-cinnamon")!
 
   static func openClaude() {

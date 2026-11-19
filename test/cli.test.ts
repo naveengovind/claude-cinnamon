@@ -419,10 +419,10 @@ test('browser list --json gives the browser picker its listing (read-only)', () 
   assert.ok(!fs.existsSync(path.join(h, 'browser')), 'listing writes nothing');
 });
 
-test('permissions shows the default: Accessibility only, Chrome left alone', () => {
+test('permissions shows the default: Accessibility only, which also closes the Chrome tab', () => {
   const h = home();
   const r = json(h, 'permissions');
-  assert.deepStrictEqual(r, { mode: 'accessibility', closeChromeTab: false });
+  assert.deepStrictEqual(r, { mode: 'accessibility', closeChromeTab: true });
   const text = run(h, 'permissions');
   assert.strictEqual(text.code, 0, text.out);
   assert.match(text.out, /Accessibility/);
@@ -432,12 +432,12 @@ test('permissions none / accessibility and chrome-tab on / off are saved in conf
   const h = home();
   assert.strictEqual(run(h, 'permissions', 'none').code, 0);
   assert.strictEqual(config(h).permissions, 'none');
-  assert.strictEqual(run(h, 'permissions', 'chrome-tab', 'on').code, 0);
-  assert.strictEqual(config(h).closeChromeTab, true);
-  assert.deepStrictEqual(json(h, 'permissions'), { mode: 'none', closeChromeTab: true });
   assert.strictEqual(run(h, 'permissions', 'chrome-tab', 'off').code, 0);
+  assert.strictEqual(config(h).closeChromeTab, false);
+  assert.deepStrictEqual(json(h, 'permissions'), { mode: 'none', closeChromeTab: false });
+  assert.strictEqual(run(h, 'permissions', 'chrome-tab', 'on').code, 0);
   assert.strictEqual(run(h, 'permissions', 'accessibility').code, 0);
-  assert.deepStrictEqual(json(h, 'permissions'), { mode: 'accessibility', closeChromeTab: false });
+  assert.deepStrictEqual(json(h, 'permissions'), { mode: 'accessibility', closeChromeTab: true });
   assert.notStrictEqual(run(h, 'permissions', 'everything').code, 0);
   assert.notStrictEqual(run(h, 'permissions', 'chrome-tab', 'maybe').code, 0);
 });
@@ -445,7 +445,7 @@ test('permissions none / accessibility and chrome-tab on / off are saved in conf
 test('status --json and doctor follow the permission mode', () => {
   const h = home();
   run(h, 'permissions', 'none');
-  assert.deepStrictEqual(json(h, 'status').permissions, { mode: 'none', closeChromeTab: false });
+  assert.deepStrictEqual(json(h, 'status').permissions, { mode: 'none', closeChromeTab: true });
   const d = json(h, 'doctor');
   assert.ok(!d.checks.some((c) => c.id === 'accessibility'), 'no Accessibility check without the permission');
   assert.ok(d.notes.some((n) => /Enable Main Process Debugger/.test(n)), d.notes.join('\n'));

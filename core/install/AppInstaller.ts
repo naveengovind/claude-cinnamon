@@ -138,7 +138,8 @@ export class AppInstaller {
     const { dest } = this;
     if (!fs.existsSync(dest)) { this.log('Cinnamon.app is not installed.'); return 0; }
     if (!AppInstaller.isOurs(dest)) { this.log(`${dest} is another app; leaving it alone.`); return 1; }
-    this.run('osascript', ['-e', `tell application id "${AppInstaller.BUNDLE_ID}" to quit`]); // best effort
+    // quit that copy (a signal, not an Apple Event: no Automation prompt); best effort
+    this.run('pkill', ['-f', `${dest}/Contents/MacOS/`]);
     fs.rmSync(dest, { recursive: true, force: true });
     this.log('Removed Cinnamon.app.');
     return 0;

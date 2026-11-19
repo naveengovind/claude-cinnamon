@@ -98,7 +98,7 @@ test('app uninstall quits and removes Cinnamon.app', () => {
   s.inst.install({ open: false });
   assert.strictEqual(s.inst.uninstall(), 0);
   assert.ok(!fs.existsSync(s.inst.dest));
-  assert.ok(s.calls.some((c) => c.startsWith('osascript') && c.includes(AppInstaller.BUNDLE_ID)));
+  assert.ok(s.calls.some((c) => c.startsWith('pkill -f') && c.includes(`${s.inst.dest}/Contents/MacOS/`)));
   assert.strictEqual(s.inst.uninstall(), 0, 'nothing to remove is fine');
 });
 

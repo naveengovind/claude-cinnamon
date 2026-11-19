@@ -69,7 +69,7 @@ is running.
 By default Cinnamon asks for one permission: **Accessibility** for Cinnamon Helper (*System Settings → Privacy &
 Security → Accessibility*). The helper uses it for one thing: clicking Claude's own *Developer → Enable Main Process
 Debugger* each time Claude starts. Claude blocks every other way in (`--inspect`, `NODE_OPTIONS`, the remote-debugging
-port), and macOS has no narrower permission for pressing another app's menu item. Cinnamon needs no Screen Recording,
+port), and macOS has no narrower permission for pressing another app's menu item. Cinnamon needs no Automation, Screen Recording,
 Full Disk Access, Input Monitoring or other apps' data.
 
 | Command | |
@@ -77,7 +77,7 @@ Full Disk Access, Input Monitoring or other apps' data.
 | `cinnamon permissions` | which permissions Cinnamon uses |
 | `cinnamon permissions none` | **no permissions at all**: each time Claude starts, you choose *Developer → Enable Main Process Debugger* in Claude yourself, and Cinnamon applies itself as soon as you do |
 | `cinnamon permissions accessibility` | back to turning itself on (the default) |
-| `cinnamon permissions chrome-tab on` | also close the `chrome://inspect` tab Claude opens in Google Chrome when its debugger turns on. macOS then asks whether Cinnamon Helper may control Google Chrome (Automation). Off by default: the tab just stays |
+| `cinnamon permissions chrome-tab off` | leave the `chrome://inspect` tab Claude opens in Google Chrome when its debugger turns on. By default Cinnamon Helper closes it right away with the same Accessibility permission (it presses the tab's close button; no Automation), and quits Chrome if Claude was what started it |
 
 The released helper is signed with a Developer ID, so its Accessibility permission carries over to new versions.
 

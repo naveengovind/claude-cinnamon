@@ -51,7 +51,7 @@ usage:
                                    turn Cinnamon on by itself each time Claude starts (asks for Accessibility; default)
   cinnamon permissions none        no permissions: you choose Developer → Enable Main Process Debugger in Claude
   cinnamon permissions chrome-tab on|off
-                                   close the chrome://inspect tab Claude opens in Chrome (asks for Automation; off)
+                                   close the chrome://inspect tab Claude opens in Chrome (on; uses Accessibility only)
   cinnamon update                  upgrade Cinnamon and refresh the setup
   cinnamon version                 Cinnamon's version
   cinnamon app install [--no-open] the Cinnamon menu bar app, in ~/Applications
@@ -227,7 +227,7 @@ Your settings, themes and extensions: ${this.paths.user}`;
       if (value !== 'on' && value !== 'off') return out.fail('usage: cinnamon permissions chrome-tab on|off');
       config.write({ closeChromeTab: value === 'on' });
       out.say(value === 'on'
-        ? 'Cinnamon closes the chrome://inspect tab Claude opens in Chrome. If macOS asks whether Cinnamon Helper may control Google Chrome, choose Allow.'
+        ? 'Cinnamon Helper closes the chrome://inspect tab Claude opens in Chrome (with Accessibility; no other permission).'
         : 'Cinnamon leaves Chrome alone (Claude still opens a chrome://inspect tab there when its debugger turns on).');
       return 0;
     }
@@ -249,10 +249,14 @@ Your settings, themes and extensions: ${this.paths.user}`;
     out.say(prefs.mode === 'accessibility'
       ? `${out.bold('Accessibility')}: Cinnamon Helper turns Cinnamon on by itself each time Claude starts (it presses Claude's Developer → Enable Main Process Debugger).`
       : `${out.bold('None')}: you choose Developer → Enable Main Process Debugger in Claude each time it starts, and Cinnamon applies itself.`);
-    out.say(prefs.closeChromeTab
-      ? `${out.bold('Automation → Google Chrome')}: closes the chrome://inspect tab Claude opens.`
-      : out.dim('Chrome is left alone (cinnamon permissions chrome-tab on closes the chrome://inspect tab; macOS then asks for Automation).'));
-    out.say(out.dim('Nothing else: no Screen Recording, Full Disk Access, Input Monitoring or other apps\' data.'));
+    if (prefs.mode === 'accessibility') {
+      out.say(prefs.closeChromeTab
+        ? 'It also closes the chrome://inspect tab Claude opens in Chrome, with the same permission.'
+        : out.dim('The chrome://inspect tab Claude opens in Chrome is left open (cinnamon permissions chrome-tab on).'));
+    } else {
+      out.say(out.dim('The chrome://inspect tab Claude opens in Chrome stays open: closing it needs Accessibility.'));
+    }
+    out.say(out.dim('Nothing else: no Automation, Screen Recording, Full Disk Access, Input Monitoring or other apps\' data.'));
     return 0;
   }
 

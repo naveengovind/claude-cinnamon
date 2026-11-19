@@ -44,8 +44,10 @@ struct SetupView: View {
           }
           Divider()
           step(state: .info, title: "The Chrome tab Claude opens",
-               detail: "Turning on Claude's debugger makes Claude open a chrome://inspect tab in Google Chrome. Cinnamon can close it, but macOS then asks whether Cinnamon Helper may control Google Chrome (Automation).") {
-            Toggle("Close it", isOn: Binding(get: { model.status?.permissions?.closeChromeTab ?? false },
+               detail: model.isManual
+                 ? "Turning on Claude's debugger makes Claude open a chrome://inspect tab in Google Chrome. Without Accessibility, Cinnamon can't close it."
+                 : "Turning on Claude's debugger makes Claude open a chrome://inspect tab in Google Chrome. Cinnamon Helper closes it right away, with the Accessibility permission it already has.") {
+            Toggle("Close it", isOn: Binding(get: { model.status?.permissions?.closeChromeTab ?? true },
                                             set: { on in Task { await model.setCloseChromeTab(on) } }))
               .toggleStyle(.switch)
               .controlSize(.small)
@@ -123,7 +125,7 @@ struct SetupView: View {
     step(state: .info, title: "Permissions",
          detail: model.isManual
            ? "None. Each time Claude starts, choose Developer → Enable Main Process Debugger in Claude, and Cinnamon applies itself."
-           : "Accessibility only: Cinnamon turns itself on each time Claude starts, by pressing Developer → Enable Main Process Debugger for you. Nothing else (no Screen Recording, Full Disk Access or Input Monitoring).") {
+           : "Accessibility only: Cinnamon turns itself on each time Claude starts, by pressing Developer → Enable Main Process Debugger for you. Nothing else (no Automation, Screen Recording, Full Disk Access or Input Monitoring).") {
       Picker("", selection: Binding(get: { model.isManual ? "none" : "accessibility" },
                                     set: { mode in Task { await model.setPermissionMode(mode) } })) {
         Text("Automatic").tag("accessibility")
