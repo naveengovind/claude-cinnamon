@@ -6,6 +6,7 @@
 //
 // In a browser there is no main process: an extension with a main part (none of the built-in ones) is listed as desktop-only,
 // and a theme with a window material (Glass) gets a dark ground behind its see-through panels instead.
+import { Presence } from '../lib/Presence';
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -48,6 +49,8 @@ export interface BrowserHostOptions {
   pageCode?: () => Promise<{ js: string; css: string }>;
   open?: (dir: string) => void;
   log?: (...a: unknown[]) => void;
+  /** The browser that started this connection (from the parent process), for core/lib/Presence.ts; null if unknown. */
+  browserId?: string | null;
 }
 
 /** What `cinnamon status` and `doctor` show about the browser part (<your folder>/state/browser.json). */
@@ -176,6 +179,7 @@ export class BrowserHost {
         // a fresh connection (often a newer, fixed extension) reports its own problems: an older one's isn't current
         // (page errors are rebuilt from scratch by the state push below)
         this.status.problem = null;
+        if (this.o.browserId) new Presence(this.o.userDir).connected(this.o.browserId, this.status.extensionVersion);
         await this.push(true);
         return;
       case 'status':
@@ -269,6 +273,9 @@ export class BrowserHost {
     this.watch();
     try {
       for await (const chunk of input) for (const m of decoder.push(chunk)) await this.handle(m);
-    } finally { this.stop(); }
+    } finally {
+      this.stop();
+      if (this.o.browserId) new Presence(this.o.userDir).disconnected(this.o.browserId);
+    }
   }
 }

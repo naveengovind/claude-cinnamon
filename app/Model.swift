@@ -190,6 +190,22 @@ final class AppModel: ObservableObject {
     message = nil
   }
 
+  /** The browser's extensions page, with the extension folder shown in Finder (`browser install` does both). */
+  func openExtensionsPage(_ b: BrowserList.Browser) async {
+    await perform("Opening \(b.name)…", ["browser", "install", "--browser", b.id])
+    await refreshBrowsers()
+  }
+
+  /** claude.ai in that browser, so the extension connects. */
+  func openClaudeWeb(in b: BrowserList.Browser) {
+    guard let url = URL(string: "https://claude.ai") else { return }
+    if let app = Links.appURL(named: b.name) {
+      NSWorkspace.shared.open([url], withApplicationAt: app, configuration: NSWorkspace.OpenConfiguration())
+    } else {
+      NSWorkspace.shared.open(url)
+    }
+  }
+
   func removeBrowser(_ b: BrowserList.Browser) async {
     await perform("Removing Cinnamon from \(b.name)…", ["browser", "uninstall", "--browser", b.id])
     if browserSteps?.browser.id == b.id { browserSteps = nil }
@@ -233,12 +249,25 @@ struct BrowserSteps: Equatable {
   let browser: BrowserList.Browser
   /** The folder to load as an unpacked extension (the command copied it to the clipboard too). */
   let folder: String
+  /** The extensions page was just opened (and the folder shown) by Set Up. */
+  var openedPage = true
 }
 
 enum Links {
   static let claudeDownload = URL(string: "https://claude.ai/download")!
   static let accessibility = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!
   static let project = URL(string: "https://github.com/naveengovind/claude-cinnamon")!
+
+  /** An app in /Applications or ~/Applications by its name (Brave's is "Brave Browser"). */
+  static func appURL(named name: String) -> URL? {
+    for app in [name, "\(name) Browser"] {
+      for dir in ["/Applications", "\(CLI.home)/Applications"] {
+        let path = "\(dir)/\(app).app"
+        if FileManager.default.fileExists(atPath: path) { return URL(fileURLWithPath: path) }
+      }
+    }
+    return nil
+  }
 
   static func openClaude() {
     if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.anthropic.claudefordesktop") {

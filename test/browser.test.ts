@@ -1,5 +1,6 @@
 // Cinnamon on claude.ai in a browser: the Chrome extension (browser/), its native messaging host
 // (core/browser/BrowserHost.ts) and `cinnamon browser install` (core/browser/BrowserSetup.ts).
+import { Presence } from '../core/lib/Presence';
 import { test } from 'bun:test';
 import assert from 'node:assert';
 import fs from 'node:fs';
@@ -500,9 +501,23 @@ test('`browser list --json` lists every supported browser, installed or not, wit
   assert.strictEqual(l.extensionId, EXTENSION_ID);
   assert.strictEqual(l.extensionBuilt, true);
   assert.strictEqual(l.default, 'arc');
-  assert.deepStrictEqual(Object.keys(l.browsers[0]), ['id', 'name', 'installed', 'registered', 'extensionsUrl', 'hostManifest']);
+  assert.deepStrictEqual(Object.keys(l.browsers[0]), ['id', 'name', 'installed', 'registered', 'extensionsUrl', 'hostManifest', 'link', 'lastConnected', 'extensionVersion']);
   assert.deepStrictEqual(l.browsers.map((b: { id: string; installed: boolean; registered: boolean }) => [b.id, b.installed, b.registered]),
     [['chrome', false, false], ['arc', true, true], ['brave', true, false], ['edge', false, false], ['chromium', false, false], ['vivaldi', false, false]]);
+});
+
+test('`browser list --json` tells a set-up browser whose extension never connected from one that is connected', async () => {
+  const c = cli(['Arc', 'Brave Browser']);
+  await c.cmd.run(['install', '--browser', 'arc', '--no-open']);
+  await c.cmd.run(['install', '--browser', 'brave', '--no-open']);
+  new Presence(c.user).connected('brave', '0.4.4.1', process.pid);
+  c.said.length = 0;
+  await c.cmd.run(['list', '--json']);
+  const l = JSON.parse(c.said.join('\n'));
+  const by = (id: string) => l.browsers.find((b: { id: string }) => b.id === id);
+  assert.strictEqual(by('arc').link, 'never', 'set up is not the same as loaded');
+  assert.strictEqual(by('brave').link, 'connected');
+  assert.strictEqual(by('brave').extensionVersion, '0.4.4.1');
 });
 
 test('`browser install --browser arc` opens Arc\'s own extensions page and puts the folder path on the clipboard', async () => {

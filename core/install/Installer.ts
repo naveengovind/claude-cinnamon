@@ -60,6 +60,8 @@ export class Installer {
 
   /** The theme a first install starts on. */
   static readonly FIRST_THEME = 'ember';
+  /** What a first install asks for: nothing (see core/lib/Permissions.ts). */
+  static readonly FIRST_PERMISSIONS: PermissionMode = 'none';
 
   constructor(private readonly o: InstallerOptions) {
     this.run = o.run || runCommand;
@@ -236,9 +238,11 @@ ${o.binary ? `    <key>CINNAMON_BIN</key><string>${xml(o.binary)}</string>` : ` 
     const { o } = this;
     if (!this.buildHelper(rebuild)) return 1;
     for (const d of [path.join(o.userDir, 'logs'), path.join(o.userDir, 'themes'), path.join(o.userDir, 'extensions'), path.dirname(this.plist)]) fs.mkdirSync(d, { recursive: true });
-    // A first install starts on Ember; a config already there (a reinstall, an update) keeps the person's pick.
+    // A first install starts on Ember, with no permissions (Cinnamon asks you to turn Claude's debugger on; `cinnamon
+    // permissions accessibility` lets it do that itself). A config already there keeps the person's picks, and one
+    // from before this choice existed has no "permissions" key, so it stays on Accessibility.
     const config = path.join(o.userDir, 'config.json');
-    if (!fs.existsSync(config)) fs.writeFileSync(config, `${JSON.stringify({ theme: Installer.FIRST_THEME }, null, 2)}\n`);
+    if (!fs.existsSync(config)) fs.writeFileSync(config, `${JSON.stringify({ theme: Installer.FIRST_THEME, permissions: Installer.FIRST_PERMISSIONS }, null, 2)}\n`);
     this.writeLaunchScript();
     fs.writeFileSync(this.plist, this.plistText());
     if (this.run('plutil', ['-lint', this.plist]).status !== 0) { fs.rmSync(this.plist, { force: true }); this.log(`Could not write a valid login item (${this.plist}).`); return 1; }

@@ -7,6 +7,7 @@
 // feature off instead of breaking Claude. Event listeners are registered once per app run and always call through
 // the shared state, so a re-apply replaces the code they run.
 import path from 'node:path';
+import { markLive } from '../lib/Applied';
 import { Config } from '../lib/Config';
 import { ExtensionCatalog } from '../lib/ExtensionCatalog';
 import { ThemeStore } from '../lib/ThemeStore';
@@ -130,6 +131,7 @@ export class Cinnamon {
     await this.material.apply();
     this.watcher.start(() => state.reloadAll?.());
     this.requests.start();
+    markLive(this.cfg.userDir); // `cinnamon status` and the menu bar app: Cinnamon is on in this Claude
 
     // Fresh apply: everything is re-run in each open view.
     const applied: number[] = [];

@@ -6,6 +6,7 @@ import path from 'node:path';
 import { fromEnv } from '../apply/main';
 import { AppInstaller } from '../install/AppInstaller';
 import { Installer } from '../install/Installer';
+import { isApplied } from '../lib/Applied';
 import { Config } from '../lib/Config';
 import { permissionPrefs, PERMISSION_MODES, type PermissionMode } from '../lib/Permissions';
 import { ExtensionCatalog } from '../lib/ExtensionCatalog';
@@ -179,11 +180,7 @@ Your settings, themes and extensions: ${this.paths.user}`;
     const { out, paths } = this;
     const pid = HelperClient.claudePid();
     const cfg = new Config(paths.config).read();
-    let applied = 'no';
-    try {
-      const [apid] = fs.readFileSync(paths.applied, 'utf8').trim().split(' ');
-      applied = pid && apid === pid ? out.green('yes') : out.yellow('not to this Claude process');
-    } catch {}
+    const applied = isApplied(paths.user, pid) ? out.green('yes') : out.yellow('not to this Claude process');
     const on = this.exts.all().filter((e) => ExtensionCatalog.isEnabled(e, cfg)).map((e) => e.id);
     out.say(`${out.bold('Cinnamon')} ${out.dim(paths.root)}`);
     out.say(`  your files   ${paths.user}`);
@@ -201,8 +198,7 @@ Your settings, themes and extensions: ${this.paths.user}`;
     const { paths } = this;
     const pid = HelperClient.claudePid();
     const cfg = new Config(paths.config).read();
-    let applied = false;
-    try { applied = !!pid && fs.readFileSync(paths.applied, 'utf8').trim().split(' ')[0] === pid; } catch {}
+    const applied = isApplied(paths.user, pid);
     this.out.json({
       version: paths.version,
       root: paths.root,
@@ -214,6 +210,8 @@ Your settings, themes and extensions: ${this.paths.user}`;
       theme: cfg.theme,
       extensions: this.exts.all().filter((e) => ExtensionCatalog.isEnabled(e, cfg)).map((e) => e.id),
       permissions: permissionPrefs(cfg),
+      // where Cinnamon runs now: each browser set up, with whether its extension is connected / loaded / not loaded yet
+      browsers: this.browser.listing().browsers.filter((b) => b.registered).map((b) => ({ id: b.id, name: b.name, link: b.link, lastConnected: b.lastConnected })),
     });
     return 0;
   }

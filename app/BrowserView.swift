@@ -1,6 +1,6 @@
 // Claude in your browser: Cinnamon's themes and extensions on claude.ai too, through a small extension that the
 // `cinnamon browser` command sets up for each browser. Lists the browsers on this Mac (`cinnamon browser list --json`)
-// with Set Up / Remove, then walks the person through the three clicks only they can do in the browser.
+// with whether each one's extension is really added and connected, and walks the person through adding it.
 import AppKit
 import SwiftUI
 
@@ -54,19 +54,39 @@ private struct BrowserRow: View {
   @EnvironmentObject var model: AppModel
   let browser: BrowserList.Browser
 
+  private var statusText: String {
+    guard browser.registered else { return "Not set up" }
+    switch browser.link {
+    case "connected": return "Connected"
+    case "idle": return "Added · connects while claude.ai is open"
+    default: return "Extension not added yet"
+    }
+  }
+
+  private var statusColor: Color {
+    guard browser.registered else { return .secondary }
+    return browser.link == "connected" || browser.link == "idle" ? .green : .orange
+  }
+
   var body: some View {
     HStack(spacing: 10) {
       BrowserIcon(name: browser.name)
       VStack(alignment: .leading, spacing: 2) {
         Text(browser.name)
-        Text(browser.registered ? "Set up" : "Not set up")
+        Text(statusText)
           .font(.caption)
-          .foregroundStyle(browser.registered ? Color.green : Color.secondary)
+          .foregroundStyle(statusColor)
       }
       Spacer()
       if browser.registered {
-        Button("Show Steps") { model.browserSteps = BrowserSteps(browser: browser, folder: model.browsers?.extensionDir ?? "") }
-          .controlSize(.small)
+        if browser.link == "never" || browser.link == nil {
+          Button("Finish Adding") { model.browserSteps = BrowserSteps(browser: browser, folder: model.browsers?.extensionDir ?? "", openedPage: false) }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.small)
+        } else {
+          Button("Show Steps") { model.browserSteps = BrowserSteps(browser: browser, folder: model.browsers?.extensionDir ?? "", openedPage: false) }
+            .controlSize(.small)
+        }
         Button("Remove") { Task { await model.removeBrowser(browser) } }
           .controlSize(.small)
       } else {
@@ -104,62 +124,138 @@ private struct BrowserIcon: View {
   }
 }
 
-/** The three clicks only the person can do in the browser (browsers don't let other programs add extensions). */
+/**
+ * The walkthrough for adding the extension to one browser: why it looks unusual and what the extension can do, then
+ * the steps, each with a button, ending on a live check that the browser has connected.
+ */
 struct BrowserStepsView: View {
   @EnvironmentObject var model: AppModel
   let steps: BrowserSteps
+  @State private var openedPage = false
+  @State private var showedFolder = false
+  @State private var whyOpen = true
+  @State private var poll: Timer?
+
+  /** The browser as `browser list --json` says now (its link changes while this is open). */
+  private var current: BrowserList.Browser {
+    model.browsers?.browsers.first { $0.id == steps.browser.id } ?? steps.browser
+  }
+  private var connected: Bool { current.link == "connected" || current.link == "idle" }
+  private var name: String { steps.browser.name }
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 10) {
+    VStack(alignment: .leading, spacing: 12) {
       HStack {
-        Text("Finish in \(steps.browser.name)").font(.headline)
+        Text("Add Cinnamon to \(name)").font(.headline)
         Spacer()
         Button { model.browserSteps = nil } label: { Image(systemName: "xmark") }
           .buttonStyle(.plain)
           .foregroundStyle(.secondary)
           .help("Close")
       }
-      Text("\(steps.browser.name) just opened its extensions page (\(steps.browser.extensionsUrl)), and Finder is showing the extension folder. Do this once:")
-        .font(.callout)
-        .fixedSize(horizontal: false, vertical: true)
-      step(1, "Turn on **Developer mode** (a switch near the top right).")
-      step(2, "Drag the **extension** folder from Finder onto the extensions page and drop it. (Or click **Load unpacked**, press **⌘⇧G**, paste the path below and click **Select**.)")
-      HStack(spacing: 6) {
-        Text(steps.folder)
-          .font(.system(.caption, design: .monospaced))
-          .textSelection(.enabled)
-          .lineLimit(2)
-          .truncationMode(.middle)
-        Spacer()
-        Button("Copy") { model.copyToClipboard(steps.folder) }.controlSize(.small)
+
+      DisclosureGroup(isExpanded: $whyOpen) {
+        VStack(alignment: .leading, spacing: 6) {
+          bullet("Browsers take extensions from their store, or ones you add yourself with **Developer mode** on. Cinnamon isn't in a store, so you add it yourself, once. Developer mode only shows the button for that; it changes nothing else.")
+          bullet("The extension runs **only on claude.ai**. It can't see other sites, your tabs or your history.")
+          bullet("It talks **only to Cinnamon on this Mac**, to get your themes and extensions. It sends nothing anywhere else.")
+          bullet("Its code is the folder you add, built on this Mac by Cinnamon. Nothing is downloaded.")
+          bullet("\(name) may mention extensions in developer mode now and then. That's expected. You can remove Cinnamon any time from the extensions page, or with Remove here.")
+        }
+        .padding(.top, 4)
+      } label: {
+        Text("Why this looks unusual, and what the extension can do").font(.callout.weight(.medium))
       }
-      .padding(8)
-      .background(RoundedRectangle(cornerRadius: 6).fill(Color.primary.opacity(0.06)))
-      .padding(.leading, 26)
-      Text("Then open claude.ai: Settings → Appearance has Cinnamon's rows, just like the desktop app. Updates come with Cinnamon's own updates; nothing to do in the browser.")
-        .font(.callout)
+
+      step(1, done: openedPage, "Open \(name)'s extensions page.") {
+        Button(openedPage ? "Open Again" : "Open Extensions Page") {
+          openedPage = true
+          Task { await model.openExtensionsPage(steps.browser) }
+        }
+      }
+      step(2, done: nil, "Turn on **Developer mode**: a switch near the top right of that page.") { EmptyView() }
+      step(3, done: connected ? true : nil, "Drag the **extension** folder from Finder onto the extensions page and drop it.") {
+        HStack {
+          Button(showedFolder ? "Show Again" : "Show Folder in Finder") {
+            showedFolder = true
+            NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: steps.folder)])
+          }
+          Button("Copy Path") { model.copyToClipboard(steps.folder) }
+            .help("For Load unpacked: press ⌘⇧G in its window and paste")
+        }
+      }
+      Text("Or click **Load unpacked**, press **⌘⇧G**, paste the path (Copy Path) and click **Select**.")
+        .font(.caption)
         .foregroundStyle(.secondary)
-        .fixedSize(horizontal: false, vertical: true)
+        .padding(.leading, 26)
+
+      HStack(alignment: .top, spacing: 8) {
+        Image(systemName: connected ? "checkmark.circle.fill" : "circle.dotted")
+          .foregroundStyle(connected ? Color.green : Color.secondary)
+          .frame(width: 18)
+        VStack(alignment: .leading, spacing: 4) {
+          if connected {
+            Text("\(name) is connected. Open claude.ai: Settings → Appearance has Cinnamon's rows, and your theme is on.")
+              .font(.callout)
+              .fixedSize(horizontal: false, vertical: true)
+          } else {
+            HStack(spacing: 6) {
+              ProgressView().controlSize(.small)
+              Text("Waiting for \(name) to connect…").font(.callout)
+            }
+            Text("It connects as soon as the extension is added and claude.ai is open.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+          Button("Open claude.ai in \(name)") { model.openClaudeWeb(in: steps.browser) }
+            .controlSize(.small)
+        }
+      }
+
       HStack {
-        Button("Open the Extensions Page Again") { Task { await model.installBrowser(steps.browser) } }
-          .controlSize(.small)
         Spacer()
-        Button("Done") { model.browserSteps = nil }
+        Button(connected ? "Done" : "Close") { model.browserSteps = nil }
           .buttonStyle(.borderedProminent)
           .controlSize(.small)
       }
     }
     .padding(12)
     .background(RoundedRectangle(cornerRadius: 8).strokeBorder(Color.accentColor.opacity(0.5)))
+    .onAppear {
+      openedPage = steps.openedPage
+      showedFolder = steps.openedPage
+      poll = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { _ in
+        Task { @MainActor in await AppModel.shared.refreshBrowsers() }
+      }
+    }
+    .onDisappear { poll?.invalidate(); poll = nil }
   }
 
-  private func step(_ n: Int, _ text: LocalizedStringKey) -> some View {
-    HStack(alignment: .firstTextBaseline, spacing: 8) {
-      Text("\(n)")
-        .font(.caption.weight(.bold))
-        .frame(width: 18, height: 18)
-        .background(Circle().fill(Color.accentColor.opacity(0.2)))
-      Text(text).font(.callout).fixedSize(horizontal: false, vertical: true)
+  private func bullet(_ text: LocalizedStringKey) -> some View {
+    HStack(alignment: .firstTextBaseline, spacing: 6) {
+      Text("•").foregroundStyle(.secondary)
+      Text(text).font(.caption).fixedSize(horizontal: false, vertical: true)
+    }
+  }
+
+  /** done: true = checked, false = to do, nil = can't be checked from here (a number). */
+  private func step<Actions: View>(_ n: Int, done: Bool?, _ text: LocalizedStringKey, @ViewBuilder actions: () -> Actions) -> some View {
+    HStack(alignment: .top, spacing: 8) {
+      Group {
+        if done == true {
+          Image(systemName: "checkmark.circle.fill").foregroundStyle(Color.green)
+        } else {
+          Text("\(n)")
+            .font(.caption.weight(.bold))
+            .frame(width: 18, height: 18)
+            .background(Circle().fill(Color.accentColor.opacity(0.2)))
+        }
+      }
+      .frame(width: 18)
+      VStack(alignment: .leading, spacing: 6) {
+        Text(text).font(.callout).fixedSize(horizontal: false, vertical: true)
+        actions().controlSize(.small)
+      }
     }
   }
 }

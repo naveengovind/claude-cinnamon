@@ -4,22 +4,23 @@ import assert from 'node:assert';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { Applier, CLOSE_JS } from '../core/apply/Applier';
+import { Applier, CLOSE_JS, PING_JS } from '../core/apply/Applier';
 import type { System } from '../core/apply/System';
 
 const CLAUDE = '123';
 const LSTART = 'Thu Nov 12 18:03:11 2026';
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-interface Opts { chromeClosed?: boolean; manual?: boolean; closeChromeTab?: boolean; appearsAfter?: number; mainFails?: boolean; listener?: string; running?: boolean; pressExit?: number; noHelper?: boolean; stateDir?: string; lockHeld?: boolean; keep?: boolean }
+interface Opts { quitsAfter?: number; busyFor?: number; chromeClosed?: boolean; manual?: boolean; closeChromeTab?: boolean; appearsAfter?: number; mainFails?: boolean; listener?: string; running?: boolean; pressExit?: number; noHelper?: boolean; stateDir?: string; lockHeld?: boolean; keep?: boolean }
 
 async function runApply(o: Opts = {}) {
   const calls: string[] = [];
   const out: string[] = [];
   let port = o.listener || '';
   let sleeps = 0;
+  let pings = 0;
   const sys: System = {
-    claudePid: () => (o.running === false ? null : CLAUDE),
+    claudePid: () => (o.running === false || (o.quitsAfter !== undefined && sleeps >= o.quitsAfter) ? null : CLAUDE),
     listener: () => port || null,
     lstart: () => LSTART,
     helperExists: () => !o.noHelper,
@@ -44,6 +45,7 @@ async function runApply(o: Opts = {}) {
     render: async () => 'SCRIPT',
     evaluate: async (code) => {
       if (code === CLOSE_JS) { calls.push('close'); return 'closed'; }
+      if (code === PING_JS) { calls.push('ping'); if (pings++ < (o.busyFor ?? 0)) throw new Error('no answer from Claude\'s debugger within 30000 ms'); return 1; }
       await wait(200);
       calls.push('main');
       if (o.mainFails) throw new Error('boom');
@@ -92,7 +94,7 @@ test('refuses when another process owns the debugger port', async () => {
 test('when Claude\'s debugger is already open, nothing is pressed and Chrome is left alone', async () => {
   const r = await runApply({ listener: CLAUDE });
   assert.strictEqual(r.status, 0, r.out);
-  assert.deepStrictEqual(r.calls, ['main', 'close']);
+  assert.deepStrictEqual(r.calls, ['ping', 'main', 'close']);
 });
 
 test('the helper presses the menu item for this Claude process', async () => {
@@ -198,7 +200,29 @@ test('manual mode leaves Chrome alone (nothing may close the tab without Accessi
 
 test('only the tab Claude opens is closed, and Chrome is quit only if Claude started it', async () => {
   const running = await runApply();
-  assert.ok(running.calls.includes('chrome cleanup --known 1'), running.calls.join(','));
+  assert.ok(running.calls.includes('chrome cleanup --known 1 --claude 123'), running.calls.join(','));
   const started = await runApply({ chromeClosed: true });
-  assert.ok(started.calls.includes('chrome cleanup --known 1 --launched'), started.calls.join(','));
+  assert.ok(started.calls.includes('chrome cleanup --known 1 --claude 123 --launched'), started.calls.join(','));
+});
+
+test('while Claude is held up (its "Inspector session is active" dialog when Chrome is missing), the apply waits for it', async () => {
+  const r = await runApply({ busyFor: 2 });
+  assert.strictEqual(r.status, 0, r.out);
+  assert.deepStrictEqual(r.calls.filter((c) => c === 'ping').length, 3);
+  assert.ok(before(r.calls, 'ping', 'main'), r.calls.join(','));
+  assert.match(r.out, /click OK/);
+});
+
+test('a Claude that never answers gives up and still closes the debugger', async () => {
+  const r = await runApply({ busyFor: 1000 });
+  assert.notStrictEqual(r.status, 0);
+  assert.ok(!r.calls.includes('main'), r.calls.join(','));
+  assert.ok(r.calls.includes('close'), r.calls.join(','));
+});
+
+test('manual mode stops waiting when Claude quits', async () => {
+  const r = await runApply({ manual: true, quitsAfter: 2 });
+  assert.notStrictEqual(r.status, 0);
+  assert.match(r.out, /Claude quit/);
+  assert.deepStrictEqual(r.calls, []);
 });

@@ -32,6 +32,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.terminate(nil)
         return
       }
+      TurnOnPrompt.shared.start() // guided mode: asks for the menu click each time Claude starts
       // first run (or Cinnamon isn't set up), or opened with --setup: walk the person through it
       if model.cliMissing || !model.isSetUp || args.contains("--setup") { Windows.showSetup() }
     }
@@ -40,7 +41,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
 /**
  * `Cinnamon --snapshot <folder>`: pictures of the menu panel and the Setup window, drawn by the app itself (no Screen
- * Recording permission), for the docs. Writes menu.png, setup.png, browsers.png and browser-steps.png (the steps
+ * Recording permission), for the docs. Writes menu.png, setup.png, browsers.png, turn-on.png (guided mode's card) and browser-steps.png (the steps
  * shown after setting up the first browser on this Mac; nothing is set up for it), then quits.
  */
 @MainActor
@@ -57,6 +58,10 @@ enum Snapshot {
     write(menu, to: folder.appendingPathComponent("menu.png"))
     write(setup, to: folder.appendingPathComponent("setup.png"))
     write(browsers, to: folder.appendingPathComponent("browsers.png"))
+    let card = window(TurnOnCard(), width: 360, height: nil)
+    try? await Task.sleep(nanoseconds: 500_000_000)
+    write(card, to: folder.appendingPathComponent("turn-on.png"))
+    card.close()
     if let b = model.browsers?.installed.first {
       model.browserSteps = BrowserSteps(browser: b, folder: model.browsers?.extensionDir ?? "")
       browsers.setContentSize(NSSize(width: 520, height: 760))
@@ -126,8 +131,17 @@ enum Windows {
     show("get-more", title: "Get More Themes and Extensions", size: NSSize(width: 520, height: 420)) { GetMoreView() }
   }
 
-  static func showBrowsers() {
-    show("browsers", title: "Claude in Your Browser", size: NSSize(width: 520, height: 560)) { BrowserWindowView() }
+  /** With `finishing`, opens on that browser's walkthrough. */
+  static func showBrowsers(finishing id: String? = nil) {
+    show("browsers", title: "Claude in Your Browser", size: NSSize(width: 520, height: 680)) { BrowserWindowView() }
+    guard let id else { return }
+    Task { @MainActor in
+      let model = AppModel.shared
+      await model.refreshBrowsers()
+      if let b = model.browsers?.browsers.first(where: { $0.id == id }) {
+        model.browserSteps = BrowserSteps(browser: b, folder: model.browsers?.extensionDir ?? "", openedPage: false)
+      }
+    }
   }
 
   static func showLog(_ text: String) {

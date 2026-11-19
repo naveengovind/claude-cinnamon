@@ -378,6 +378,7 @@ test('status --json describes the setup', () => {
   assert.strictEqual(typeof r.claude.running, 'boolean');
   assert.strictEqual(typeof r.claude.installed, 'boolean');
   assert.ok(r.extensions.includes('sidebar-cards'));
+  assert.ok(Array.isArray(r.browsers));
 });
 
 test('doctor --json lists each check by id, with its fix', () => {

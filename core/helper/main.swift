@@ -11,10 +11,11 @@
 //       exit 0 = pressed, 2 = item never appeared, 3 = no Accessibility permission, 1 = press failed
 //   cinnamon-helper inspect-tabs    prints {"running":bool,"count":n}: is Google Chrome running, and how many
 //                                   chrome://inspect tabs it has (-1 without Accessibility)
-//   cinnamon-helper close-inspect-tab --known <n> [--launched] [--timeout 15]
+//   cinnamon-helper close-inspect-tab --known <n> [--launched] [--claude <pid>] [--timeout 15]
 //       waits for a chrome://inspect tab beyond the <n> known before the press (the one Claude opens), closes it
 //       with Accessibility (no Automation permission), and with --launched quits Chrome if that left it with no
-//       windows. exit 0 = closed, 2 = none appeared, 3 = no Accessibility permission
+//       windows. Without Google Chrome, Claude shows "Inspector session is active" instead: with --claude, that
+//       dialog's OK is pressed. exit 0 = closed, 2 = none appeared, 3 = no Accessibility permission
 //   cinnamon-helper front           prints the frontmost app's pid
 //   cinnamon-helper activate <pid>  brings that app to the front
 import AppKit
@@ -122,12 +123,37 @@ func reportInspectTabs() -> Never {
   exit(0)
 }
 
+/** Claude's "Inspector session is active" dialog (shown when Google Chrome isn't there): its text is hard-coded English. */
+func pressInspectorDialog(claude: pid_t) -> Bool {
+  let app = AXUIElementCreateApplication(claude)
+  AXUIElementSetMessagingTimeout(app, 1)
+  for w in attr(app, kAXWindowsAttribute) as? [AXUIElement] ?? [] {
+    var queue = [w], seen = 0, isIt = false, buttons: [AXUIElement] = []
+    while !queue.isEmpty && seen < 200 {
+      let el = queue.removeFirst()
+      seen += 1
+      let role = string(el, kAXRoleAttribute)
+      if role == "AXWebArea" { continue }
+      if role == (kAXStaticTextRole as String), (string(el, kAXValueAttribute) ?? "").contains("Inspector session is active") { isIt = true }
+      if role == (kAXButtonRole as String) { buttons.append(el) }
+      queue.append(contentsOf: children(el))
+    }
+    guard isIt else { continue }
+    if let ok = attr(w, kAXDefaultButtonAttribute) ?? buttons.first.map({ $0 as AnyObject }) {
+      return AXUIElementPerformAction(ok as! AXUIElement, kAXPressAction as CFString) == .success
+    }
+  }
+  return false
+}
+
 func closeInspectTab() -> Never {
   guard AXIsProcessTrusted() else { fail(3, "Cinnamon Helper is not allowed to use Accessibility") }
   let known = Int(option("--known", "0")) ?? 0
   let launched = args.contains("--launched")
+  let claude = pid_t(option("--claude", "")) ?? 0
   let deadline = Date().addingTimeInterval(Double(option("--timeout", "15")) ?? 15)
   while Date() < deadline {
+    if claude > 0, pressInspectorDialog(claude: claude) { print("{\"dialog\":1}"); exit(0) }
     if let app = chrome() {
       let pid = app.processIdentifier
       let tabs = inspectTabs(pid: pid)

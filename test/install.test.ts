@@ -187,10 +187,13 @@ test('uninstall removes the skill Cinnamon installed', () => {
   assert.ok(!fs.existsSync(s.inst.skillDir));
 });
 
-test('a first install starts on the Ember theme', () => {
+test('a first install starts on the Ember theme, with no permissions (you turn the debugger on when asked)', () => {
   const s = setup();
   s.inst.install();
-  assert.strictEqual(JSON.parse(fs.readFileSync(path.join(s.userDir, 'config.json'), 'utf8')).theme, 'ember');
+  const cfg = JSON.parse(fs.readFileSync(path.join(s.userDir, 'config.json'), 'utf8'));
+  assert.strictEqual(cfg.theme, 'ember');
+  assert.strictEqual(cfg.permissions, 'none');
+  assert.ok(fs.readFileSync(s.inst.plist, 'utf8').includes('--no-accessibility'));
 });
 
 test('reinstalling keeps the theme the person picked', () => {
@@ -201,8 +204,10 @@ test('reinstalling keeps the theme the person picked', () => {
   assert.strictEqual(JSON.parse(fs.readFileSync(path.join(s.userDir, 'config.json'), 'utf8')).theme, 'codex');
 });
 
-test('the login item is shown under Cinnamon in Login Items, and asks for Accessibility by default', () => {
+test('the login item is shown under Cinnamon in Login Items, and an existing setup keeps asking for Accessibility', () => {
   const s = setup();
+  fs.mkdirSync(s.userDir, { recursive: true });
+  fs.writeFileSync(path.join(s.userDir, 'config.json'), '{"theme":"codex"}\n');
   assert.strictEqual(s.inst.install(), 0, s.logs.join('\n'));
   const plist = fs.readFileSync(s.inst.plist, 'utf8');
   assert.match(plist, /<key>AssociatedBundleIdentifiers<\/key>\s*<array><string>local\.claude-cinnamon\.app<\/string><\/array>/);

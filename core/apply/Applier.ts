@@ -21,6 +21,9 @@ try {
 } catch {}
 'closed'`;
 
+/** Answers at once unless Claude's main thread is held up (a modal dialog). */
+export const PING_JS = '1';
+
 export interface ApplierDeps {
   /** The script to evaluate in Claude's main process. */
   render(): Promise<string>;
@@ -35,8 +38,10 @@ export interface ApplierOptions {
   lockWait?: number;
   /** No Accessibility: nothing is pressed; Cinnamon waits for you to choose Developer → Enable Main Process Debugger. */
   manual?: boolean;
-  /** Seconds manual mode waits for that (default 600). */
+  /** Seconds manual mode waits for that, at most (default a day; it stops when Claude quits). */
   manualWait?: number;
+  /** How many debugger time-outs (30 s each) to wait through for Claude to answer (default 10). */
+  readyTries?: number;
   /** Close the chrome://inspect tab Claude opens (Cinnamon Helper does it with Accessibility). On unless false. */
   closeChromeTab?: boolean;
 }
@@ -86,8 +91,12 @@ export class Applier {
         if (!owner) {
           if (this.opts.manual) {
             sys.log(MANUAL_ASK);
-            const tries = Math.ceil((this.opts.manualWait ?? 600) * 2);
-            for (let i = 0; i < tries && !owner; i++) { await sys.sleep(500); owner = sys.listener(PORT); }
+            const tries = Math.ceil((this.opts.manualWait ?? 24 * 3600) * 2);
+            for (let i = 0; i < tries && !owner; i++) {
+              await sys.sleep(500);
+              if (sys.claudePid() !== claude) { sys.log('Claude quit before its debugger was turned on.'); return 1; }
+              owner = sys.listener(PORT);
+            }
             if (!owner) { sys.log("Claude's debugger was not turned on; Cinnamon applies the next time you turn it on (or run: cinnamon apply)."); return 1; }
             // without Accessibility nothing closes the chrome://inspect tab Claude opens
           } else {
@@ -99,7 +108,7 @@ export class Applier {
             if (press.status !== 0) return press.status;
             closer = (async () => {
               if (chrome && chrome.count >= 0) {
-                const r = await sys.helperAsync(['close-inspect-tab', '--known', String(chrome.count), ...(chrome.running ? [] : ['--launched'])]);
+                const r = await sys.helperAsync(['close-inspect-tab', '--known', String(chrome.count), '--claude', claude, ...(chrome.running ? [] : ['--launched'])]);
                 sys.log(`chrome: ${r.stdout.trim() || `exit ${r.status}`}`);
               }
               if (front) sys.helper(['activate', front]);
@@ -109,6 +118,16 @@ export class Applier {
           }
           if (owner !== claude) { sys.log(`Claude's debugger did not come up on port ${PORT} (listener: ${owner || 'none'}).`); return 1; }
         }
+        // Without Google Chrome, Claude shows "Inspector session is active" instead of opening the tab; its main process
+        // may not answer until that dialog is closed. Wait for it rather than give up.
+        let ready = false;
+        for (let i = 0; i < (this.opts.readyTries ?? 10) && !ready; i++) {
+          try { await this.deps.evaluate(PING_JS); ready = true; }
+          catch (e) {
+            if (i === 0) sys.log(`Claude isn't answering yet (${String((e as Error).message || e)}). If it shows "Inspector session is active", click OK.`);
+          }
+        }
+        if (!ready) { sys.log("Claude's main process never answered through its debugger."); return 1; }
         let value: unknown;
         try { value = await this.deps.evaluate(await this.deps.render()); }
         catch (e) { sys.log(String((e as Error).message || e)); return 1; }

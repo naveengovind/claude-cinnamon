@@ -139,6 +139,15 @@ struct Status: Decodable {
   let extensions: [String]
   /** Absent from versions before 0.4.3. */
   let permissions: Permissions?
+  /** Each browser set up for claude.ai, with its extension's link. Absent before 0.4.4. */
+  let browsers: [BrowserLink]?
+
+  struct BrowserLink: Decodable, Hashable {
+    let id: String
+    let name: String
+    let link: String
+    let lastConnected: String?
+  }
 }
 
 /** Which macOS permissions Cinnamon uses (`cinnamon permissions --json`). */
@@ -183,6 +192,9 @@ struct BrowserList: Decodable {
     let registered: Bool
     let extensionsUrl: String
     let hostManifest: String
+    /** "connected" now, "idle" (added; it connects while claude.ai is open) or "never" (not added yet). Absent before 0.4.4. */
+    let link: String?
+    let lastConnected: String?
   }
   let schema: Int
   let extensionId: String

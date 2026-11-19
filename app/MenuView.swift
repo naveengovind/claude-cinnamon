@@ -13,6 +13,13 @@ struct MenuView: View {
       } else if let s = model.status, !s.helper.running {
         notSetUp(text: "Cinnamon isn't set up yet.")
       }
+      if let s = model.status, s.helper.running {
+        section("Running in")
+        VStack(spacing: 4) {
+          claudeRow(s)
+          ForEach(s.browsers ?? [], id: \.id) { b in browserRow(b) }
+        }
+      }
       if !model.themes.isEmpty {
         section("Color scheme")
         VStack(spacing: 2) {
@@ -64,6 +71,38 @@ struct MenuView: View {
     if !s.claude.running { return "Claude isn't running" }
     if s.applied { return "On in Claude" }
     return model.isManual ? "In Claude: Developer → Enable Main Process Debugger" : "Not applied yet"
+  }
+
+  /** Cinnamon inside the Claude app: on, not on yet (with the way to turn it on), or Claude isn't open. */
+  private func claudeRow(_ s: Status) -> some View {
+    HStack(spacing: 8) {
+      Circle().fill(!s.claude.running ? Color.gray : s.applied ? Color.green : Color.orange).frame(width: 7, height: 7)
+      Text("Claude app").font(.callout)
+      Spacer()
+      if !s.claude.running {
+        Text("Not open").font(.caption).foregroundStyle(.secondary)
+      } else if s.applied {
+        Text("On").font(.caption).foregroundStyle(.secondary)
+      } else if model.isManual {
+        Button("Turn On…") { TurnOnPrompt.shared.showNow() }.controlSize(.small)
+      } else {
+        Button("Apply Now") { Task { await model.applyNow() } }.controlSize(.small)
+      }
+    }
+  }
+
+  /** The extension in one browser: connected now, added (connects while claude.ai is open), or not added yet. */
+  private func browserRow(_ b: Status.BrowserLink) -> some View {
+    HStack(spacing: 8) {
+      Circle().fill(b.link == "connected" ? Color.green : b.link == "idle" ? Color.green.opacity(0.45) : Color.orange).frame(width: 7, height: 7)
+      Text(b.name).font(.callout)
+      Spacer()
+      switch b.link {
+      case "connected": Text("Connected").font(.caption).foregroundStyle(.secondary)
+      case "idle": Text("Added").font(.caption).foregroundStyle(.secondary).help("Connects while claude.ai is open")
+      default: Button("Finish Adding…") { Windows.showBrowsers(finishing: b.id) }.controlSize(.small)
+      }
+    }
   }
 
   private func notSetUp(text: String) -> some View {

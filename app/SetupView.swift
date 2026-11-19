@@ -124,12 +124,12 @@ struct SetupView: View {
   private var permissionsStep: some View {
     step(state: .info, title: "Permissions",
          detail: model.isManual
-           ? "None. Each time Claude starts, choose Developer → Enable Main Process Debugger in Claude, and Cinnamon applies itself."
+           ? "None. Each time Claude starts, a small card asks you to choose Developer → Enable Main Process Debugger in Claude, and Cinnamon turns itself on. Automatic does that click for you, and needs Accessibility."
            : "Accessibility only: Cinnamon turns itself on each time Claude starts, by pressing Developer → Enable Main Process Debugger for you. Nothing else (no Automation, Screen Recording, Full Disk Access or Input Monitoring).") {
       Picker("", selection: Binding(get: { model.isManual ? "none" : "accessibility" },
                                     set: { mode in Task { await model.setPermissionMode(mode) } })) {
+        Text("Guided").tag("none")
         Text("Automatic").tag("accessibility")
-        Text("None").tag("none")
       }
       .pickerStyle(.segmented)
       .labelsHidden()
